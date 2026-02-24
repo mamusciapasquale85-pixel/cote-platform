@@ -22,12 +22,18 @@ export type Course = {
   name: string;
 };
 
+export type Apprentissage = {
+  id: UUID;
+  name: string;
+  order_index: number;
+  active: boolean;
+};
+
 export type AssessmentType = "formative" | "summative";
 export type ContentStatus = "draft" | "published" | "archived";
 
 export type Assessment = {
   id: UUID;
-  academic_year_id: UUID;
   title: string;
   type: AssessmentType;
   date: string; // YYYY-MM-DD
@@ -38,6 +44,7 @@ export type Assessment = {
   instructions: string | null;
   class_group_id: UUID | null;
   course_id: UUID | null;
+  apprentissage_id: UUID | null;
   created_at: string;
   updated_at: string;
 };
@@ -47,6 +54,7 @@ const T = {
   ACADEMIC_YEARS: "academic_years",
   CLASS_GROUPS: "class_groups",
   COURSES: "courses",
+  APPRENTISSAGES: "apprentissages",
   ASSESSMENTS: "assessments",
 } as const;
 
@@ -107,25 +115,39 @@ export async function listCourses(ctx: TeacherContext): Promise<Course[]> {
   return (data ?? []) as Course[];
 }
 
+export async function listApprentissages(ctx: TeacherContext): Promise<Apprentissage[]> {
+  const { data, error } = await ctx.supabase
+    .from(T.APPRENTISSAGES)
+    .select("id, name, order_index, active")
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .order("order_index", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as Apprentissage[];
+}
+
 export async function listAssessments(params: {
   ctx: TeacherContext;
   classGroupId?: UUID | null;
   courseId?: UUID | null;
+  apprentissageId?: UUID | null;
 }): Promise<Assessment[]> {
   const { ctx } = params;
 
   let q = ctx.supabase
     .from(T.ASSESSMENTS)
     .select(
-      "id, academic_year_id, title, type, date, max_points, weight, status, parent_visible, instructions, class_group_id, course_id, created_at, updated_at"
+      "id, title, type, date, max_points, weight, status, parent_visible, instructions, class_group_id, course_id, apprentissage_id, created_at, updated_at"
     )
     .eq("school_id", ctx.schoolId)
-    .eq("academic_year_id", ctx.academicYearId)
     .eq("teacher_user_id", ctx.teacherUserId)
     .order("date", { ascending: false });
 
   if (params.classGroupId) q = q.eq("class_group_id", params.classGroupId);
   if (params.courseId) q = q.eq("course_id", params.courseId);
+  if (params.apprentissageId) q = q.eq("apprentissage_id", params.apprentissageId);
 
   const { data, error } = await q;
   if (error) throw error;
@@ -145,12 +167,12 @@ export async function createAssessment(params: {
   instructions: string | null;
   class_group_id: UUID | null;
   course_id: UUID | null;
+  apprentissage_id: UUID | null;
 }): Promise<Assessment> {
   const { ctx, ...rest } = params;
 
   const payload = {
     school_id: ctx.schoolId,
-    academic_year_id: ctx.academicYearId,
     teacher_user_id: ctx.teacherUserId,
     ...rest,
   };
@@ -159,7 +181,7 @@ export async function createAssessment(params: {
     .from(T.ASSESSMENTS)
     .insert(payload)
     .select(
-      "id, academic_year_id, title, type, date, max_points, weight, status, parent_visible, instructions, class_group_id, course_id, created_at, updated_at"
+      "id, title, type, date, max_points, weight, status, parent_visible, instructions, class_group_id, course_id, apprentissage_id, created_at, updated_at"
     )
     .maybeSingle();
 
@@ -185,6 +207,7 @@ export async function updateAssessment(params: {
       | "instructions"
       | "class_group_id"
       | "course_id"
+      | "apprentissage_id"
     >
   >;
 }): Promise<Assessment> {
@@ -195,10 +218,9 @@ export async function updateAssessment(params: {
     .update(patch)
     .eq("id", assessmentId)
     .eq("school_id", ctx.schoolId)
-    .eq("academic_year_id", ctx.academicYearId)
     .eq("teacher_user_id", ctx.teacherUserId)
     .select(
-      "id, academic_year_id, title, type, date, max_points, weight, status, parent_visible, instructions, class_group_id, course_id, created_at, updated_at"
+      "id, title, type, date, max_points, weight, status, parent_visible, instructions, class_group_id, course_id, apprentissage_id, created_at, updated_at"
     )
     .maybeSingle();
 
@@ -216,7 +238,6 @@ export async function deleteAssessment(params: { ctx: TeacherContext; assessment
     .delete()
     .eq("id", assessmentId)
     .eq("school_id", ctx.schoolId)
-    .eq("academic_year_id", ctx.academicYearId)
     .eq("teacher_user_id", ctx.teacherUserId);
 
   if (error) throw error;

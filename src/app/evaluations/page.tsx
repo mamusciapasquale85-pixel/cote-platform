@@ -7,12 +7,14 @@ import {
   type TeacherContext,
   type ClassGroup,
   type Course,
+  type Apprentissage,
   type Assessment,
   type AssessmentType,
   type ContentStatus,
   getTeacherContext,
   listClassGroups,
   listCourses,
+  listApprentissages,
   listAssessments,
   createAssessment,
   updateAssessment,
@@ -72,15 +74,28 @@ const btnPrimary: React.CSSProperties = {
   borderColor: "rgba(37,99,235,0.25)",
 };
 
+const STATUS_LABEL: Record<ContentStatus, string> = {
+  draft: "Brouillon",
+  published: "Publié",
+  archived: "Archivé",
+};
+
+const TYPE_LABEL: Record<AssessmentType, string> = {
+  summative: "Sommative",
+  formative: "Formative",
+};
+
 export default function EvaluationsPage() {
   const [ctx, setCtx] = useState<TeacherContext | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [apprentissages, setApprentissages] = useState<Apprentissage[]>([]);
 
   const [filterClassId, setFilterClassId] = useState<UUID | "">("");
   const [filterCourseId, setFilterCourseId] = useState<UUID | "">("");
+  const [filterApprentissageId, setFilterApprentissageId] = useState<UUID | "">("");
 
   const [rows, setRows] = useState<Assessment[]>([]);
 
@@ -93,10 +108,16 @@ export default function EvaluationsPage() {
   const [status, setStatus] = useState<ContentStatus>("draft");
   const [parentVisible, setParentVisible] = useState(false);
   const [instructions, setInstructions] = useState("");
+  const [apprentissageId, setApprentissageId] = useState<UUID | "">("");
 
   const canCreate = useMemo(() => {
     return !!ctx && title.trim().length > 0 && filterClassId !== "" && filterCourseId !== "";
   }, [ctx, title, filterClassId, filterCourseId]);
+
+  const apprentissageNameById = useMemo(
+    () => new Map(apprentissages.map((a) => [a.id, a.name])),
+    [apprentissages]
+  );
 
   async function boot() {
     try {
@@ -110,6 +131,9 @@ export default function EvaluationsPage() {
       const crs = await listCourses(c);
       setCourses(crs);
 
+      const apps = await listApprentissages(c);
+      setApprentissages(apps);
+
       if (cls[0]?.id) setFilterClassId(cls[0].id);
       if (crs[0]?.id) setFilterCourseId(crs[0].id);
     } catch (e: unknown) {
@@ -117,13 +141,19 @@ export default function EvaluationsPage() {
     }
   }
 
-  async function refresh(c: TeacherContext, classId: UUID | "", courseId: UUID | "") {
+  async function refresh(
+    c: TeacherContext,
+    classId: UUID | "",
+    courseId: UUID | "",
+    apprentissageIdFilter: UUID | ""
+  ) {
     try {
       setErrorMsg(null);
       const list = await listAssessments({
         ctx: c,
         classGroupId: classId === "" ? null : classId,
         courseId: courseId === "" ? null : courseId,
+        apprentissageId: apprentissageIdFilter === "" ? null : apprentissageIdFilter,
       });
       setRows(list);
     } catch (e: unknown) {
@@ -137,8 +167,8 @@ export default function EvaluationsPage() {
 
   useEffect(() => {
     if (!ctx) return;
-    refresh(ctx, filterClassId, filterCourseId);
-  }, [ctx, filterClassId, filterCourseId]);
+    refresh(ctx, filterClassId, filterCourseId, filterApprentissageId);
+  }, [ctx, filterClassId, filterCourseId, filterApprentissageId]);
 
   async function onCreate() {
     if (!ctx) return;
@@ -164,13 +194,15 @@ export default function EvaluationsPage() {
         instructions: instructions.trim() ? instructions.trim() : null,
         class_group_id: filterClassId,
         course_id: filterCourseId,
+        apprentissage_id: apprentissageId === "" ? null : apprentissageId,
       });
 
       setTitle("");
       setInstructions("");
       setWeight("");
+      setApprentissageId("");
 
-      await refresh(ctx, filterClassId, filterCourseId);
+      await refresh(ctx, filterClassId, filterCourseId, filterApprentissageId);
     } catch (e: unknown) {
       setErrorMsg(toNiceError(e));
     }
@@ -181,7 +213,7 @@ export default function EvaluationsPage() {
     try {
       setErrorMsg(null);
       await deleteAssessment({ ctx, assessmentId: id });
-      await refresh(ctx, filterClassId, filterCourseId);
+      await refresh(ctx, filterClassId, filterCourseId, filterApprentissageId);
     } catch (e: unknown) {
       setErrorMsg(toNiceError(e));
     }
@@ -193,7 +225,7 @@ export default function EvaluationsPage() {
       setErrorMsg(null);
       const next: ContentStatus = a.status === "draft" ? "published" : "draft";
       await updateAssessment({ ctx, assessmentId: a.id, patch: { status: next } });
-      await refresh(ctx, filterClassId, filterCourseId);
+      await refresh(ctx, filterClassId, filterCourseId, filterApprentissageId);
     } catch (e: unknown) {
       setErrorMsg(toNiceError(e));
     }
@@ -237,7 +269,24 @@ export default function EvaluationsPage() {
             ))}
           </select>
 
-          <button style={btn} onClick={() => ctx && refresh(ctx, filterClassId, filterCourseId)} disabled={!ctx}>
+          <select
+            style={{ ...input, width: 280 }}
+            value={filterApprentissageId}
+            onChange={(e) => setFilterApprentissageId(e.target.value as any)}
+          >
+            <option value="">Tous les apprentissages</option>
+            {apprentissages.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+
+          <button
+            style={btn}
+            onClick={() => ctx && refresh(ctx, filterClassId, filterCourseId, filterApprentissageId)}
+            disabled={!ctx}
+          >
             Rafraîchir
           </button>
         </div>
@@ -256,8 +305,8 @@ export default function EvaluationsPage() {
             onChange={(e) => setTitle(e.target.value)}
           />
           <select style={input} value={type} onChange={(e) => setType(e.target.value as AssessmentType)}>
-            <option value="summative">summative</option>
-            <option value="formative">formative</option>
+            <option value="summative">Sommative</option>
+            <option value="formative">Formative</option>
           </select>
 
           <input type="date" style={input} value={date} onChange={(e) => setDate(e.target.value)} />
@@ -271,9 +320,18 @@ export default function EvaluationsPage() {
 
           <input style={input} placeholder="Poids (optionnel)" value={weight} onChange={(e) => setWeight(e.target.value)} />
           <select style={input} value={status} onChange={(e) => setStatus(e.target.value as ContentStatus)}>
-            <option value="draft">draft</option>
-            <option value="published">published</option>
-            <option value="archived">archived</option>
+            <option value="draft">Brouillon</option>
+            <option value="published">Publié</option>
+            <option value="archived">Archivé</option>
+          </select>
+
+          <select style={input} value={apprentissageId} onChange={(e) => setApprentissageId(e.target.value as any)}>
+            <option value="">(Optionnel) Apprentissage</option>
+            {apprentissages.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -324,18 +382,21 @@ export default function EvaluationsPage() {
                   <div style={{ fontWeight: 900 }}>
                     {a.title}{" "}
                     <span style={{ opacity: 0.7, fontWeight: 700 }}>
-                      ({a.type}) — {a.max_points ?? "?"} pts — {a.date ?? ""}
+                      ({TYPE_LABEL[a.type]}) — {a.max_points ?? "?"} pts — {a.date ?? ""}
                     </span>
                   </div>
                   <div style={{ opacity: 0.75, marginTop: 4 }}>
-                    Status: <b>{a.status}</b> · Parents: {a.parent_visible ? "Oui" : "Non"}
+                    Statut: <b>{STATUS_LABEL[a.status]}</b> · Parents: {a.parent_visible ? "Oui" : "Non"}
+                  </div>
+                  <div style={{ opacity: 0.75, marginTop: 2 }}>
+                    Apprentissage: <b>{a.apprentissage_id ? (apprentissageNameById.get(a.apprentissage_id) ?? "—") : "—"}</b>
                   </div>
                   {a.instructions && <div style={{ marginTop: 6 }}>{a.instructions}</div>}
                 </div>
 
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <button style={btn} onClick={() => onToggleStatus(a)}>
-                    {a.status === "draft" ? "Publier" : "Repasser en draft"}
+                    {a.status === "draft" ? "Publier" : "Repasser en brouillon"}
                   </button>
                   <button style={btn} onClick={() => onDelete(a.id)}>Supprimer</button>
                 </div>
@@ -344,9 +405,7 @@ export default function EvaluationsPage() {
           </div>
         )}
 
-        <div style={{ marginTop: 14, opacity: 0.65, fontSize: 12 }}>
-          École: {ctx?.schoolId ?? "…"} · Année: {ctx?.academicYearId ?? "…"}
-        </div>
+        <div style={{ marginTop: 14, opacity: 0.65, fontSize: 12 }}>École: {ctx?.schoolId ?? "…"}</div>
       </div>
     </div>
   );

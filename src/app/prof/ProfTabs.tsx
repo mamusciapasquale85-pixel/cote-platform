@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Tab = { key: "classes" | "evaluations" | "agenda"; label: string; href: string };
+type Tab = { key: "classes" | "evaluations" | "agenda" | "apprentissages"; label: string; href: string };
 
 const TABS: Tab[] = [
   { key: "classes", label: "Classes / Élèves", href: "/teacher" },
   { key: "evaluations", label: "Évaluations", href: "/evaluations" },
+  { key: "apprentissages", label: "Apprentissages", href: "/apprentissages" },
   { key: "agenda", label: "Agenda", href: "/agenda" },
 ];
 
