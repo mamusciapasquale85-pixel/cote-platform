@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Tab = { key: "classes" | "evaluations" | "agenda" | "apprentissages"; label: string; href: string };
+type Tab = { key: "classes" | "evaluations" | "agenda" | "apprentissages" | "import"; label: string; href: string };
 
 const TABS: Tab[] = [
+  { key: "agenda", label: "Agenda", href: "/agenda" },
   { key: "classes", label: "Classes / Élèves", href: "/teacher" },
   { key: "evaluations", label: "Évaluations", href: "/evaluations" },
   { key: "apprentissages", label: "Apprentissages", href: "/apprentissages" },
-  { key: "agenda", label: "Agenda", href: "/agenda" },
+  { key: "import", label: "Import", href: "/import" },
 ];
 
 export default function ProfTabs() {
