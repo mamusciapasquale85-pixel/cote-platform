@@ -1,25 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { formatDateFR } from "@/lib/date";
 
 import {
   type UUID,
-  type AgendaItem,
-  type AgendaType,
-  type ClassGroup,
+  type SlotNumber,
   type TeacherContext,
+  type ClassGroup,
+  type AgendaItem,
+  type AgendaAssessment,
+  type ParsedScheduleCsvRow,
+  type ScheduleImportSummary,
+  SLOTS,
+  parseSlotRaw,
+  parseSlotValue,
   getTeacherContext,
   listClassGroups,
   listAgendaItems,
-  createAgendaItem,
+  listAssessmentsForAgenda,
+  parseScheduleCsv,
+  importTeacherScheduleCsv,
+  upsertAgendaLesson,
+  updateAgendaLessonDetails,
   deleteAgendaItem,
 } from "./agenda";
-
-const TYPE_LABEL: Record<AgendaType, string> = {
-  lesson: "Leçon",
-  homework: "Devoir",
-  test: "Interro",
-};
 
 function pad2(n: number) {
   return n < 10 ? `0${n}` : `${n}`;
@@ -27,15 +34,6 @@ function pad2(n: number) {
 
 function toISODate(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-/**
- * Parse "YYYY-MM-DD" en Date locale (sans décalage UTC surprise)
- * Important pour éviter les bugs "la veille" selon le fuseau.
- */
-function fromISODate(iso: string) {
-  const [y, m, d] = iso.split("-").map((x) => parseInt(x, 10));
-  return new Date(y, (m || 1) - 1, d || 1, 12, 0, 0); // midi pour éviter DST
 }
 
 function addDays(d: Date, days: number) {
@@ -46,164 +44,486 @@ function addDays(d: Date, days: number) {
 
 function startOfWeekMonday(d: Date) {
   const copy = new Date(d);
-  const day = copy.getDay(); // 0=dim
+  const day = copy.getDay();
   const diff = (day === 0 ? -6 : 1) - day;
   copy.setDate(copy.getDate() + diff);
   copy.setHours(0, 0, 0, 0);
   return copy;
 }
 
+function fromIsoDate(iso: string): Date {
+  const [y, m, d] = iso.split("-").map((x) => Number(x));
+  return new Date(y, (m || 1) - 1, d || 1, 12, 0, 0);
+}
+
+function toNiceError(e: unknown): string {
+  if (!e) return "Erreur inconnue";
+  if (typeof e === "string") return e;
+  if (typeof e === "object" && e !== null) {
+    if ("message" in e && typeof e.message === "string" && e.message) return e.message;
+    if ("error_description" in e && typeof e.error_description === "string" && e.error_description) {
+      return e.error_description;
+    }
+  }
+  try {
+    return JSON.stringify(e, null, 2);
+  } catch {
+    return String(e);
+  }
+}
+
+function getWeekdayFromISO(isoDate: string): number {
+  const dt = new Date(`${isoDate}T12:00:00`);
+  return dt.getDay(); // 1..5 pour lun->ven
+}
+
+function clampSlot(n: number): SlotNumber {
+  if (n <= 1) return 1;
+  if (n >= 10) return 10;
+  return n as SlotNumber;
+}
+
+type BadgeTone = "red" | "orange" | "gray";
+
+type BadgeModel = {
+  id: string;
+  tone: BadgeTone;
+  label: string;
+  title: string;
+  href: string;
+  draft: boolean;
+};
+
+type UnplacedBadge = {
+  id: string;
+  date: string;
+  text: string;
+  reason: string;
+  href: string;
+};
+
+const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven"] as const;
+
+const card: React.CSSProperties = {
+  borderRadius: 18,
+  padding: 16,
+  background: "white",
+  border: "1px solid rgba(0,0,0,0.10)",
+};
+
+const input: React.CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: 10,
+  border: "1px solid rgba(0,0,0,0.15)",
+  width: "100%",
+};
+
+const btn: React.CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: 10,
+  border: "1px solid rgba(0,0,0,0.15)",
+  background: "white",
+  cursor: "pointer",
+  fontWeight: 800,
+};
+
+const btnPrimary: React.CSSProperties = {
+  ...btn,
+  background: "rgba(37,99,235,0.10)",
+  borderColor: "rgba(37,99,235,0.25)",
+};
+
+const btnSmall: React.CSSProperties = {
+  ...btn,
+  padding: "6px 10px",
+  fontSize: 13,
+};
+
+const btnSmallPrimary: React.CSSProperties = {
+  ...btnPrimary,
+  padding: "6px 10px",
+  fontSize: 13,
+};
+
+function badgeStyle(tone: BadgeTone): React.CSSProperties {
+  if (tone === "red") {
+    return {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      background: "rgba(220,38,38,0.12)",
+      border: "1px solid rgba(220,38,38,0.35)",
+      color: "#991b1b",
+      borderRadius: 999,
+      padding: "4px 8px",
+      fontSize: 12,
+      fontWeight: 800,
+      textDecoration: "none",
+    };
+  }
+  if (tone === "orange") {
+    return {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      background: "rgba(249,115,22,0.12)",
+      border: "1px solid rgba(249,115,22,0.35)",
+      color: "#9a3412",
+      borderRadius: 999,
+      padding: "4px 8px",
+      fontSize: 12,
+      fontWeight: 800,
+      textDecoration: "none",
+    };
+  }
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    background: "rgba(107,114,128,0.15)",
+    border: "1px solid rgba(107,114,128,0.35)",
+    color: "#374151",
+    borderRadius: 999,
+    padding: "4px 8px",
+    fontSize: 12,
+    fontWeight: 800,
+    textDecoration: "none",
+  };
+}
+
+function pushArrayMap<T>(map: Map<string, T[]>, key: string, value: T) {
+  const prev = map.get(key);
+  if (prev) prev.push(value);
+  else map.set(key, [value]);
+}
+
 export default function AgendaPage() {
   const [ctx, setCtx] = useState<TeacherContext | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [filterClassId, setFilterClassId] = useState<UUID | "">("");
 
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeekMonday(new Date()));
-  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
 
-  const [items, setItems] = useState<AgendaItem[]>([]);
+  const [rows, setRows] = useState<AgendaItem[]>([]);
+  const [assessments, setAssessments] = useState<AgendaAssessment[]>([]);
 
-  // Add form
-  const [formDate, setFormDate] = useState<string>(toISODate(new Date()));
-  const [formType, setFormType] = useState<AgendaType>("lesson");
-  const [formClassId, setFormClassId] = useState<UUID | "">("");
-  const [formTitle, setFormTitle] = useState("");
-  const [formDetails, setFormDetails] = useState("");
+  const [lessonDrafts, setLessonDrafts] = useState<Record<UUID, string>>({});
+  const [savingLessonId, setSavingLessonId] = useState<UUID | null>(null);
+
+  const [csvFileName, setCsvFileName] = useState("");
+  const [csvRows, setCsvRows] = useState<ParsedScheduleCsvRow[]>([]);
+  const [csvSummary, setCsvSummary] = useState<ScheduleImportSummary | null>(null);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [newDate, setNewDate] = useState<string>(toISODate(new Date()));
+  const [newSlot, setNewSlot] = useState<SlotNumber>(1);
+  const [newClassId, setNewClassId] = useState<UUID | "">("");
+  const [newCourseName, setNewCourseName] = useState("");
+  const [newDetails, setNewDetails] = useState("");
+
+  const weekDays = useMemo(() => Array.from({ length: 5 }).map((_, i) => toISODate(addDays(weekStart, i))), [weekStart]);
+  const weekLabel = useMemo(() => `${formatDateFR(weekDays[0])} au ${formatDateFR(weekDays[4])}`, [weekDays]);
+
+  const classNameById = useMemo(() => new Map(classes.map((c) => [c.id, c.name])), [classes]);
+
+  const lessonsByCell = useMemo(() => {
+    const map = new Map<string, AgendaItem[]>();
+    for (const row of rows) {
+      if (row.type !== "lesson") continue;
+      if (!weekDays.includes(row.date)) continue;
+      const slot = parseSlotValue(row.slot);
+      if (!slot) continue;
+      const key = `${row.date}|${slot}`;
+      pushArrayMap(map, key, row);
+    }
+    return map;
+  }, [rows, weekDays]);
+
+  const slotByDateAndClass = useMemo(() => {
+    const map = new Map<string, number[]>();
+    for (const row of rows) {
+      if (row.type !== "lesson" || row.slot == null || !row.class_group_id) continue;
+      if (!weekDays.includes(row.date)) continue;
+      const key = `${row.date}|${row.class_group_id}`;
+      const prev = map.get(key) ?? [];
+      const slot = parseSlotValue(row.slot);
+      if (!slot) continue;
+      if (!prev.includes(slot)) prev.push(slot);
+      prev.sort((a, b) => a - b);
+      map.set(key, prev);
+    }
+    return map;
+  }, [rows, weekDays]);
+
+  const badgesByCell = useMemo(() => {
+    const map = new Map<string, BadgeModel[]>();
+    const unplaced = new Map<string, UnplacedBadge[]>();
+
+    const eventRows = rows.filter((r) => r.type === "test" || r.type === "homework");
+
+    for (const event of eventRows) {
+      if (!weekDays.includes(event.date)) continue;
+      let slot: number | null = parseSlotValue(event.slot);
+
+      if (slot == null && event.class_group_id) {
+        const slotList = slotByDateAndClass.get(`${event.date}|${event.class_group_id}`) ?? [];
+        if (slotList.length > 0) slot = slotList[0];
+      }
+
+      const label = event.type === "test" ? "Interro" : "Devoir";
+      const tone: BadgeTone = event.type === "test" ? "red" : "orange";
+      const href = event.assessment_id
+        ? `/evaluations?assessmentId=${event.assessment_id}`
+        : event.class_group_id
+        ? `/evaluations?classGroupId=${event.class_group_id}&date=${event.date}`
+        : "/evaluations";
+
+      const badge: BadgeModel = {
+        id: `agenda-event-${event.id}`,
+        tone,
+        label,
+        title: event.title,
+        href,
+        draft: false,
+      };
+
+      if (slot != null) {
+        const key = `${event.date}|${slot}`;
+        pushArrayMap(map, key, badge);
+      } else {
+        const className = event.class_group_id ? classNameById.get(event.class_group_id) ?? "Classe inconnue" : "Classe non précisée";
+        pushArrayMap(unplaced, event.date, {
+          id: `unplaced-event-${event.id}`,
+          date: event.date,
+          text: `${label} · ${event.title} · ${className}`,
+          reason: "Aucun slot renseigné",
+          href,
+        });
+      }
+    }
+
+    for (const assessment of assessments) {
+      if (!weekDays.includes(assessment.date)) continue;
+      const label = assessment.type === "summative" ? "Interro" : "Devoir";
+      const tone: BadgeTone = assessment.type === "summative" ? "red" : "orange";
+
+      let slot: number | null = null;
+      if (assessment.class_group_id) {
+        const slotList = slotByDateAndClass.get(`${assessment.date}|${assessment.class_group_id}`) ?? [];
+        if (slotList.length > 0) slot = slotList[0];
+      }
+
+      const href = `/evaluations?assessmentId=${assessment.id}`;
+      const badge: BadgeModel = {
+        id: `assessment-${assessment.id}`,
+        tone,
+        label,
+        title: assessment.title,
+        href,
+        draft: assessment.status === "draft",
+      };
+
+      if (slot != null) {
+        const key = `${assessment.date}|${slot}`;
+        pushArrayMap(map, key, badge);
+      } else {
+        const className = assessment.class_group_id ? classNameById.get(assessment.class_group_id) ?? "Classe inconnue" : "Classe non précisée";
+        pushArrayMap(unplaced, assessment.date, {
+          id: `unplaced-assessment-${assessment.id}`,
+          date: assessment.date,
+          text: `${label} · ${assessment.title} · ${className}`,
+          reason: "Aucun slot de leçon trouvé",
+          href,
+        });
+      }
+    }
+
+    return { map, unplaced };
+  }, [rows, assessments, classNameById, slotByDateAndClass, weekDays]);
+
+  const csvPreviewStats = useMemo(() => {
+    const total = csvRows.length;
+    const valid = csvRows.filter(
+      (r) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(r.date.trim()) &&
+        !!parseSlotRaw(r.slot_raw) &&
+        r.class_ref.trim().length > 0
+    ).length;
+    return { total, valid, errors: total - valid };
+  }, [csvRows]);
+  const csvPreviewRows = useMemo(() => csvRows.slice(0, 10), [csvRows]);
 
   async function boot() {
     try {
       setErrorMsg(null);
+      setInfoMsg(null);
       const c = await getTeacherContext();
       setCtx(c);
-      const cls = await listClassGroups(c);
-      setClasses(cls);
-    } catch (e: any) {
-      setErrorMsg(e?.message ?? String(e));
+
+      const classRows = await listClassGroups(c);
+      setClasses(classRows);
+      if (classRows[0]?.id) setNewClassId(classRows[0].id);
+    } catch (e: unknown) {
+      setErrorMsg(toNiceError(e));
     }
   }
 
-  async function loadWeek(c: TeacherContext, ws: Date) {
+  async function loadAgenda(c: TeacherContext, classId: UUID | "", ws: Date) {
     try {
-      setErrorMsg(null);
       const from = toISODate(ws);
-      const to = toISODate(addDays(ws, 6));
-      const classGroupId = filterClassId === "" ? null : (filterClassId as UUID);
+      const to = toISODate(addDays(ws, 4));
+      const classGroupId = classId || undefined;
 
-      const rows = await listAgendaItems({
-        ctx: c,
-        dateFrom: from,
-        dateTo: to,
-        classGroupId: classGroupId ?? undefined,
+      const [agendaRows, assessmentRows] = await Promise.all([
+        listAgendaItems({ ctx: c, dateFrom: from, dateTo: to, classGroupId }),
+        listAssessmentsForAgenda({ ctx: c, dateFrom: from, dateTo: to, classGroupId }),
+      ]);
+
+      setRows(agendaRows);
+      setAssessments(assessmentRows);
+
+      setLessonDrafts((prev) => {
+        const next = { ...prev };
+        for (const row of agendaRows) {
+          if (row.type !== "lesson") continue;
+          if (next[row.id] == null) next[row.id] = row.details ?? "";
+        }
+        return next;
       });
-
-      setItems(rows);
-    } catch (e: any) {
-      setErrorMsg(e?.message ?? String(e));
+    } catch (e: unknown) {
+      setErrorMsg(toNiceError(e));
     }
   }
 
   useEffect(() => {
-    boot();
+    void boot();
   }, []);
 
   useEffect(() => {
     if (!ctx) return;
-    loadWeek(ctx, weekStart);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ctx, weekStart, filterClassId]);
+    void loadAgenda(ctx, filterClassId, weekStart);
+  }, [ctx, filterClassId, weekStart]);
 
-  const days = useMemo(
-    () => Array.from({ length: 7 }).map((_, i) => toISODate(addDays(weekStart, i))),
-    [weekStart]
-  );
-
-  const itemsByDay = useMemo(() => {
-    const map = new Map<string, AgendaItem[]>();
-    for (const d of days) map.set(d, []);
-    for (const it of items) {
-      if (!map.has(it.date)) map.set(it.date, []);
-      map.get(it.date)!.push(it);
-    }
-    return map;
-  }, [items, days]);
-
-  async function onAdd() {
+  async function onAddLesson() {
     if (!ctx) return;
+    if (!newClassId) return setErrorMsg("Classe obligatoire.");
+    if (!newCourseName.trim()) return setErrorMsg("Cours obligatoire.");
+
     try {
       setErrorMsg(null);
+      setInfoMsg(null);
 
-      if (!formTitle.trim()) {
-        setErrorMsg("Titre obligatoire.");
-        return;
-      }
-
-      const classGroupId = formClassId === "" ? null : (formClassId as UUID);
-
-      await createAgendaItem({
+      await upsertAgendaLesson({
         ctx,
-        classGroupId,
-        date: formDate,
-        type: formType,
-        title: formTitle.trim(),
-        details: formDetails.trim() ? formDetails.trim() : null,
+        classGroupId: newClassId,
+        date: newDate,
+        slot: newSlot,
+        courseName: newCourseName.trim(),
+        details: newDetails.trim() || null,
       });
 
-      // reset minimal
-      setFormTitle("");
-      setFormDetails("");
-
-      // ✅ IMPORTANT : bascule sur la semaine de la date ajoutée
-      const targetWeekStart = startOfWeekMonday(fromISODate(formDate));
-      setWeekStart(targetWeekStart);
-
-      // Recharge la semaine (immédiat) :
-      await loadWeek(ctx, targetWeekStart);
-    } catch (e: any) {
-      setErrorMsg(e?.message ?? String(e));
+      setNewCourseName("");
+      setNewDetails("");
+      setInfoMsg("Créneau enregistré ✅");
+      await loadAgenda(ctx, filterClassId, weekStart);
+    } catch (e: unknown) {
+      setErrorMsg(toNiceError(e));
     }
   }
 
-  async function onDelete(id: UUID) {
+  async function onSaveLessonDetails(itemId: UUID) {
+    if (!ctx) return;
+    try {
+      setSavingLessonId(itemId);
+      await updateAgendaLessonDetails({
+        ctx,
+        itemId,
+        details: lessonDrafts[itemId] ?? "",
+      });
+      setInfoMsg("Leçon du jour enregistrée ✅");
+    } catch (e: unknown) {
+      setErrorMsg(toNiceError(e));
+    } finally {
+      setSavingLessonId(null);
+    }
+  }
+
+  async function onDeleteItem(id: UUID) {
     if (!ctx) return;
     try {
       setErrorMsg(null);
+      setInfoMsg(null);
       await deleteAgendaItem({ ctx, id });
-      await loadWeek(ctx, weekStart);
-    } catch (e: any) {
-      setErrorMsg(e?.message ?? String(e));
+      await loadAgenda(ctx, filterClassId, weekStart);
+    } catch (e: unknown) {
+      setErrorMsg(toNiceError(e));
     }
   }
 
-  const card: React.CSSProperties = {
-    borderRadius: 18,
-    padding: 16,
-    background: "white",
-    border: "1px solid rgba(0,0,0,0.10)",
-  };
+  async function onSelectCsv(file: File | null) {
+    try {
+      setErrorMsg(null);
+      setInfoMsg(null);
+      setCsvRows([]);
+      setCsvSummary(null);
+      setCsvFileName(file?.name ?? "");
+      if (!file) return;
 
-  const input: React.CSSProperties = {
-    padding: "10px 12px",
-    borderRadius: 10,
-    border: "1px solid rgba(0,0,0,0.15)",
-    width: "100%",
-  };
+      const text = await file.text();
+      const parsed = parseScheduleCsv(text);
+      setCsvRows(parsed);
+      if (parsed.length === 0) {
+        setErrorMsg("0 ligne détectée. Vérifie qu'il y a des lignes après l'en-tête et que le fichier est bien en CSV.");
+      } else {
+        setInfoMsg(`${parsed.length} ligne(s) CSV chargée(s).`);
+      }
+    } catch (e: unknown) {
+      setErrorMsg(toNiceError(e));
+    }
+  }
 
-  const btn: React.CSSProperties = {
-    padding: "10px 12px",
-    borderRadius: 10,
-    border: "1px solid rgba(0,0,0,0.15)",
-    background: "white",
-    cursor: "pointer",
-    fontWeight: 800,
-  };
+  async function onImportCsv() {
+    if (!ctx) return;
+    if (csvRows.length === 0) return setErrorMsg("Aucune ligne CSV à importer.");
 
-  const btnPrimary: React.CSSProperties = {
-    ...btn,
-    background: "rgba(37,99,235,0.10)",
-    borderColor: "rgba(37,99,235,0.25)",
-  };
+    try {
+      setErrorMsg(null);
+      setInfoMsg(null);
+      setCsvSummary(null);
+      setCsvImporting(true);
+
+      const summary = await importTeacherScheduleCsv({
+        ctx,
+        rows: csvRows,
+        classes,
+      });
+
+      setCsvSummary(summary);
+      console.log("[Import horaires] diagnostic", {
+        minDate: summary.minDate,
+        maxDate: summary.maxDate,
+        rowsValid: summary.rowsReady,
+        minSlot: summary.minSlot,
+        maxSlot: summary.maxSlot,
+      });
+
+      const nextWeekStart = summary.minDate ? startOfWeekMonday(fromIsoDate(summary.minDate)) : weekStart;
+      setWeekStart(nextWeekStart);
+      await loadAgenda(ctx, filterClassId, nextWeekStart);
+
+      setInfoMsg(
+        `Import terminé ✅ Créés: ${summary.created}, mis à jour: ${summary.updated}, erreurs: ${summary.errors.length}. Diagnostics: ${summary.minDate ?? "—"} → ${summary.maxDate ?? "—"}, slots ${summary.minSlot ?? "—"}-${summary.maxSlot ?? "—"}.`
+      );
+    } catch (e: unknown) {
+      setErrorMsg(toNiceError(e));
+    } finally {
+      setCsvImporting(false);
+    }
+  }
 
   return (
     <div>
@@ -213,28 +533,24 @@ export default function AgendaPage() {
         </div>
       )}
 
-      <div style={card}>
-        <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>
-          Semaine du {toISODate(weekStart)} au {toISODate(weekEnd)}
+      {infoMsg && (
+        <div style={{ ...card, marginBottom: 14 }}>
+          <div style={{ fontWeight: 900 }}>{infoMsg}</div>
         </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <button style={btn} onClick={() => setWeekStart(addDays(weekStart, -7))}>
-            ← Semaine -1
-          </button>
-          <button style={btn} onClick={() => setWeekStart(startOfWeekMonday(new Date()))}>
-            Aujourd&apos;hui
-          </button>
-          <button style={btn} onClick={() => setWeekStart(addDays(weekStart, 7))}>
-            Semaine +1 →
-          </button>
+      )}
 
-          <div style={{ flex: 1 }} />
+      <div style={card}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <div style={{ fontSize: 20, fontWeight: 900 }}>Planning · semaine du {weekLabel}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button style={btn} onClick={() => setWeekStart(addDays(weekStart, -7))}>← Semaine -1</button>
+            <button style={btn} onClick={() => setWeekStart(startOfWeekMonday(new Date()))}>Cette semaine</button>
+            <button style={btn} onClick={() => setWeekStart(addDays(weekStart, 7))}>Semaine +1 →</button>
+          </div>
+        </div>
 
-          <select
-            style={{ ...input, width: 280 }}
-            value={filterClassId}
-            onChange={(e) => setFilterClassId(e.target.value as any)}
-          >
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <select style={{ ...input, width: 260 }} value={filterClassId} onChange={(e) => setFilterClassId(e.target.value as UUID | "") }>
             <option value="">Toutes les classes</option>
             {classes.map((c) => (
               <option key={c.id} value={c.id}>
@@ -243,25 +559,208 @@ export default function AgendaPage() {
               </option>
             ))}
           </select>
+
+          <button style={btn} onClick={() => ctx && void loadAgenda(ctx, filterClassId, weekStart)} disabled={!ctx}>
+            Rafraîchir
+          </button>
+        </div>
+
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", minWidth: 1100, borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", width: 90, padding: 8, borderBottom: "1px solid rgba(0,0,0,0.15)" }}>Slot</th>
+                {weekDays.map((date, idx) => (
+                  <th key={date} style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.15)" }}>
+                    <div>{DAY_LABELS[idx]} {formatDateFR(date)}</div>
+                    {(badgesByCell.unplaced.get(date) ?? []).length > 0 && (
+                      <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {(badgesByCell.unplaced.get(date) ?? []).map((u) => (
+                          <Link key={u.id} href={u.href} style={badgeStyle("gray")}>
+                            {u.text}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {SLOTS.map((slot) => (
+                <tr key={`slot-${slot}`}>
+                  <td style={{ verticalAlign: "top", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.08)", fontWeight: 900 }}>
+                    P{slot}
+                  </td>
+                  {weekDays.map((date) => {
+                    const key = `${date}|${slot}`;
+                    const lessons = lessonsByCell.get(key) ?? [];
+                    const badges = badgesByCell.map.get(key) ?? [];
+
+                    return (
+                      <td key={key} style={{ verticalAlign: "top", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
+                        {lessons.length === 0 && badges.length === 0 ? (
+                          <div style={{ opacity: 0.55, fontSize: 13 }}>—</div>
+                        ) : (
+                          <div style={{ display: "grid", gap: 8 }}>
+                            {lessons.map((lesson) => {
+                              const className = lesson.class_group_id ? classNameById.get(lesson.class_group_id) ?? "Classe" : "Classe non précisée";
+                              const draft = lessonDrafts[lesson.id] ?? lesson.details ?? "";
+                              return (
+                                <div key={lesson.id} style={{ border: "1px solid rgba(0,0,0,0.10)", borderRadius: 10, padding: 8 }}>
+                                  <div style={{ fontWeight: 900 }}>
+                                    {lesson.title.includes(" — ") ? lesson.title : `${className} — ${lesson.title}`}
+                                  </div>
+                                  <input
+                                    style={{ ...input, marginTop: 6 }}
+                                    placeholder="Leçon du jour"
+                                    value={draft}
+                                    onChange={(e) => setLessonDrafts((prev) => ({ ...prev, [lesson.id]: e.target.value }))}
+                                  />
+                                  <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
+                                    <button
+                                      style={{ ...btn, padding: "6px 8px", fontSize: 12 }}
+                                      onClick={() => void onSaveLessonDetails(lesson.id)}
+                                      disabled={savingLessonId === lesson.id}
+                                    >
+                                      {savingLessonId === lesson.id ? "Enregistrement..." : "Enregistrer leçon"}
+                                    </button>
+                                    <button style={{ ...btn, padding: "6px 8px", fontSize: 12 }} onClick={() => void onDeleteItem(lesson.id)}>
+                                      Supprimer
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+
+                            {badges.length > 0 && (
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {badges.map((badge) => (
+                                  <Link key={badge.id} href={badge.href} style={badgeStyle(badge.tone)}>
+                                    {badge.label} · {badge.title}
+                                    {badge.draft && <span style={badgeStyle("gray")}>Brouillon</span>}
+                                  </Link>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
       <div style={{ height: 14 }} />
 
-      <div style={card}>
-        <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>➕ Ajouter (rapide)</div>
+      <div style={{ ...card, padding: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 900, marginBottom: 8 }}>Imports horaires</div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "180px 180px 1fr", gap: 10 }}>
-          <input type="date" style={input} value={formDate} onChange={(e) => setFormDate(e.target.value)} />
+        <input
+          ref={csvInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          style={{ display: "none" }}
+          onChange={(e) => void onSelectCsv(e.target.files?.[0] ?? null)}
+        />
 
-          <select style={input} value={formType} onChange={(e) => setFormType(e.target.value as AgendaType)}>
-            <option value="lesson">Leçon</option>
-            <option value="homework">Devoir</option>
-            <option value="test">Interro</option>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <a
+            href="/templates/modele_import_horaires.csv"
+            target="_blank"
+            rel="noopener noreferrer"
+            download
+            style={{ ...btnSmall, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+          >
+            Télécharger modèle CSV
+          </a>
+          <button style={btnSmall} onClick={() => csvInputRef.current?.click()} disabled={!ctx}>
+            Importer horaires (CSV)
+          </button>
+          <button style={btnSmallPrimary} onClick={onImportCsv} disabled={!ctx || csvRows.length === 0 || csvImporting}>
+            {csvImporting ? "Import..." : "Confirmer import"}
+          </button>
+          <div style={{ opacity: 0.75, fontSize: 12 }}>
+            {csvFileName ? `Fichier: ${csvFileName}` : "Aucun fichier sélectionné"}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 8, fontSize: 13 }}>
+          Lignes: <b>{csvPreviewStats.total}</b> · Valides: <b>{csvPreviewStats.valid}</b> · Erreurs: <b>{csvPreviewStats.errors}</b>
+        </div>
+
+        {csvPreviewRows.length > 0 && (
+          <div style={{ marginTop: 8, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: 6, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Ligne</th>
+                  <th style={{ textAlign: "left", padding: 6, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Date</th>
+                  <th style={{ textAlign: "left", padding: 6, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Slot</th>
+                  <th style={{ textAlign: "left", padding: 6, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Classe</th>
+                </tr>
+              </thead>
+              <tbody>
+                {csvPreviewRows.map((r) => {
+                  const invalid = !/^\d{4}-\d{2}-\d{2}$/.test(r.date.trim()) || !parseSlotRaw(r.slot_raw) || !r.class_ref.trim();
+                  return (
+                    <tr key={r.line} style={invalid ? { background: "rgba(220,38,38,0.08)" } : undefined}>
+                      <td style={{ padding: 6, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.line}</td>
+                      <td style={{ padding: 6, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.date ? formatDateFR(r.date) : "—"}</td>
+                      <td style={{ padding: 6, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.slot_raw || "—"}</td>
+                      <td style={{ padding: 6, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.class_ref || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {csvSummary && (
+          <div style={{ marginTop: 8, fontSize: 13 }}>
+            <b>Résultat:</b> lues {csvSummary.rowsTotal}, valides {csvSummary.rowsReady}, insérées {csvSummary.created}, mises à jour {csvSummary.updated}, erreurs {csvSummary.errors.length}
+            {csvSummary.errors.length > 0 && (
+              <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                {csvSummary.errors.slice(0, 12).map((e, idx) => (
+                  <div
+                    key={`${e.line}-${idx}`}
+                    style={{
+                      border: "1px solid rgba(220,38,38,0.35)",
+                      borderRadius: 8,
+                      padding: 6,
+                      background: "rgba(220,38,38,0.08)",
+                    }}
+                  >
+                    Ligne {e.line}: {e.message}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div style={{ height: 14 }} />
+
+      <div style={{ ...card, padding: 12 }}>
+        <div style={{ fontSize: 15, fontWeight: 900, marginBottom: 8 }}>Ajouter une leçon (date + heure)</div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "170px 110px 1fr 1fr", gap: 8 }}>
+          <input type="date" style={input} value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+
+          <select style={input} value={String(newSlot)} onChange={(e) => setNewSlot(clampSlot(Number(e.target.value)))}>
+            {SLOTS.map((slot) => (
+              <option key={slot} value={slot}>P{slot}</option>
+            ))}
           </select>
 
-          <select style={input} value={formClassId} onChange={(e) => setFormClassId(e.target.value as any)}>
-            <option value="">(Optionnel) Classe</option>
+          <select style={input} value={newClassId} onChange={(e) => setNewClassId(e.target.value as UUID | "") }>
+            <option value="">Choisir une classe</option>
             {classes.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -269,85 +768,26 @@ export default function AgendaPage() {
               </option>
             ))}
           </select>
+
+          <input
+            style={input}
+            placeholder="Cours / matière (ex: Néerlandais)"
+            value={newCourseName}
+            onChange={(e) => setNewCourseName(e.target.value)}
+          />
+
+          <input
+            style={{ ...input, gridColumn: "span 4" }}
+            placeholder="Leçon du jour (optionnel)"
+            value={newDetails}
+            onChange={(e) => setNewDetails(e.target.value)}
+          />
         </div>
 
-        <div style={{ height: 10 }} />
-
-        <input
-          style={input}
-          placeholder="Titre (ex: Rit 2 – hobbies / Interro vocab)"
-          value={formTitle}
-          onChange={(e) => setFormTitle(e.target.value)}
-        />
-
-        <div style={{ height: 10 }} />
-
-        <textarea
-          style={{ ...input, minHeight: 90 }}
-          placeholder="Détails (optionnel) : consignes, pages, matériel…"
-          value={formDetails}
-          onChange={(e) => setFormDetails(e.target.value)}
-        />
-
-        <div style={{ height: 10 }} />
-        <button style={btnPrimary} onClick={onAdd} disabled={!ctx}>
-          Ajouter
-        </button>
+        <div style={{ height: 8 }} />
+        <button style={btnSmallPrimary} onClick={onAddLesson} disabled={!ctx}>Enregistrer la leçon</button>
       </div>
 
-      <div style={{ height: 14 }} />
-
-      <div style={card}>
-        <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>📌 Semaine</div>
-
-        {days.map((day) => {
-          const dayItems = itemsByDay.get(day) ?? [];
-          return (
-            <div key={day} style={{ padding: "10px 0", borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-              <div style={{ fontWeight: 900, marginBottom: 6 }}>{day}</div>
-
-              {dayItems.length === 0 ? (
-                <div style={{ opacity: 0.7 }}>Aucun item.</div>
-              ) : (
-                <div style={{ display: "grid", gap: 8 }}>
-                  {dayItems.map((it) => (
-                    <div
-                      key={it.id}
-                      style={{
-                        padding: 12,
-                        borderRadius: 12,
-                        border: "1px solid rgba(0,0,0,0.10)",
-                        display: "flex",
-                        gap: 10,
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 900 }}>
-                          {TYPE_LABEL[it.type]} — {it.title}
-                        </div>
-                        <div style={{ opacity: 0.85, marginTop: 2 }}>
-                          {(() => {
-                            const cg = Array.isArray((it as any).class_groups)
-                              ? (it as any).class_groups[0]
-                              : (it as any).class_groups;
-                            return cg?.name ? `Classe: ${cg.name}` : "Classe: (non précisée)";
-                          })()}
-                        </div>
-                        {it.details && <div style={{ marginTop: 6 }}>{it.details}</div>}
-                      </div>
-
-                      <button style={btn} onClick={() => onDelete(it.id)}>
-                        Supprimer
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
