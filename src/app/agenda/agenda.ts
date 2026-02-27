@@ -61,6 +61,9 @@ export type ScheduleImportError = {
 export type ScheduleImportSummary = {
   rowsTotal: number;
   rowsReady: number;
+  inserted: number;
+  ignoredDuplicates: number;
+  // Compat with previous UI fields
   created: number;
   updated: number;
   minDate: string | null;
@@ -97,6 +100,11 @@ function errorMessage(error: unknown): string {
 function isMissingSlotColumn(error: unknown): boolean {
   const msg = errorMessage(error).toLowerCase();
   return msg.includes("slot") && msg.includes("does not exist");
+}
+
+function isIntegerSlotError(error: unknown): boolean {
+  const msg = errorMessage(error).toLowerCase();
+  return msg.includes("invalid input syntax for type integer") && msg.includes("p");
 }
 
 function normalizeHeaderCell(header: string): string {
@@ -186,55 +194,6 @@ function normalizeNameForMatch(v: string): string {
   return v.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function normalizeClassToken(v: string): string {
-  return v
-    .trim()
-    .toUpperCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}+/gu, "")
-    .replace(/[^A-Z0-9]/g, "");
-}
-
-function simplifyClassRef(v: string): string {
-  return normalizeNameForMatch(v.replace(/\(([^)]*)\)/g, " "));
-}
-
-function levenshteinDistance(a: string, b: string): number {
-  if (a === b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-
-  const m = a.length;
-  const n = b.length;
-  const dp = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
-
-  for (let i = 0; i <= m; i += 1) dp[i][0] = i;
-  for (let j = 0; j <= n; j += 1) dp[0][j] = j;
-
-  for (let i = 1; i <= m; i += 1) {
-    for (let j = 1; j <= n; j += 1) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,
-        dp[i][j - 1] + 1,
-        dp[i - 1][j - 1] + cost
-      );
-    }
-  }
-
-  return dp[m][n];
-}
-
-function pushMapArray(map: Map<string, UUID[]>, key: string, value: UUID): void {
-  if (!key) return;
-  const list = map.get(key);
-  if (!list) {
-    map.set(key, [value]);
-    return;
-  }
-  if (!list.includes(value)) list.push(value);
-}
-
 function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const dt = new Date(`${value}T00:00:00Z`);
@@ -257,6 +216,10 @@ export function parseSlotValue(raw: unknown): SlotNumber | null {
   if (typeof raw === "number" && Number.isInteger(raw)) return parseSlotRaw(String(raw));
   if (typeof raw === "string") return parseSlotRaw(raw);
   return null;
+}
+
+function toSlotLabel(slot: SlotNumber): string {
+  return `P${slot}`;
 }
 
 function makeScheduleKey(input: {
@@ -387,13 +350,14 @@ export function parseScheduleCsv(csvText: string): ParsedScheduleCsvRow[] {
 type PreparedScheduleImportRow = {
   line: number;
   key: string;
+  slot: SlotNumber;
   payload: {
     school_id: UUID;
     academic_year_id: UUID;
     teacher_id: UUID;
     class_group_id: UUID;
     date: string;
-    slot: SlotNumber;
+    slot: string;
     type: "lesson";
     title: string;
     details: string | null;
@@ -410,6 +374,8 @@ export async function importTeacherScheduleCsv(params: {
   const summary: ScheduleImportSummary = {
     rowsTotal: rows.length,
     rowsReady: 0,
+    inserted: 0,
+    ignoredDuplicates: 0,
     created: 0,
     updated: 0,
     minDate: null,
@@ -421,13 +387,10 @@ export async function importTeacherScheduleCsv(params: {
 
   const classById = new Map<string, UUID>();
   const classByName = new Map<string, UUID>();
-  const classByToken = new Map<string, UUID[]>();
   const classNameById = new Map<UUID, string>();
   for (const c of classes) {
     classById.set(c.id.toLowerCase(), c.id);
     classByName.set(normalizeNameForMatch(c.name), c.id);
-    pushMapArray(classByToken, normalizeClassToken(c.name), c.id);
-    pushMapArray(classByToken, normalizeClassToken(simplifyClassRef(c.name)), c.id);
     classNameById.set(c.id, c.name);
   }
 
@@ -451,47 +414,13 @@ export async function importTeacherScheduleCsv(params: {
       continue;
     }
     if (!classRef) {
-      summary.errors.push({ line: row.line, message: "class_name manquant." });
+      summary.errors.push({ line: row.line, message: "class_name obligatoire." });
       continue;
     }
     const classRefByName = normalizeNameForMatch(classRef);
-    const classRefSimple = simplifyClassRef(classRef);
-    const classRefToken = normalizeClassToken(classRef);
-
-    let classId =
+    const classId =
       classById.get(classRef.toLowerCase()) ??
-      classByName.get(classRefByName) ??
-      classByName.get(classRefSimple);
-
-    if (!classId && classRefToken) {
-      const tokenHits = classByToken.get(classRefToken) ?? [];
-      if (tokenHits.length === 1) classId = tokenHits[0];
-    }
-
-    if (!classId) {
-      const candidates = classes
-        .map((c) => ({ id: c.id, norm: normalizeNameForMatch(c.name) }))
-        .filter((c) => c.norm.startsWith(classRefSimple) || classRefSimple.startsWith(c.norm));
-      if (candidates.length === 1) classId = candidates[0].id;
-    }
-
-    if (!classId && classRefToken) {
-      const tokenCandidates = classes.map((c) => {
-        const token = normalizeClassToken(c.name);
-        return { id: c.id, token, dist: levenshteinDistance(classRefToken, token) };
-      });
-      tokenCandidates.sort((a, b) => a.dist - b.dist);
-      const best = tokenCandidates[0];
-      const second = tokenCandidates[1];
-      if (
-        best &&
-        best.token &&
-        best.dist <= 1 &&
-        (!second || second.dist > best.dist)
-      ) {
-        classId = best.id;
-      }
-    }
+      classByName.get(classRefByName);
 
     if (!classId) {
       summary.errors.push({ line: row.line, message: `classe introuvable (${classRef}).` });
@@ -511,7 +440,7 @@ export async function importTeacherScheduleCsv(params: {
       teacher_id: ctx.teacherId,
       class_group_id: classId,
       date,
-      slot,
+      slot: toSlotLabel(slot),
       type: "lesson" as const,
       title: `${className} — ${courseName}`,
       details: detailsParts.length > 0 ? detailsParts.join(" | ") : null,
@@ -520,6 +449,7 @@ export async function importTeacherScheduleCsv(params: {
     prepared.push({
       line: row.line,
       key: makeScheduleKey({ date, slot, class_group_id: classId }),
+      slot,
       payload,
     });
 
@@ -533,7 +463,6 @@ export async function importTeacherScheduleCsv(params: {
   if (prepared.length === 0) return summary;
 
   const dates = Array.from(new Set(prepared.map((p) => p.payload.date)));
-  const slots = Array.from(new Set(prepared.map((p) => p.payload.slot)));
   const classIds = Array.from(new Set(prepared.map((p) => p.payload.class_group_id)));
 
   let existingQuery = ctx.supabase
@@ -545,7 +474,6 @@ export async function importTeacherScheduleCsv(params: {
     .eq("type", "lesson");
 
   if (dates.length > 0) existingQuery = existingQuery.in("date", dates);
-  if (slots.length > 0) existingQuery = existingQuery.in("slot", slots);
   if (classIds.length > 0) existingQuery = existingQuery.in("class_group_id", classIds);
 
   const existing = await existingQuery;
@@ -583,14 +511,10 @@ export async function importTeacherScheduleCsv(params: {
 
   const seenInCsv = new Set<string>();
   const toInsert: PreparedScheduleImportRow[] = [];
-  const toUpdate: Array<{ id: UUID; title: string; details: string | null; line: number }> = [];
   for (const row of prepared) {
     const existingRow = existingByKey.get(row.key);
     if (seenInCsv.has(row.key)) {
-      summary.errors.push({
-        line: row.line,
-        message: "Doublon dans le CSV (même date, slot et classe).",
-      });
+      summary.ignoredDuplicates += 1;
       continue;
     }
     seenInCsv.add(row.key);
@@ -598,52 +522,32 @@ export async function importTeacherScheduleCsv(params: {
       toInsert.push(row);
       continue;
     }
-
-    const sameTitle = (existingRow.title ?? "").trim() === row.payload.title;
-    const sameDetails = (existingRow.details ?? "").trim() === (row.payload.details ?? "");
-    if (sameTitle && sameDetails) continue;
-
-    toUpdate.push({
-      id: existingRow.id,
-      title: row.payload.title,
-      details: row.payload.details ?? null,
-      line: row.line,
-    });
+    summary.ignoredDuplicates += 1;
   }
 
-  if (toInsert.length === 0 && toUpdate.length === 0) return summary;
+  if (toInsert.length === 0) return summary;
 
   for (const chunk of chunkArray(toInsert, 200)) {
     const bulk = await ctx.supabase.from(T.AGENDA_ITEMS).insert(chunk.map((r) => r.payload));
     if (!bulk.error) {
+      summary.inserted += chunk.length;
       summary.created += chunk.length;
       continue;
     }
 
     for (const row of chunk) {
-      const single = await ctx.supabase.from(T.AGENDA_ITEMS).insert(row.payload);
-      if (single.error) {
-        summary.errors.push({ line: row.line, message: errorMessage(single.error) });
-      } else {
+      let single = await ctx.supabase.from(T.AGENDA_ITEMS).insert(row.payload);
+      if (single.error && isIntegerSlotError(single.error)) {
+        single = await ctx.supabase.from(T.AGENDA_ITEMS).insert({
+          ...row.payload,
+          slot: row.slot,
+        } as any);
+      }
+      if (single.error) summary.errors.push({ line: row.line, message: errorMessage(single.error) });
+      else {
+        summary.inserted += 1;
         summary.created += 1;
       }
-    }
-  }
-
-  for (const row of toUpdate) {
-    const updated = await ctx.supabase
-      .from(T.AGENDA_ITEMS)
-      .update({ title: row.title, details: row.details })
-      .eq("id", row.id)
-      .eq("school_id", ctx.schoolId)
-      .eq("academic_year_id", ctx.academicYearId)
-      .eq("teacher_id", ctx.teacherId)
-      .eq("type", "lesson");
-
-    if (updated.error) {
-      summary.errors.push({ line: row.line, message: errorMessage(updated.error) });
-    } else {
-      summary.updated += 1;
     }
   }
 
@@ -762,16 +666,14 @@ export async function upsertAgendaLesson(params: {
 
   const existing = await ctx.supabase
     .from(T.AGENDA_ITEMS)
-    .select("id")
+    .select("id,slot")
     .eq("school_id", ctx.schoolId)
     .eq("academic_year_id", ctx.academicYearId)
     .eq("teacher_id", ctx.teacherId)
     .eq("class_group_id", classGroupId)
     .eq("date", date)
-    .eq("slot", slot)
     .eq("type", "lesson")
-    .limit(1)
-    .maybeSingle();
+    .limit(30);
 
   if (existing.error) {
     if (isMissingSlotColumn(existing.error)) {
@@ -780,11 +682,13 @@ export async function upsertAgendaLesson(params: {
     throw existing.error;
   }
 
-  if (existing.data?.id) {
+  const existingRows = (existing.data ?? []) as Array<{ id: UUID; slot: string | number | null }>;
+  const matched = existingRows.find((r) => parseSlotValue(r.slot) === slot);
+  if (matched?.id) {
     const { error } = await ctx.supabase
       .from(T.AGENDA_ITEMS)
       .update({ title: courseName.trim(), details: details?.trim() || null })
-      .eq("id", existing.data.id)
+      .eq("id", matched.id)
       .eq("school_id", ctx.schoolId)
       .eq("academic_year_id", ctx.academicYearId)
       .eq("teacher_id", ctx.teacherId);
@@ -792,23 +696,37 @@ export async function upsertAgendaLesson(params: {
     return;
   }
 
-  const { error } = await ctx.supabase.from(T.AGENDA_ITEMS).insert({
+  let insert = await ctx.supabase.from(T.AGENDA_ITEMS).insert({
     school_id: ctx.schoolId,
     academic_year_id: ctx.academicYearId,
     teacher_id: ctx.teacherId,
     class_group_id: classGroupId,
     date,
-    slot,
+    slot: toSlotLabel(slot),
     type: "lesson",
     title: courseName.trim(),
     details: details?.trim() || null,
   });
 
-  if (error) {
-    if (isMissingSlotColumn(error)) {
+  if (insert.error && isIntegerSlotError(insert.error)) {
+    insert = await ctx.supabase.from(T.AGENDA_ITEMS).insert({
+      school_id: ctx.schoolId,
+      academic_year_id: ctx.academicYearId,
+      teacher_id: ctx.teacherId,
+      class_group_id: classGroupId,
+      date,
+      slot,
+      type: "lesson",
+      title: courseName.trim(),
+      details: details?.trim() || null,
+    } as any);
+  }
+
+  if (insert.error) {
+    if (isMissingSlotColumn(insert.error)) {
       throw new Error("Colonne agenda_items.slot absente. Applique la migration SQL des slots puis réessaie.");
     }
-    throw error;
+    throw insert.error;
   }
 }
 
@@ -839,6 +757,28 @@ export async function deleteAgendaItem(params: { ctx: TeacherContext; id: UUID }
     .eq("school_id", ctx.schoolId)
     .eq("academic_year_id", ctx.academicYearId)
     .eq("teacher_id", ctx.teacherId);
+
+  if (error) throw error;
+}
+
+export async function updateAgendaEvent(params: {
+  ctx: TeacherContext;
+  itemId: UUID;
+  title: string;
+  details: string | null;
+}): Promise<void> {
+  const { ctx, itemId, title, details } = params;
+  const { error } = await ctx.supabase
+    .from(T.AGENDA_ITEMS)
+    .update({
+      title: title.trim(),
+      details: details?.trim() || null,
+    })
+    .eq("id", itemId)
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("teacher_id", ctx.teacherId)
+    .in("type", ["homework", "test"]);
 
   if (error) throw error;
 }

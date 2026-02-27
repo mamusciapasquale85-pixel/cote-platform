@@ -25,6 +25,7 @@ import {
   importTeacherScheduleCsv,
   upsertAgendaLesson,
   updateAgendaLessonDetails,
+  updateAgendaEvent,
   deleteAgendaItem,
 } from "./agenda";
 
@@ -83,15 +84,17 @@ function clampSlot(n: number): SlotNumber {
   return n as SlotNumber;
 }
 
-type BadgeTone = "red" | "orange" | "gray";
+type BadgeTone = "red" | "orange" | "violet" | "gray";
 
-type BadgeModel = {
-  id: string;
-  tone: BadgeTone;
-  label: string;
+type AgendaBadge = {
+  kind: "assessment" | "homework" | "test";
+  id: UUID;
   title: string;
-  href: string;
-  draft: boolean;
+  date: string;
+  slot: SlotNumber | null;
+  class_group_id: UUID | null;
+  details?: string | null;
+  status?: "draft" | "published" | "archived";
 };
 
 type UnplacedBadge = {
@@ -176,6 +179,21 @@ function badgeStyle(tone: BadgeTone): React.CSSProperties {
       textDecoration: "none",
     };
   }
+  if (tone === "violet") {
+    return {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      background: "rgba(124,58,237,0.12)",
+      border: "1px solid rgba(124,58,237,0.35)",
+      color: "#5b21b6",
+      borderRadius: 999,
+      padding: "4px 8px",
+      fontSize: 12,
+      fontWeight: 800,
+      textDecoration: "none",
+    };
+  }
   return {
     display: "inline-flex",
     alignItems: "center",
@@ -189,6 +207,34 @@ function badgeStyle(tone: BadgeTone): React.CSSProperties {
     fontWeight: 800,
     textDecoration: "none",
   };
+}
+
+function badgeTone(kind: AgendaBadge["kind"]): BadgeTone {
+  if (kind === "assessment") return "red";
+  if (kind === "homework") return "orange";
+  return "violet";
+}
+
+function badgeLabel(kind: AgendaBadge["kind"]): string {
+  if (kind === "assessment") return "Éval";
+  if (kind === "homework") return "Devoir";
+  return "Interro";
+}
+
+function truncateTitle(value: string, max = 22): string {
+  const v = value.trim();
+  if (v.length <= max) return v;
+  return `${v.slice(0, max - 1)}…`;
+}
+
+function formatSlotLabel(raw: string): string {
+  const parsed = parseSlotRaw(raw);
+  if (!parsed) return raw || "—";
+  return `P${parsed}`;
+}
+
+function slotToLabel(slot: SlotNumber | null): string {
+  return slot ? `P${slot}` : "—";
 }
 
 function pushArrayMap<T>(map: Map<string, T[]>, key: string, value: T) {
@@ -212,6 +258,11 @@ export default function AgendaPage() {
 
   const [lessonDrafts, setLessonDrafts] = useState<Record<UUID, string>>({});
   const [savingLessonId, setSavingLessonId] = useState<UUID | null>(null);
+  const [selectedBadge, setSelectedBadge] = useState<AgendaBadge | null>(null);
+  const [badgeEditMode, setBadgeEditMode] = useState(false);
+  const [badgeEditTitle, setBadgeEditTitle] = useState("");
+  const [badgeEditDetails, setBadgeEditDetails] = useState("");
+  const [badgeSaving, setBadgeSaving] = useState(false);
 
   const [csvFileName, setCsvFileName] = useState("");
   const [csvRows, setCsvRows] = useState<ParsedScheduleCsvRow[]>([]);
@@ -243,99 +294,78 @@ export default function AgendaPage() {
     return map;
   }, [rows, weekDays]);
 
-  const slotByDateAndClass = useMemo(() => {
-    const map = new Map<string, number[]>();
+  const lessonCellsByDayClass = useMemo(() => {
+    const map = new Set<string>();
     for (const row of rows) {
-      if (row.type !== "lesson" || row.slot == null || !row.class_group_id) continue;
+      if (row.type !== "lesson" || !row.class_group_id) continue;
       if (!weekDays.includes(row.date)) continue;
-      const key = `${row.date}|${row.class_group_id}`;
-      const prev = map.get(key) ?? [];
-      const slot = parseSlotValue(row.slot);
-      if (!slot) continue;
-      if (!prev.includes(slot)) prev.push(slot);
-      prev.sort((a, b) => a - b);
-      map.set(key, prev);
+      map.add(`${row.date}|${row.class_group_id}`);
     }
     return map;
   }, [rows, weekDays]);
 
-  const badgesByCell = useMemo(() => {
-    const map = new Map<string, BadgeModel[]>();
-    const unplaced = new Map<string, UnplacedBadge[]>();
-
+  const eventBadgesByCell = useMemo(() => {
+    const map = new Map<string, AgendaBadge[]>();
+    const unplaced = new Map<string, AgendaBadge[]>();
     const eventRows = rows.filter((r) => r.type === "test" || r.type === "homework");
 
     for (const event of eventRows) {
       if (!weekDays.includes(event.date)) continue;
-      let slot: number | null = parseSlotValue(event.slot);
-
-      if (slot == null && event.class_group_id) {
-        const slotList = slotByDateAndClass.get(`${event.date}|${event.class_group_id}`) ?? [];
-        if (slotList.length > 0) slot = slotList[0];
-      }
-
-      const label = event.type === "test" ? "Interro" : "Devoir";
-      const tone: BadgeTone = event.type === "test" ? "red" : "orange";
-      const href = event.assessment_id
-        ? `/evaluations?assessmentId=${event.assessment_id}`
-        : event.class_group_id
-        ? `/evaluations?classGroupId=${event.class_group_id}&date=${event.date}`
-        : "/evaluations";
-
-      const badge: BadgeModel = {
-        id: `agenda-event-${event.id}`,
-        tone,
-        label,
+      const slot = parseSlotValue(event.slot);
+      const kind: AgendaBadge["kind"] = event.type === "homework" ? "homework" : "test";
+      const badge: AgendaBadge = {
+        kind,
+        id: event.id,
         title: event.title,
-        href,
-        draft: false,
+        date: event.date,
+        slot: slot ?? null,
+        class_group_id: event.class_group_id,
+        details: event.details,
       };
 
-      if (slot != null) {
-        const key = `${event.date}|${slot}`;
-        pushArrayMap(map, key, badge);
-      } else {
-        const className = event.class_group_id ? classNameById.get(event.class_group_id) ?? "Classe inconnue" : "Classe non précisée";
-        pushArrayMap(unplaced, event.date, {
-          id: `unplaced-event-${event.id}`,
-          date: event.date,
-          text: `${label} · ${event.title} · ${className}`,
-          reason: "Aucun slot renseigné",
-          href,
-        });
+      if (!slot || !event.class_group_id) {
+        pushArrayMap(unplaced, event.date, badge);
+        continue;
       }
+      if (!lessonCellsByDayClass.has(`${event.date}|${event.class_group_id}`)) {
+        pushArrayMap(unplaced, event.date, badge);
+        continue;
+      }
+
+      const key = `${event.date}|${slot}|${event.class_group_id}`;
+      pushArrayMap(map, key, badge);
     }
+    return { map, unplaced };
+  }, [rows, lessonCellsByDayClass, weekDays]);
+
+  const assessmentBadgesByDayClass = useMemo(() => {
+    const map = new Map<string, AgendaBadge[]>();
+    const unplaced = new Map<string, UnplacedBadge[]>();
 
     for (const assessment of assessments) {
       if (!weekDays.includes(assessment.date)) continue;
-      const label = assessment.type === "summative" ? "Interro" : "Devoir";
-      const tone: BadgeTone = assessment.type === "summative" ? "red" : "orange";
-
-      let slot: number | null = null;
-      if (assessment.class_group_id) {
-        const slotList = slotByDateAndClass.get(`${assessment.date}|${assessment.class_group_id}`) ?? [];
-        if (slotList.length > 0) slot = slotList[0];
-      }
-
-      const href = `/evaluations?assessmentId=${assessment.id}`;
-      const badge: BadgeModel = {
-        id: `assessment-${assessment.id}`,
-        tone,
-        label,
+      const badge: AgendaBadge = {
+        kind: "assessment",
+        id: assessment.id,
         title: assessment.title,
-        href,
-        draft: assessment.status === "draft",
+        date: assessment.date,
+        slot: null,
+        class_group_id: assessment.class_group_id,
+        status: assessment.status,
       };
 
-      if (slot != null) {
-        const key = `${assessment.date}|${slot}`;
+      if (assessment.class_group_id && lessonCellsByDayClass.has(`${assessment.date}|${assessment.class_group_id}`)) {
+        const key = `${assessment.date}|${assessment.class_group_id}`;
         pushArrayMap(map, key, badge);
       } else {
         const className = assessment.class_group_id ? classNameById.get(assessment.class_group_id) ?? "Classe inconnue" : "Classe non précisée";
+        const href = assessment.class_group_id
+          ? `/evaluations?date=${assessment.date}&class_group_id=${assessment.class_group_id}&assessment_id=${assessment.id}`
+          : `/evaluations?assessment_id=${assessment.id}`;
         pushArrayMap(unplaced, assessment.date, {
           id: `unplaced-assessment-${assessment.id}`,
           date: assessment.date,
-          text: `${label} · ${assessment.title} · ${className}`,
+          text: `Éval · ${assessment.title} · ${className}`,
           reason: "Aucun slot de leçon trouvé",
           href,
         });
@@ -343,7 +373,14 @@ export default function AgendaPage() {
     }
 
     return { map, unplaced };
-  }, [rows, assessments, classNameById, slotByDateAndClass, weekDays]);
+  }, [assessments, classNameById, lessonCellsByDayClass, weekDays]);
+
+  useEffect(() => {
+    if (!selectedBadge) return;
+    setBadgeEditMode(false);
+    setBadgeEditTitle(selectedBadge.title);
+    setBadgeEditDetails(selectedBadge.details ?? "");
+  }, [selectedBadge]);
 
   const csvPreviewStats = useMemo(() => {
     const total = csvRows.length;
@@ -464,6 +501,37 @@ export default function AgendaPage() {
     }
   }
 
+  async function onSaveBadgeEdit() {
+    if (!ctx || !selectedBadge) return;
+    if (selectedBadge.kind === "assessment") return;
+    if (!badgeEditTitle.trim()) {
+      setErrorMsg("Titre obligatoire.");
+      return;
+    }
+    try {
+      setBadgeSaving(true);
+      setErrorMsg(null);
+      await updateAgendaEvent({
+        ctx,
+        itemId: selectedBadge.id,
+        title: badgeEditTitle,
+        details: badgeEditDetails || null,
+      });
+      setSelectedBadge({
+        ...selectedBadge,
+        title: badgeEditTitle.trim(),
+        details: badgeEditDetails.trim() || null,
+      });
+      setBadgeEditMode(false);
+      setInfoMsg("Évènement mis à jour ✅");
+      await loadAgenda(ctx, filterClassId, weekStart);
+    } catch (e: unknown) {
+      setErrorMsg(toNiceError(e));
+    } finally {
+      setBadgeSaving(false);
+    }
+  }
+
   async function onSelectCsv(file: File | null) {
     try {
       setErrorMsg(null);
@@ -516,7 +584,7 @@ export default function AgendaPage() {
       await loadAgenda(ctx, filterClassId, nextWeekStart);
 
       setInfoMsg(
-        `Import terminé ✅ Créés: ${summary.created}, mis à jour: ${summary.updated}, erreurs: ${summary.errors.length}. Diagnostics: ${summary.minDate ?? "—"} → ${summary.maxDate ?? "—"}, slots ${summary.minSlot ?? "—"}-${summary.maxSlot ?? "—"}.`
+        `Import terminé ✅ Total: ${summary.rowsTotal}, insérées: ${summary.inserted}, ignorées (doublons): ${summary.ignoredDuplicates}, erreurs: ${summary.errors.length}. Diagnostics: ${summary.minDate ?? "—"} → ${summary.maxDate ?? "—"}, slots ${summary.minSlot ?? "—"}-${summary.maxSlot ?? "—"}.`
       );
     } catch (e: unknown) {
       setErrorMsg(toNiceError(e));
@@ -573,13 +641,31 @@ export default function AgendaPage() {
                 {weekDays.map((date, idx) => (
                   <th key={date} style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.15)" }}>
                     <div>{DAY_LABELS[idx]} {formatDateFR(date)}</div>
-                    {(badgesByCell.unplaced.get(date) ?? []).length > 0 && (
-                      <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {(badgesByCell.unplaced.get(date) ?? []).map((u) => (
-                          <Link key={u.id} href={u.href} style={badgeStyle("gray")}>
-                            {u.text}
-                          </Link>
-                        ))}
+                    {((assessmentBadgesByDayClass.unplaced.get(date) ?? []).length > 0 ||
+                      (eventBadgesByCell.unplaced.get(date) ?? []).length > 0) && (
+                      <div style={{ marginTop: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, opacity: 0.8, marginBottom: 6 }}>À placer</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {(assessmentBadgesByDayClass.unplaced.get(date) ?? []).map((u) => (
+                            <Link key={u.id} href={u.href} style={badgeStyle("gray")}>
+                              {u.text}
+                            </Link>
+                          ))}
+                          {(eventBadgesByCell.unplaced.get(date) ?? []).map((badge) => {
+                            const className = badge.class_group_id
+                              ? classNameById.get(badge.class_group_id) ?? "Classe inconnue"
+                              : "Classe non précisée";
+                            return (
+                              <button
+                                key={`event-unplaced-${badge.id}`}
+                                style={badgeStyle(badgeTone(badge.kind))}
+                                onClick={() => setSelectedBadge(badge)}
+                              >
+                                {badgeLabel(badge.kind)} · {className} · {truncateTitle(badge.title)}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </th>
@@ -595,17 +681,21 @@ export default function AgendaPage() {
                   {weekDays.map((date) => {
                     const key = `${date}|${slot}`;
                     const lessons = lessonsByCell.get(key) ?? [];
-                    const badges = badgesByCell.map.get(key) ?? [];
 
                     return (
                       <td key={key} style={{ verticalAlign: "top", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
-                        {lessons.length === 0 && badges.length === 0 ? (
+                        {lessons.length === 0 ? (
                           <div style={{ opacity: 0.55, fontSize: 13 }}>—</div>
                         ) : (
                           <div style={{ display: "grid", gap: 8 }}>
                             {lessons.map((lesson) => {
                               const className = lesson.class_group_id ? classNameById.get(lesson.class_group_id) ?? "Classe" : "Classe non précisée";
                               const draft = lessonDrafts[lesson.id] ?? lesson.details ?? "";
+                              const dayClassKey = lesson.class_group_id ? `${date}|${lesson.class_group_id}` : "";
+                              const daySlotClassKey = lesson.class_group_id ? `${date}|${slot}|${lesson.class_group_id}` : "";
+                              const assessmentBadges = dayClassKey ? (assessmentBadgesByDayClass.map.get(dayClassKey) ?? []) : [];
+                              const eventBadges = daySlotClassKey ? (eventBadgesByCell.map.get(daySlotClassKey) ?? []) : [];
+                              const lessonBadges = [...assessmentBadges, ...eventBadges];
                               return (
                                 <div key={lesson.id} style={{ border: "1px solid rgba(0,0,0,0.10)", borderRadius: 10, padding: 8 }}>
                                   <div style={{ fontWeight: 900 }}>
@@ -629,20 +719,43 @@ export default function AgendaPage() {
                                       Supprimer
                                     </button>
                                   </div>
+
+                                  {lessonBadges.length > 0 && (
+                                    <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                      {lessonBadges.map((badge) => {
+                                        if (badge.kind === "assessment") {
+                                          const params = new URLSearchParams({
+                                            date: badge.date,
+                                            assessment_id: badge.id,
+                                          });
+                                          if (badge.class_group_id) params.set("class_group_id", badge.class_group_id);
+                                          return (
+                                            <Link
+                                              key={`assess-${badge.id}`}
+                                              href={`/evaluations?${params.toString()}`}
+                                              style={badgeStyle(badgeTone(badge.kind))}
+                                            >
+                                              {badgeLabel(badge.kind)}: {truncateTitle(badge.title)}
+                                              {badge.status === "draft" && <span style={{ opacity: 0.7 }}>(Brouillon)</span>}
+                                            </Link>
+                                          );
+                                        }
+                                        return (
+                                          <button
+                                            key={`event-${badge.id}`}
+                                            style={badgeStyle(badgeTone(badge.kind))}
+                                            onClick={() => setSelectedBadge(badge)}
+                                            title="Afficher le détail"
+                                          >
+                                            {badgeLabel(badge.kind)}: {truncateTitle(badge.title)}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
-
-                            {badges.length > 0 && (
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                {badges.map((badge) => (
-                                  <Link key={badge.id} href={badge.href} style={badgeStyle(badge.tone)}>
-                                    {badge.label} · {badge.title}
-                                    {badge.draft && <span style={badgeStyle("gray")}>Brouillon</span>}
-                                  </Link>
-                                ))}
-                              </div>
-                            )}
                           </div>
                         )}
                       </td>
@@ -711,7 +824,7 @@ export default function AgendaPage() {
                     <tr key={r.line} style={invalid ? { background: "rgba(220,38,38,0.08)" } : undefined}>
                       <td style={{ padding: 6, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.line}</td>
                       <td style={{ padding: 6, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.date ? formatDateFR(r.date) : "—"}</td>
-                      <td style={{ padding: 6, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.slot_raw || "—"}</td>
+                      <td style={{ padding: 6, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{formatSlotLabel(r.slot_raw)}</td>
                       <td style={{ padding: 6, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.class_ref || "—"}</td>
                     </tr>
                   );
@@ -723,7 +836,7 @@ export default function AgendaPage() {
 
         {csvSummary && (
           <div style={{ marginTop: 8, fontSize: 13 }}>
-            <b>Résultat:</b> lues {csvSummary.rowsTotal}, valides {csvSummary.rowsReady}, insérées {csvSummary.created}, mises à jour {csvSummary.updated}, erreurs {csvSummary.errors.length}
+            <b>Résultat:</b> lignes {csvSummary.rowsTotal}, valides {csvSummary.rowsReady}, insérées {csvSummary.inserted}, ignorées (doublons) {csvSummary.ignoredDuplicates}, erreurs {csvSummary.errors.length}
             {csvSummary.errors.length > 0 && (
               <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                 {csvSummary.errors.slice(0, 12).map((e, idx) => (
@@ -787,6 +900,125 @@ export default function AgendaPage() {
         <div style={{ height: 8 }} />
         <button style={btnSmallPrimary} onClick={onAddLesson} disabled={!ctx}>Enregistrer la leçon</button>
       </div>
+
+      {selectedBadge && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "grid",
+            placeItems: "center",
+            padding: 16,
+            zIndex: 60,
+          }}
+          onClick={() => setSelectedBadge(null)}
+        >
+          <div
+            style={{
+              ...card,
+              maxWidth: 560,
+              width: "100%",
+              boxShadow: "0 18px 40px rgba(0,0,0,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 900 }}>
+                {selectedBadge.kind === "homework" ? "Détail devoir" : "Détail interro"}
+              </div>
+              <button style={btnSmall} onClick={() => setSelectedBadge(null)}>Fermer</button>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <div>
+                <b>Date:</b> {formatDateFR(selectedBadge.date)}
+              </div>
+              <div>
+                <b>Classe:</b>{" "}
+                {selectedBadge.class_group_id
+                  ? classNameById.get(selectedBadge.class_group_id) ?? "Classe inconnue"
+                  : "Classe non précisée"}
+              </div>
+              <div>
+                <b>Slot:</b> {slotToLabel(selectedBadge.slot)}
+              </div>
+              <div>
+                <b>Type:</b> {selectedBadge.kind === "homework" ? "Devoir" : "Interro"}
+              </div>
+              {badgeEditMode ? (
+                <>
+                  <div style={{ marginTop: 8 }}>
+                    <b>Titre</b>
+                    <input
+                      style={{ ...input, marginTop: 4 }}
+                      value={badgeEditTitle}
+                      onChange={(e) => setBadgeEditTitle(e.target.value)}
+                      placeholder="Titre"
+                    />
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <b>Détails</b>
+                    <textarea
+                      style={{ ...input, marginTop: 4, minHeight: 80 }}
+                      value={badgeEditDetails}
+                      onChange={(e) => setBadgeEditDetails(e.target.value)}
+                      placeholder="Détails"
+                    />
+                  </div>
+                  <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button style={btnSmallPrimary} onClick={() => void onSaveBadgeEdit()} disabled={badgeSaving}>
+                      {badgeSaving ? "Enregistrement..." : "Enregistrer"}
+                    </button>
+                    <button style={btnSmall} onClick={() => setBadgeEditMode(false)}>
+                      Annuler
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <b>Titre:</b> {selectedBadge.title}
+                  </div>
+                  <div>
+                    <b>Détails:</b> {selectedBadge.details?.trim() || "—"}
+                  </div>
+                </>
+              )}
+              <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {selectedBadge.kind !== "assessment" && !badgeEditMode && (
+                  <button style={btnSmall} onClick={() => setBadgeEditMode(true)}>
+                    Modifier
+                  </button>
+                )}
+                {selectedBadge.kind !== "assessment" && !badgeEditMode && (
+                  <button
+                    style={btnSmall}
+                    onClick={async () => {
+                      if (!ctx) return;
+                      try {
+                        await deleteAgendaItem({ ctx, id: selectedBadge.id });
+                        setSelectedBadge(null);
+                        setInfoMsg("Évènement supprimé ✅");
+                        await loadAgenda(ctx, filterClassId, weekStart);
+                      } catch (e: unknown) {
+                        setErrorMsg(toNiceError(e));
+                      }
+                    }}
+                  >
+                    Supprimer
+                  </button>
+                )}
+                <Link
+                  href={`/evaluations?date=${selectedBadge.date}${selectedBadge.class_group_id ? `&class_group_id=${selectedBadge.class_group_id}` : ""}`}
+                  style={btnSmallPrimary}
+                >
+                  Ouvrir dans Évaluations
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
