@@ -1,18 +1,51 @@
 import { createClient } from "@/lib/supabase/client";
+import {
+  type SlotNumber,
+  SLOTS,
+  parseSlotRaw,
+  parseSlotValue,
+  toSlotLabel,
+  normalizeSlotLabel,
+} from "./slot";
 
 export type UUID = string;
 export type AgendaType = "lesson" | "homework" | "test";
 export type AssessmentType = "formative" | "summative";
 export type ContentStatus = "draft" | "published" | "archived";
 
-export type SlotNumber = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-export const SLOTS: SlotNumber[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-const DEFAULT_COURSE_NAME = "Néerlandais";
-
 export type ClassGroup = {
   id: UUID;
   name: string;
   grade_level: number | null;
+};
+
+export type TeacherTimetableSlot = {
+  id: UUID;
+  school_id: UUID;
+  academic_year_id: UUID;
+  teacher_user_id: UUID;
+  day_of_week: number; // 1=lundi ... 7=dimanche
+  slot: SlotNumber;
+  class_group_id: UUID | null;
+  created_at: string;
+  updated_at: string;
+  class_groups?: ClassGroup | ClassGroup[] | null;
+};
+
+export type LessonNote = {
+  id: UUID;
+  school_id: UUID;
+  academic_year_id: UUID;
+  teacher_user_id: UUID;
+  date: string;
+  slot: SlotNumber;
+  class_group_id: UUID;
+  lesson_title: string | null;
+  plan: string | null;
+  comments: string | null;
+  created_at: string;
+  updated_at: string;
+  class_groups?: ClassGroup | ClassGroup[] | null;
 };
 
 export type AgendaItem = {
@@ -22,7 +55,7 @@ export type AgendaItem = {
   teacher_id: UUID;
   class_group_id: UUID | null;
   date: string;
-  slot: number | null;
+  slot: SlotNumber | null;
   type: AgendaType;
   title: string;
   details: string | null;
@@ -42,15 +75,19 @@ export type AgendaAssessment = {
   course_id: UUID | null;
 };
 
-export type ParsedScheduleCsvRow = {
+export type ParsedTimetableCsvRow = {
   line: number;
-  date: string;
+  day_of_week_raw: string;
+  date_raw: string;
   slot_raw: string;
-  class_ref: string;
-  course_name_raw: string;
+  slot_label: string;
+  class_name_raw: string;
   lesson_title_raw: string;
-  tag_raw: string;
-  details_raw: string;
+  notes_raw: string;
+  course_name_raw: string;
+  // Compat with legacy /import page
+  date: string;
+  class_ref: string;
 };
 
 export type ScheduleImportError = {
@@ -58,14 +95,14 @@ export type ScheduleImportError = {
   message: string;
 };
 
-export type ScheduleImportSummary = {
+export type TimetableImportSummary = {
   rowsTotal: number;
+  rowsValid: number;
   rowsReady: number;
   inserted: number;
-  ignoredDuplicates: number;
-  // Compat with previous UI fields
   created: number;
   updated: number;
+  ignoredDuplicates: number;
   minDate: string | null;
   maxDate: string | null;
   minSlot: number | null;
@@ -80,10 +117,15 @@ export type TeacherContext = {
   teacherId: UUID;
 };
 
+export { SLOTS, parseSlotRaw, parseSlotValue, toSlotLabel, normalizeSlotLabel };
+export type { SlotNumber };
+
 const T = {
   SCHOOL_MEMBERSHIPS: "school_memberships",
   ACADEMIC_YEARS: "academic_years",
   CLASS_GROUPS: "class_groups",
+  TEACHER_TIMETABLE_SLOTS: "teacher_timetable_slots",
+  LESSON_NOTES: "lesson_notes",
   AGENDA_ITEMS: "agenda_items",
   ASSESSMENTS: "assessments",
 } as const;
@@ -93,18 +135,9 @@ function errorMessage(error: unknown): string {
   if (typeof error === "string") return error;
   if (typeof error === "object" && error !== null) {
     if ("message" in error && typeof error.message === "string") return error.message;
+    if ("error_description" in error && typeof error.error_description === "string") return error.error_description;
   }
   return String(error);
-}
-
-function isMissingSlotColumn(error: unknown): boolean {
-  const msg = errorMessage(error).toLowerCase();
-  return msg.includes("slot") && msg.includes("does not exist");
-}
-
-function isIntegerSlotError(error: unknown): boolean {
-  const msg = errorMessage(error).toLowerCase();
-  return msg.includes("invalid input syntax for type integer") && msg.includes("p");
 }
 
 function normalizeHeaderCell(header: string): string {
@@ -164,34 +197,40 @@ function countDelimiter(line: string, delimiter: "," | ";"): number {
 }
 
 function findHeaderIndex(headers: string[], candidates: string[]): number {
-  const canonicalize = (value: string) =>
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/^\uFEFF/, "")
-      .normalize("NFD")
-      .replace(/\p{Diacritic}+/gu, "")
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "");
-
-  const canonicalHeaders = headers.map(canonicalize);
-  const canonicalCandidates = candidates.map(canonicalize);
-
   for (const c of candidates) {
     const idx = headers.indexOf(c);
     if (idx >= 0) return idx;
   }
-
-  for (const c of canonicalCandidates) {
-    const idx = canonicalHeaders.findIndex((h) => h === c || h.startsWith(`${c}_`));
-    if (idx >= 0) return idx;
-  }
-
   return -1;
 }
 
-function normalizeNameForMatch(v: string): string {
-  return v.trim().toLowerCase().replace(/\s+/g, " ");
+function normalizeNameForMatch(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}+/gu, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function resolveClassByName(raw: string, classes: ClassGroup[]): ClassGroup | null {
+  const normalized = normalizeNameForMatch(raw);
+  if (!normalized) return null;
+
+  const exact = classes.find((c) => normalizeNameForMatch(c.name) === normalized);
+  if (exact) return exact;
+
+  const scored: Array<{ c: ClassGroup; score: number }> = [];
+  for (const c of classes) {
+    const n = normalizeNameForMatch(c.name);
+    if (!n) continue;
+    if (normalized.startsWith(n) || n.startsWith(normalized)) scored.push({ c, score: n.length });
+  }
+
+  if (scored.length === 0) return null;
+  scored.sort((a, b) => b.score - a.score);
+  if (scored.length > 1 && scored[0].score === scored[1].score) return null;
+  return scored[0].c;
 }
 
 function isIsoDate(value: string): boolean {
@@ -201,40 +240,60 @@ function isIsoDate(value: string): boolean {
   return dt.toISOString().slice(0, 10) === value;
 }
 
-export function parseSlotRaw(raw: string): SlotNumber | null {
-  const value = raw.trim().toUpperCase();
-  if (!value) return null;
-  const match = /^P?(10|[1-9])$/.exec(value);
-  if (!match) return null;
-  const n = Number(match[1]);
-  if (n < 1 || n > 10) return null;
-  return n as SlotNumber;
+function parseFrDateToIso(value: string): string | null {
+  const v = value.trim();
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
+  if (!m) return null;
+  const iso = `${m[3]}-${m[2]}-${m[1]}`;
+  return isIsoDate(iso) ? iso : null;
 }
 
-export function parseSlotValue(raw: unknown): SlotNumber | null {
-  if (raw == null) return null;
-  if (typeof raw === "number" && Number.isInteger(raw)) return parseSlotRaw(String(raw));
-  if (typeof raw === "string") return parseSlotRaw(raw);
-  return null;
-}
+export function parseDayOfWeekRaw(dayRaw: string, dateRaw?: string): number | null {
+  const day = dayRaw.trim().toLowerCase();
+  if (day) {
+    if (/^[1-7]$/.test(day)) return Number(day);
+    const map: Record<string, number> = {
+      lun: 1,
+      lundi: 1,
+      mon: 1,
+      monday: 1,
+      mar: 2,
+      mardi: 2,
+      tue: 2,
+      tuesday: 2,
+      mer: 3,
+      mercredi: 3,
+      wed: 3,
+      wednesday: 3,
+      jeu: 4,
+      jeudi: 4,
+      thu: 4,
+      thursday: 4,
+      ven: 5,
+      vendredi: 5,
+      fri: 5,
+      friday: 5,
+      sam: 6,
+      samedi: 6,
+      sat: 6,
+      saturday: 6,
+      dim: 7,
+      dimanche: 7,
+      sun: 7,
+      sunday: 7,
+    };
+    const mapped = map[day];
+    if (mapped) return mapped;
+  }
 
-function toSlotLabel(slot: SlotNumber): string {
-  return `P${slot}`;
-}
+  const raw = (dateRaw ?? "").trim();
+  if (!raw) return null;
 
-function makeScheduleKey(input: {
-  date: string;
-  slot: SlotNumber;
-  class_group_id: UUID;
-}): string {
-  return `${input.date}|${input.slot}|${input.class_group_id}`;
-}
-
-function chunkArray<T>(arr: T[], size: number): T[][] {
-  if (size <= 0) return [arr];
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
+  const iso = isIsoDate(raw) ? raw : parseFrDateToIso(raw);
+  if (!iso) return null;
+  const dt = new Date(`${iso}T12:00:00`);
+  const dayOfWeek = dt.getDay();
+  return dayOfWeek === 0 ? 7 : dayOfWeek;
 }
 
 function normalizeClassGroup(joinValue: unknown): ClassGroup | null {
@@ -243,14 +302,37 @@ function normalizeClassGroup(joinValue: unknown): ClassGroup | null {
   return joinValue as ClassGroup;
 }
 
+function normalizeTimetableSlotRow(row: any): TeacherTimetableSlot {
+  return {
+    ...(row as TeacherTimetableSlot),
+    day_of_week: Number(row.day_of_week),
+    slot: parseSlotValue(row.slot) ?? 1,
+    class_groups: normalizeClassGroup((row as any).class_groups),
+  };
+}
+
+function normalizeLessonNoteRow(row: any): LessonNote {
+  return {
+    ...(row as LessonNote),
+    slot: parseSlotValue(row.slot) ?? 1,
+    class_groups: normalizeClassGroup((row as any).class_groups),
+  };
+}
+
 function normalizeAgendaRow(row: any): AgendaItem {
-  const slotNumber = parseSlotValue(row.slot);
   return {
     ...(row as AgendaItem),
-    slot: slotNumber ?? null,
+    slot: parseSlotValue(row.slot),
     assessment_id: row.assessment_id ?? null,
     class_groups: normalizeClassGroup((row as any).class_groups),
   };
+}
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  if (size <= 0) return [arr];
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
 }
 
 export async function getTeacherContext(): Promise<TeacherContext> {
@@ -300,7 +382,7 @@ export async function listClassGroups(ctx: TeacherContext): Promise<ClassGroup[]
   return (data ?? []) as ClassGroup[];
 }
 
-export function parseScheduleCsv(csvText: string): ParsedScheduleCsvRow[] {
+export function parseTimetableCsv(csvText: string): ParsedTimetableCsvRow[] {
   const text = csvText.replace(/^\uFEFF/, "");
   const lines = text.split(/\r\n|\n|\r/);
   const headerLineIndex = lines.findIndex((l) => l.trim().length > 0);
@@ -310,74 +392,78 @@ export function parseScheduleCsv(csvText: string): ParsedScheduleCsvRow[] {
   const delimiter: "," | ";" = countDelimiter(headerLine, ";") > countDelimiter(headerLine, ",") ? ";" : ",";
   const headers = splitCsvLine(headerLine, delimiter).map(normalizeHeaderCell);
 
-  const idxDate = findHeaderIndex(headers, ["date", "jour_date", "jour", "date_cours"]);
+  const idxDay = findHeaderIndex(headers, ["day_of_week", "weekday", "jour_semaine", "jour"]);
+  const idxDate = findHeaderIndex(headers, ["date", "jour_date"]);
   const idxSlot = findHeaderIndex(headers, ["slot", "creneau", "periode_horaire", "periode", "p"]);
-  const idxClassId = findHeaderIndex(headers, ["class_group_id", "class_id"]);
-  const idxClassName = findHeaderIndex(headers, ["class_name", "class", "classe", "groupe_classe"]);
-  const idxCourseName = findHeaderIndex(headers, ["course_name", "course", "cours", "subject", "matiere", "title", "nom_cours"]);
-  const idxLessonTitle = findHeaderIndex(headers, ["lesson_title", "lecon", "lecon_du_jour", "lesson"]);
-  const idxTag = findHeaderIndex(headers, ["tag", "etiquette", "type_tag"]);
-  const idxDetails = findHeaderIndex(headers, ["details", "detail", "note", "salle", "room"]);
+  const idxClass = findHeaderIndex(headers, ["class_name", "class", "classe", "groupe_classe"]);
+  const idxLesson = findHeaderIndex(headers, ["lesson_title", "lecon", "lecon_du_jour", "titre_lecon"]);
+  const idxNotes = findHeaderIndex(headers, ["notes", "details", "note", "commentaires", "commentaire"]);
+  const idxCourse = findHeaderIndex(headers, ["course_name", "course", "cours", "matiere", "subject"]);
 
-  if (idxDate < 0) throw new Error("Colonne requise manquante: date (ou jour_date).");
   if (idxSlot < 0) throw new Error("Colonne requise manquante: slot/creneau/periode_horaire/p.");
-  if (idxClassId < 0 && idxClassName < 0) throw new Error("Colonne classe manquante: class_group_id ou class_name.");
-  // course_name est optionnel: fallback par défaut si colonne absente.
+  if (idxClass < 0) throw new Error("Colonne requise manquante: class_name/classe.");
+  if (idxDay < 0 && idxDate < 0) throw new Error("Colonne requise manquante: day_of_week (ou date). ");
 
-  const rows: ParsedScheduleCsvRow[] = [];
+  const rows: ParsedTimetableCsvRow[] = [];
+
   for (let i = headerLineIndex + 1; i < lines.length; i += 1) {
     const line = lines[i];
     if (!line || line.trim().length === 0) continue;
     const cols = splitCsvLine(line, delimiter);
 
+    const dateRaw = idxDate >= 0 ? (cols[idxDate] ?? "").trim() : "";
+    const slotRaw = (cols[idxSlot] ?? "").trim();
+    const classNameRaw = (cols[idxClass] ?? "").trim();
+    const slotLabel = normalizeSlotLabel(slotRaw) ?? "";
+
     rows.push({
       line: i + 1,
-      date: (cols[idxDate] ?? "").trim(),
-      slot_raw: (cols[idxSlot] ?? "").trim(),
-      class_ref:
-        (idxClassId >= 0 ? (cols[idxClassId] ?? "").trim() : "") ||
-        (idxClassName >= 0 ? (cols[idxClassName] ?? "").trim() : ""),
-      course_name_raw: idxCourseName >= 0 ? (cols[idxCourseName] ?? "").trim() : "",
-      lesson_title_raw: idxLessonTitle >= 0 ? (cols[idxLessonTitle] ?? "").trim() : "",
-      tag_raw: idxTag >= 0 ? (cols[idxTag] ?? "").trim() : "",
-      details_raw: idxDetails >= 0 ? (cols[idxDetails] ?? "").trim() : "",
+      day_of_week_raw: idxDay >= 0 ? (cols[idxDay] ?? "").trim() : "",
+      date_raw: dateRaw,
+      slot_raw: slotRaw,
+      slot_label: slotLabel,
+      class_name_raw: classNameRaw,
+      lesson_title_raw: idxLesson >= 0 ? (cols[idxLesson] ?? "").trim() : "",
+      notes_raw: idxNotes >= 0 ? (cols[idxNotes] ?? "").trim() : "",
+      course_name_raw: idxCourse >= 0 ? (cols[idxCourse] ?? "").trim() : "",
+      date: dateRaw,
+      class_ref: classNameRaw,
     });
   }
 
   return rows;
 }
 
-type PreparedScheduleImportRow = {
+type PreparedTimetableImportRow = {
   line: number;
   key: string;
+  dateMaybe: string | null;
   slot: SlotNumber;
   payload: {
     school_id: UUID;
     academic_year_id: UUID;
-    teacher_id: UUID;
+    teacher_user_id: UUID;
+    day_of_week: number;
+    slot: number;
     class_group_id: UUID;
-    date: string;
-    slot: string;
-    type: "lesson";
-    title: string;
-    details: string | null;
   };
 };
 
-export async function importTeacherScheduleCsv(params: {
+export async function importTeacherTimetableCsv(params: {
   ctx: TeacherContext;
-  rows: ParsedScheduleCsvRow[];
+  rows: ParsedTimetableCsvRow[];
   classes: ClassGroup[];
-}): Promise<ScheduleImportSummary> {
+}): Promise<TimetableImportSummary> {
   const { ctx, rows, classes } = params;
 
-  const summary: ScheduleImportSummary = {
+  const summary: TimetableImportSummary = {
     rowsTotal: rows.length,
+    rowsValid: 0,
     rowsReady: 0,
     inserted: 0,
-    ignoredDuplicates: 0,
     created: 0,
     updated: 0,
+    ignoredDuplicates: 0,
     minDate: null,
     maxDate: null,
     minSlot: null,
@@ -385,173 +471,287 @@ export async function importTeacherScheduleCsv(params: {
     errors: [],
   };
 
-  const classById = new Map<string, UUID>();
-  const classByName = new Map<string, UUID>();
-  const classNameById = new Map<UUID, string>();
-  for (const c of classes) {
-    classById.set(c.id.toLowerCase(), c.id);
-    classByName.set(normalizeNameForMatch(c.name), c.id);
-    classNameById.set(c.id, c.name);
-  }
-
-  const prepared: PreparedScheduleImportRow[] = [];
+  const preparedRaw: PreparedTimetableImportRow[] = [];
 
   for (const row of rows) {
-    const date = row.date.trim();
-    const slot = parseSlotRaw(row.slot_raw);
-    const classRef = row.class_ref.trim();
-    const courseName = row.course_name_raw.trim() || DEFAULT_COURSE_NAME;
-    const lessonTitle = row.lesson_title_raw.trim();
-    const detailsRaw = row.details_raw.trim();
-    const tagRaw = row.tag_raw.trim().toLowerCase();
+    const dayOfWeek = parseDayOfWeekRaw(row.day_of_week_raw, row.date_raw);
+    if (!dayOfWeek || dayOfWeek < 1 || dayOfWeek > 7) {
+      summary.errors.push({
+        line: row.line,
+        message: `jour invalide (${row.day_of_week_raw || row.date_raw || "vide"}). Attendu: 1..7, lun..dim ou date.`,
+      });
+      continue;
+    }
 
-    if (!date || !isIsoDate(date)) {
-      summary.errors.push({ line: row.line, message: `date invalide (${row.date || "vide"}). Format attendu: YYYY-MM-DD.` });
+    const slotLabel = row.slot_label || normalizeSlotLabel(row.slot_raw);
+    if (!slotLabel) {
+      summary.errors.push({
+        line: row.line,
+        message: "slot invalide (attendu P1..P10 ou 1..10)",
+      });
       continue;
     }
+    const slot = parseSlotRaw(slotLabel);
     if (!slot) {
-      summary.errors.push({ line: row.line, message: `slot invalide (${row.slot_raw || "vide"}). Format attendu: P1..P10 ou 1..10.` });
+      summary.errors.push({
+        line: row.line,
+        message: "slot invalide (attendu P1..P10 ou 1..10)",
+      });
       continue;
     }
-    if (!classRef) {
+
+    const className = row.class_name_raw.trim();
+    if (!className) {
       summary.errors.push({ line: row.line, message: "class_name obligatoire." });
       continue;
     }
-    const classRefByName = normalizeNameForMatch(classRef);
-    const classId =
-      classById.get(classRef.toLowerCase()) ??
-      classByName.get(classRefByName);
 
-    if (!classId) {
-      summary.errors.push({ line: row.line, message: `classe introuvable (${classRef}).` });
+    const classMatch = resolveClassByName(className, classes);
+    if (!classMatch) {
+      summary.errors.push({ line: row.line, message: `classe introuvable (${className}).` });
       continue;
     }
 
-    const className = classNameById.get(classId) ?? classRef;
-    const tag = tagRaw === "eval" || tagRaw === "devoir" ? tagRaw : "";
-    const detailsParts: string[] = [];
-    if (lessonTitle) detailsParts.push(`Leçon: ${lessonTitle}`);
-    if (tag) detailsParts.push(`Tag: ${tag}`);
-    if (detailsRaw) detailsParts.push(detailsRaw);
-
-    const payload = {
-      school_id: ctx.schoolId,
-      academic_year_id: ctx.academicYearId,
-      teacher_id: ctx.teacherId,
-      class_group_id: classId,
-      date,
-      slot: toSlotLabel(slot),
-      type: "lesson" as const,
-      title: `${className} — ${courseName}`,
-      details: detailsParts.length > 0 ? detailsParts.join(" | ") : null,
-    };
-
-    prepared.push({
+    const maybeIso = isIsoDate(row.date_raw) ? row.date_raw : parseFrDateToIso(row.date_raw);
+    preparedRaw.push({
       line: row.line,
-      key: makeScheduleKey({ date, slot, class_group_id: classId }),
+      key: `${dayOfWeek}|${slot}`,
+      dateMaybe: maybeIso,
       slot,
-      payload,
+      payload: {
+        school_id: ctx.schoolId,
+        academic_year_id: ctx.academicYearId,
+        teacher_user_id: ctx.teacherId,
+        day_of_week: dayOfWeek,
+        slot,
+        class_group_id: classMatch.id,
+      },
     });
 
-    if (!summary.minDate || date < summary.minDate) summary.minDate = date;
-    if (!summary.maxDate || date > summary.maxDate) summary.maxDate = date;
     if (summary.minSlot == null || slot < summary.minSlot) summary.minSlot = slot;
     if (summary.maxSlot == null || slot > summary.maxSlot) summary.maxSlot = slot;
+    if (maybeIso) {
+      if (!summary.minDate || maybeIso < summary.minDate) summary.minDate = maybeIso;
+      if (!summary.maxDate || maybeIso > summary.maxDate) summary.maxDate = maybeIso;
+    }
   }
 
+  const byKey = new Map<string, PreparedTimetableImportRow>();
+  for (const row of preparedRaw) {
+    if (byKey.has(row.key)) summary.ignoredDuplicates += 1;
+    byKey.set(row.key, row);
+  }
+
+  const prepared = Array.from(byKey.values());
+  summary.rowsValid = prepared.length;
   summary.rowsReady = prepared.length;
+
   if (prepared.length === 0) return summary;
 
-  const dates = Array.from(new Set(prepared.map((p) => p.payload.date)));
-  const classIds = Array.from(new Set(prepared.map((p) => p.payload.class_group_id)));
+  const dayValues = Array.from(new Set(prepared.map((p) => p.payload.day_of_week)));
+  const slotValues = Array.from(new Set(prepared.map((p) => p.payload.slot)));
 
   let existingQuery = ctx.supabase
-    .from(T.AGENDA_ITEMS)
-    .select("id,date,slot,class_group_id,title,details")
+    .from(T.TEACHER_TIMETABLE_SLOTS)
+    .select("day_of_week,slot")
     .eq("school_id", ctx.schoolId)
     .eq("academic_year_id", ctx.academicYearId)
-    .eq("teacher_id", ctx.teacherId)
-    .eq("type", "lesson");
+    .eq("teacher_user_id", ctx.teacherId);
 
-  if (dates.length > 0) existingQuery = existingQuery.in("date", dates);
-  if (classIds.length > 0) existingQuery = existingQuery.in("class_group_id", classIds);
+  if (dayValues.length > 0) existingQuery = existingQuery.in("day_of_week", dayValues);
+  if (slotValues.length > 0) existingQuery = existingQuery.in("slot", slotValues);
 
   const existing = await existingQuery;
-  if (existing.error) {
-    const msg = errorMessage(existing.error).toLowerCase();
-    if (msg.includes("slot") && msg.includes("does not exist")) {
-      throw new Error("Colonne agenda_items.slot absente. Applique la migration SQL des slots puis réessaie l'import.");
-    }
-    throw existing.error;
-  }
+  if (existing.error) throw existing.error;
 
-  type ExistingScheduleRow = {
-    id: UUID;
-    date: string;
-    slot: number | string | null;
-    class_group_id: UUID | null;
-    title: string | null;
-    details: string | null;
-  };
-
-  const existingByKey = new Map<string, ExistingScheduleRow>();
+  const existingKeys = new Set<string>();
   for (const row of existing.data ?? []) {
-    const typed = row as ExistingScheduleRow;
-    if (!typed.date || !typed.class_group_id || typed.slot == null) continue;
-    const slotValue = parseSlotValue(row.slot);
-    if (!slotValue) continue;
-
-    const key = makeScheduleKey({
-      date: String(typed.date),
-      slot: slotValue as SlotNumber,
-      class_group_id: typed.class_group_id as UUID,
-    });
-    existingByKey.set(key, typed);
+    const d = Number((row as any).day_of_week);
+    const s = parseSlotValue((row as any).slot);
+    if (!d || !s) continue;
+    existingKeys.add(`${d}|${s}`);
   }
 
-  const seenInCsv = new Set<string>();
-  const toInsert: PreparedScheduleImportRow[] = [];
-  for (const row of prepared) {
-    const existingRow = existingByKey.get(row.key);
-    if (seenInCsv.has(row.key)) {
-      summary.ignoredDuplicates += 1;
-      continue;
-    }
-    seenInCsv.add(row.key);
-    if (!existingRow) {
-      toInsert.push(row);
-      continue;
-    }
-    summary.ignoredDuplicates += 1;
-  }
+  for (const chunk of chunkArray(prepared, 200)) {
+    const bulk = await ctx.supabase
+      .from(T.TEACHER_TIMETABLE_SLOTS)
+      .upsert(chunk.map((row) => row.payload), {
+        onConflict: "teacher_user_id,academic_year_id,day_of_week,slot",
+        ignoreDuplicates: false,
+      });
 
-  if (toInsert.length === 0) return summary;
-
-  for (const chunk of chunkArray(toInsert, 200)) {
-    const bulk = await ctx.supabase.from(T.AGENDA_ITEMS).insert(chunk.map((r) => r.payload));
     if (!bulk.error) {
-      summary.inserted += chunk.length;
-      summary.created += chunk.length;
+      for (const row of chunk) {
+        if (existingKeys.has(row.key)) summary.updated += 1;
+        else {
+          summary.inserted += 1;
+          summary.created += 1;
+          existingKeys.add(row.key);
+        }
+      }
       continue;
     }
 
     for (const row of chunk) {
-      let single = await ctx.supabase.from(T.AGENDA_ITEMS).insert(row.payload);
-      if (single.error && isIntegerSlotError(single.error)) {
-        single = await ctx.supabase.from(T.AGENDA_ITEMS).insert({
-          ...row.payload,
-          slot: row.slot,
-        } as any);
-      }
-      if (single.error) summary.errors.push({ line: row.line, message: errorMessage(single.error) });
-      else {
+      const one = await ctx.supabase
+        .from(T.TEACHER_TIMETABLE_SLOTS)
+        .upsert(row.payload, {
+          onConflict: "teacher_user_id,academic_year_id,day_of_week,slot",
+          ignoreDuplicates: false,
+        });
+
+      if (one.error) {
+        summary.errors.push({ line: row.line, message: errorMessage(one.error) });
+      } else if (existingKeys.has(row.key)) {
+        summary.updated += 1;
+      } else {
         summary.inserted += 1;
         summary.created += 1;
+        existingKeys.add(row.key);
       }
     }
   }
 
   return summary;
+}
+
+export async function listTimetableWeek(params: {
+  ctx: TeacherContext;
+  classGroupId?: UUID;
+}): Promise<TeacherTimetableSlot[]> {
+  const { ctx, classGroupId } = params;
+
+  let query = ctx.supabase
+    .from(T.TEACHER_TIMETABLE_SLOTS)
+    .select("id,school_id,academic_year_id,teacher_user_id,day_of_week,slot,class_group_id,created_at,updated_at,class_groups(id,name,grade_level)")
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("teacher_user_id", ctx.teacherId)
+    .order("day_of_week", { ascending: true })
+    .order("slot", { ascending: true });
+
+  if (classGroupId) query = query.eq("class_group_id", classGroupId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return ((data ?? []) as any[]).map(normalizeTimetableSlotRow);
+}
+
+export async function upsertTimetableSlot(params: {
+  ctx: TeacherContext;
+  dayOfWeek: number;
+  slot: SlotNumber;
+  classGroupId: UUID | null;
+}): Promise<void> {
+  const { ctx, dayOfWeek, slot, classGroupId } = params;
+
+  if (!dayOfWeek || dayOfWeek < 1 || dayOfWeek > 7) {
+    throw new Error("Jour invalide. Valeur attendue: 1..7.");
+  }
+
+  const { error } = await ctx.supabase
+    .from(T.TEACHER_TIMETABLE_SLOTS)
+    .upsert(
+      {
+        school_id: ctx.schoolId,
+        academic_year_id: ctx.academicYearId,
+        teacher_user_id: ctx.teacherId,
+        day_of_week: dayOfWeek,
+        slot,
+        class_group_id: classGroupId,
+      },
+      {
+        onConflict: "teacher_user_id,academic_year_id,day_of_week,slot",
+        ignoreDuplicates: false,
+      }
+    );
+
+  if (error) throw error;
+}
+
+export async function listLessonNotesWeek(params: {
+  ctx: TeacherContext;
+  dateFrom: string;
+  dateTo: string;
+  classGroupId?: UUID;
+}): Promise<LessonNote[]> {
+  const { ctx, dateFrom, dateTo, classGroupId } = params;
+
+  let query = ctx.supabase
+    .from(T.LESSON_NOTES)
+    .select("id,school_id,academic_year_id,teacher_user_id,date,slot,class_group_id,lesson_title,plan,comments,created_at,updated_at,class_groups(id,name,grade_level)")
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("teacher_user_id", ctx.teacherId)
+    .gte("date", dateFrom)
+    .lte("date", dateTo)
+    .order("date", { ascending: true })
+    .order("slot", { ascending: true });
+
+  if (classGroupId) query = query.eq("class_group_id", classGroupId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return ((data ?? []) as any[]).map(normalizeLessonNoteRow);
+}
+
+export async function getLessonNote(params: {
+  ctx: TeacherContext;
+  date: string;
+  slot: SlotNumber;
+}): Promise<LessonNote | null> {
+  const { ctx, date, slot } = params;
+
+  const { data, error } = await ctx.supabase
+    .from(T.LESSON_NOTES)
+    .select("id,school_id,academic_year_id,teacher_user_id,date,slot,class_group_id,lesson_title,plan,comments,created_at,updated_at,class_groups(id,name,grade_level)")
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("teacher_user_id", ctx.teacherId)
+    .eq("date", date)
+    .eq("slot", slot)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? normalizeLessonNoteRow(data) : null;
+}
+
+export async function upsertLessonNote(params: {
+  ctx: TeacherContext;
+  date: string;
+  slot: SlotNumber;
+  classGroupId: UUID;
+  lessonTitle: string | null;
+  plan: string | null;
+  comments: string | null;
+}): Promise<void> {
+  const { ctx, date, slot, classGroupId, lessonTitle, plan, comments } = params;
+
+  if (!isIsoDate(date)) throw new Error("Date invalide (YYYY-MM-DD attendu).");
+
+  const { error } = await ctx.supabase
+    .from(T.LESSON_NOTES)
+    .upsert(
+      {
+        school_id: ctx.schoolId,
+        academic_year_id: ctx.academicYearId,
+        teacher_user_id: ctx.teacherId,
+        date,
+        slot,
+        class_group_id: classGroupId,
+        lesson_title: lessonTitle?.trim() || null,
+        plan: plan?.trim() || null,
+        comments: comments?.trim() || null,
+      },
+      {
+        onConflict: "teacher_user_id,date,slot",
+        ignoreDuplicates: false,
+      }
+    );
+
+  if (error) throw error;
 }
 
 export async function listAgendaItems(params: {
@@ -562,63 +762,49 @@ export async function listAgendaItems(params: {
 }): Promise<AgendaItem[]> {
   const { ctx, dateFrom, dateTo, classGroupId } = params;
 
-  const runQuery = async (options: { includeSlot: boolean; includeAssessmentId: boolean }) => {
-    const selectCols = [
+  const runQuery = async (includeAssessmentId: boolean) => {
+    const cols = [
       "id",
       "school_id",
       "academic_year_id",
       "teacher_id",
       "class_group_id",
       "date",
-      options.includeSlot ? "slot" : null,
+      "slot",
       "type",
       "title",
       "details",
-      options.includeAssessmentId ? "assessment_id" : null,
+      includeAssessmentId ? "assessment_id" : null,
       "created_at",
       "updated_at",
-      "class_groups ( id, name, grade_level )",
+      "class_groups(id,name,grade_level)",
     ]
       .filter(Boolean)
-      .join(", ");
+      .join(",");
 
     let query = ctx.supabase
       .from(T.AGENDA_ITEMS)
-      .select(selectCols)
+      .select(cols)
       .eq("school_id", ctx.schoolId)
       .eq("academic_year_id", ctx.academicYearId)
       .eq("teacher_id", ctx.teacherId)
       .gte("date", dateFrom)
       .lte("date", dateTo)
-      .order("date", { ascending: true });
-
-    if (options.includeSlot) {
-      query = query.order("slot", { ascending: true });
-    }
-
-    query = query.order("created_at", { ascending: true });
+      .order("date", { ascending: true })
+      .order("slot", { ascending: true })
+      .order("created_at", { ascending: true });
 
     if (classGroupId) query = query.eq("class_group_id", classGroupId);
     return query;
   };
 
-  let { data, error } = await runQuery({ includeSlot: true, includeAssessmentId: true });
+  let { data, error } = await runQuery(true);
   if (error) {
     const msg = errorMessage(error).toLowerCase();
-    const missingSlot = msg.includes("slot") && msg.includes("does not exist");
-    const missingAssessment = msg.includes("assessment_id") && msg.includes("does not exist");
-
-    if (missingSlot || missingAssessment) {
-      const fallback = await runQuery({
-        includeSlot: !missingSlot,
-        includeAssessmentId: !missingAssessment,
-      });
+    if (msg.includes("assessment_id") && msg.includes("does not exist")) {
+      const fallback = await runQuery(false);
       if (fallback.error) throw fallback.error;
-      data = (fallback.data ?? []).map((row: any) => ({
-        ...row,
-        slot: "slot" in row ? row.slot : null,
-        assessment_id: "assessment_id" in row ? row.assessment_id : null,
-      }));
+      data = (fallback.data ?? []).map((row: any) => ({ ...row, assessment_id: null }));
       error = null;
     }
   }
@@ -652,102 +838,6 @@ export async function listAssessmentsForAgenda(params: {
   return (data ?? []) as AgendaAssessment[];
 }
 
-export async function upsertAgendaLesson(params: {
-  ctx: TeacherContext;
-  classGroupId: UUID;
-  date: string;
-  slot: SlotNumber;
-  courseName: string;
-  details: string | null;
-}): Promise<void> {
-  const { ctx, classGroupId, date, slot, courseName, details } = params;
-
-  if (!isIsoDate(date)) throw new Error("Date invalide (YYYY-MM-DD attendu).");
-
-  const existing = await ctx.supabase
-    .from(T.AGENDA_ITEMS)
-    .select("id,slot")
-    .eq("school_id", ctx.schoolId)
-    .eq("academic_year_id", ctx.academicYearId)
-    .eq("teacher_id", ctx.teacherId)
-    .eq("class_group_id", classGroupId)
-    .eq("date", date)
-    .eq("type", "lesson")
-    .limit(30);
-
-  if (existing.error) {
-    if (isMissingSlotColumn(existing.error)) {
-      throw new Error("Colonne agenda_items.slot absente. Applique la migration SQL des slots puis réessaie.");
-    }
-    throw existing.error;
-  }
-
-  const existingRows = (existing.data ?? []) as Array<{ id: UUID; slot: string | number | null }>;
-  const matched = existingRows.find((r) => parseSlotValue(r.slot) === slot);
-  if (matched?.id) {
-    const { error } = await ctx.supabase
-      .from(T.AGENDA_ITEMS)
-      .update({ title: courseName.trim(), details: details?.trim() || null })
-      .eq("id", matched.id)
-      .eq("school_id", ctx.schoolId)
-      .eq("academic_year_id", ctx.academicYearId)
-      .eq("teacher_id", ctx.teacherId);
-    if (error) throw error;
-    return;
-  }
-
-  let insert = await ctx.supabase.from(T.AGENDA_ITEMS).insert({
-    school_id: ctx.schoolId,
-    academic_year_id: ctx.academicYearId,
-    teacher_id: ctx.teacherId,
-    class_group_id: classGroupId,
-    date,
-    slot: toSlotLabel(slot),
-    type: "lesson",
-    title: courseName.trim(),
-    details: details?.trim() || null,
-  });
-
-  if (insert.error && isIntegerSlotError(insert.error)) {
-    insert = await ctx.supabase.from(T.AGENDA_ITEMS).insert({
-      school_id: ctx.schoolId,
-      academic_year_id: ctx.academicYearId,
-      teacher_id: ctx.teacherId,
-      class_group_id: classGroupId,
-      date,
-      slot,
-      type: "lesson",
-      title: courseName.trim(),
-      details: details?.trim() || null,
-    } as any);
-  }
-
-  if (insert.error) {
-    if (isMissingSlotColumn(insert.error)) {
-      throw new Error("Colonne agenda_items.slot absente. Applique la migration SQL des slots puis réessaie.");
-    }
-    throw insert.error;
-  }
-}
-
-export async function updateAgendaLessonDetails(params: {
-  ctx: TeacherContext;
-  itemId: UUID;
-  details: string | null;
-}): Promise<void> {
-  const { ctx, itemId, details } = params;
-  const { error } = await ctx.supabase
-    .from(T.AGENDA_ITEMS)
-    .update({ details: details?.trim() || null })
-    .eq("id", itemId)
-    .eq("school_id", ctx.schoolId)
-    .eq("academic_year_id", ctx.academicYearId)
-    .eq("teacher_id", ctx.teacherId)
-    .eq("type", "lesson");
-
-  if (error) throw error;
-}
-
 export async function deleteAgendaItem(params: { ctx: TeacherContext; id: UUID }): Promise<void> {
   const { ctx, id } = params;
   const { error } = await ctx.supabase
@@ -770,10 +860,7 @@ export async function updateAgendaEvent(params: {
   const { ctx, itemId, title, details } = params;
   const { error } = await ctx.supabase
     .from(T.AGENDA_ITEMS)
-    .update({
-      title: title.trim(),
-      details: details?.trim() || null,
-    })
+    .update({ title: title.trim(), details: details?.trim() || null })
     .eq("id", itemId)
     .eq("school_id", ctx.schoolId)
     .eq("academic_year_id", ctx.academicYearId)
@@ -782,3 +869,26 @@ export async function updateAgendaEvent(params: {
 
   if (error) throw error;
 }
+
+// ----------------------------------------------------------------------------
+// Backward-compatible aliases used by existing /import module.
+// ----------------------------------------------------------------------------
+export type ParsedScheduleCsvRow = ParsedTimetableCsvRow;
+export type ScheduleImportSummary = TimetableImportSummary;
+
+export const parseScheduleCsv = parseTimetableCsv;
+
+export async function importTeacherScheduleCsv(params: {
+  ctx: TeacherContext;
+  rows: ParsedScheduleCsvRow[];
+  classes: ClassGroup[];
+}): Promise<ScheduleImportSummary> {
+  return importTeacherTimetableCsv({
+    ctx: params.ctx,
+    rows: params.rows,
+    classes: params.classes,
+  });
+}
+
+export const listTeacherTimetableWeek = listTimetableWeek;
+export const upsertTeacherTimetableSlot = upsertTimetableSlot;

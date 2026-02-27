@@ -1,19 +1,43 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatDateFR } from "@/lib/date";
 import {
-  type UUID,
-  type TeacherContext,
-  type ClassGroup,
-  type StudentOption,
-  type ParsedStudentCsvRow,
-  type StudentImportSummary,
-  getTeacherContext,
-  listClassGroups,
-  listStudentsInClass,
-  parseStudentsCsv,
+  type UUID as StudentUUID,
+  type TeacherContext as StudentCtx,
+  type ClassGroup as StudentClass,
+  type CsvStudentImportRow,
+  type CsvStudentImportSummary,
+  getTeacherContext as getStudentContext,
+  listClassGroups as listStudentClasses,
   importStudentsToClass,
-} from "./import";
+  listStudentsInClass,
+} from "../resultats/resultats";
+import {
+  type TeacherContext as EvalCtx,
+  type ClassGroup as EvalClass,
+  type Course,
+  type Apprentissage,
+  type ParsedAssessmentCsvRow,
+  type AssessmentCsvImportSummary,
+  parseAssessmentsCsv,
+  getTeacherContext as getEvalContext,
+  listClassGroups as listEvalClasses,
+  listCourses,
+  listApprentissages,
+  importAssessmentsCsv,
+} from "../evaluations/evaluations";
+import {
+  type TeacherContext as AgendaCtx,
+  type ClassGroup as AgendaClass,
+  type ParsedScheduleCsvRow,
+  type ScheduleImportSummary,
+  parseScheduleCsv,
+  getTeacherContext as getAgendaContext,
+  listClassGroups as listAgendaClasses,
+  importTeacherScheduleCsv,
+  normalizeSlotLabel,
+} from "../agenda/agenda";
 
 function toNiceError(e: unknown): string {
   if (!e) return "Erreur inconnue";
@@ -30,6 +54,114 @@ function toNiceError(e: unknown): string {
     return String(e);
   }
 }
+
+function splitCsvLine(line: string, delimiter: "," | ";"): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      const next = line[i + 1];
+      if (inQuotes && next === '"') {
+        cur += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === delimiter && !inQuotes) {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+function countDelimiter(line: string, delimiter: "," | ";"): number {
+  let count = 0;
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      const next = line[i + 1];
+      if (inQuotes && next === '"') i += 1;
+      else inQuotes = !inQuotes;
+      continue;
+    }
+    if (ch === delimiter && !inQuotes) count += 1;
+  }
+  return count;
+}
+
+function normalizeHeaderCell(header: string): string {
+  return header
+    .trim()
+    .toLowerCase()
+    .replace(/^\uFEFF/, "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}+/gu, "")
+    .replace(/[ -]+/g, "_");
+}
+
+function findHeaderIndex(headers: string[], candidates: string[]): number {
+  for (const c of candidates) {
+    const idx = headers.indexOf(c);
+    if (idx >= 0) return idx;
+  }
+  return -1;
+}
+
+function parseStudentsCsv(text: string): CsvStudentImportRow[] {
+  const clean = text.replace(/^\uFEFF/, "");
+  const lines = clean.split(/\r\n|\n|\r/);
+  const headerIndex = lines.findIndex((l) => l.trim().length > 0);
+  if (headerIndex < 0) throw new Error("CSV vide.");
+
+  const headerLine = lines[headerIndex];
+  const delimiter: "," | ";" = countDelimiter(headerLine, ";") > countDelimiter(headerLine, ",") ? ";" : ",";
+  const headers = splitCsvLine(headerLine, delimiter).map(normalizeHeaderCell);
+  const idxFirst = findHeaderIndex(headers, ["first_name", "prenom", "first", "firstname"]);
+  const idxLast = findHeaderIndex(headers, ["last_name", "nom", "last", "lastname"]);
+  const idxRef = findHeaderIndex(headers, ["student_ref", "ordre", "id_externe", "student_id", "external_id"]);
+  const idxEmail = findHeaderIndex(headers, ["email_ecole", "email"]);
+
+  if (idxFirst < 0 || idxLast < 0) {
+    throw new Error("Colonnes requises manquantes. Attendu: prenom/first_name + nom/last_name.");
+  }
+
+  const rows: CsvStudentImportRow[] = [];
+  for (let i = headerIndex + 1; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!line || line.trim().length === 0) continue;
+    const cols = splitCsvLine(line, delimiter);
+    rows.push({
+      line: i + 1,
+      first_name: (cols[idxFirst] ?? "").trim(),
+      last_name: (cols[idxLast] ?? "").trim(),
+      student_ref: idxRef >= 0 ? ((cols[idxRef] ?? "").trim() || null) : null,
+      email: idxEmail >= 0 ? ((cols[idxEmail] ?? "").trim() || null) : null,
+    });
+  }
+
+  return rows;
+}
+
+const TYPE_LABEL: Record<string, string> = {
+  summative: "Sommative",
+  formative: "Formative",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: "Brouillon",
+  published: "Publiée",
+  archived: "Archivée",
+};
 
 const card: React.CSSProperties = {
   borderRadius: 18,
@@ -61,326 +193,383 @@ const btnPrimary: React.CSSProperties = {
 };
 
 export default function ImportPage() {
-  const [ctx, setCtx] = useState<TeacherContext | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [infoMsg, setInfoMsg] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
 
-  const [classes, setClasses] = useState<ClassGroup[]>([]);
-  const [classId, setClassId] = useState<UUID | "">("");
-  const [students, setStudents] = useState<StudentOption[]>([]);
-  const [studentId, setStudentId] = useState<UUID | "">("");
+  const [studentCtx, setStudentCtx] = useState<StudentCtx | null>(null);
+  const [studentClasses, setStudentClasses] = useState<StudentClass[]>([]);
+  const [studentClassId, setStudentClassId] = useState<StudentUUID | "">("");
+  const [studentRows, setStudentRows] = useState<CsvStudentImportRow[]>([]);
+  const [studentFileName, setStudentFileName] = useState("");
+  const [studentSummary, setStudentSummary] = useState<CsvStudentImportSummary | null>(null);
+  const [studentInfo, setStudentInfo] = useState<string | null>(null);
+  const [studentImporting, setStudentImporting] = useState(false);
 
-  const [csvFileName, setCsvFileName] = useState("");
-  const [rows, setRows] = useState<ParsedStudentCsvRow[]>([]);
-  const [importing, setImporting] = useState(false);
-  const [summary, setSummary] = useState<StudentImportSummary | null>(null);
+  const [evalCtx, setEvalCtx] = useState<EvalCtx | null>(null);
+  const [evalClasses, setEvalClasses] = useState<EvalClass[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [apprentissages, setApprentissages] = useState<Apprentissage[]>([]);
+  const [evalRows, setEvalRows] = useState<ParsedAssessmentCsvRow[]>([]);
+  const [evalFileName, setEvalFileName] = useState("");
+  const [evalSummary, setEvalSummary] = useState<AssessmentCsvImportSummary | null>(null);
+  const [evalInfo, setEvalInfo] = useState<string | null>(null);
+  const [evalImporting, setEvalImporting] = useState(false);
 
-  const csvInputRef = useRef<HTMLInputElement | null>(null);
+  const [agendaCtx, setAgendaCtx] = useState<AgendaCtx | null>(null);
+  const [agendaClasses, setAgendaClasses] = useState<AgendaClass[]>([]);
+  const [agendaRows, setAgendaRows] = useState<ParsedScheduleCsvRow[]>([]);
+  const [agendaFileName, setAgendaFileName] = useState("");
+  const [agendaSummary, setAgendaSummary] = useState<ScheduleImportSummary | null>(null);
+  const [agendaInfo, setAgendaInfo] = useState<string | null>(null);
+  const [agendaImporting, setAgendaImporting] = useState(false);
 
-  const previewRows = useMemo(() => rows.slice(0, 10), [rows]);
-  const previewStats = useMemo(() => {
-    const total = rows.length;
-    const valid = rows.filter((r) => r.first_name.trim() && r.last_name.trim()).length;
-    return {
-      total,
-      valid,
-      errors: total - valid,
-    };
-  }, [rows]);
+  const studentInputRef = useRef<HTMLInputElement | null>(null);
+  const evalInputRef = useRef<HTMLInputElement | null>(null);
+  const agendaInputRef = useRef<HTMLInputElement | null>(null);
+
+  const studentPreview = useMemo(() => studentRows.slice(0, 10), [studentRows]);
+  const evalPreview = useMemo(() => evalRows.slice(0, 10), [evalRows]);
+  const agendaPreview = useMemo(() => agendaRows.slice(0, 10), [agendaRows]);
 
   useEffect(() => {
     (async () => {
       try {
-        setErrorMsg(null);
-        setInfoMsg(null);
-        const c = await getTeacherContext();
-        setCtx(c);
+        setPageError(null);
 
-        const cls = await listClassGroups(c);
-        setClasses(cls);
-        setClassId(cls[0]?.id ?? "");
+        const [sCtx, eCtx, aCtx] = await Promise.all([
+          getStudentContext(),
+          getEvalContext(),
+          getAgendaContext(),
+        ]);
+
+        setStudentCtx(sCtx);
+        setEvalCtx(eCtx);
+        setAgendaCtx(aCtx);
+
+        const [sClasses, eClasses, eCourses, eApps, aClasses] = await Promise.all([
+          listStudentClasses(sCtx),
+          listEvalClasses(eCtx),
+          listCourses(eCtx),
+          listApprentissages(eCtx),
+          listAgendaClasses(aCtx),
+        ]);
+
+        setStudentClasses(sClasses);
+        setStudentClassId(sClasses[0]?.id ?? "");
+        setEvalClasses(eClasses);
+        setCourses(eCourses);
+        setApprentissages(eApps);
+        setAgendaClasses(aClasses);
       } catch (e: unknown) {
-        setErrorMsg(toNiceError(e));
+        setPageError(toNiceError(e));
       }
     })();
   }, []);
 
-  useEffect(() => {
-    if (!ctx || !classId) {
-      setStudents([]);
-      setStudentId("");
-      return;
-    }
-
-    (async () => {
-      try {
-        const list = await listStudentsInClass(ctx, classId);
-        setStudents(list);
-        setStudentId((prev) => (prev && list.some((s) => s.id === prev) ? prev : list[0]?.id ?? ""));
-      } catch (e: unknown) {
-        setErrorMsg(toNiceError(e));
-      }
-    })();
-  }, [ctx, classId]);
-
-  async function onCsvSelected(file: File | null) {
+  async function onSelectStudentFile(file: File | null) {
     try {
-      setErrorMsg(null);
-      setInfoMsg(null);
-      setSummary(null);
-      setRows([]);
-      setCsvFileName(file?.name ?? "");
-
+      setPageError(null);
+      setStudentSummary(null);
+      setStudentInfo(null);
+      setStudentRows([]);
+      setStudentFileName(file?.name ?? "");
       if (!file) return;
       const text = await file.text();
       const parsed = parseStudentsCsv(text);
-      setRows(parsed);
-      setInfoMsg(`${parsed.length} ligne(s) détectée(s).`);
+      setStudentRows(parsed);
+      setStudentInfo(`${parsed.length} ligne(s) détectée(s).`);
     } catch (e: unknown) {
-      setErrorMsg(toNiceError(e));
+      setPageError(toNiceError(e));
     }
   }
 
-  async function onImport() {
-    if (!ctx || !classId) return;
-    if (rows.length === 0) {
-      setErrorMsg("Aucune ligne CSV à importer.");
+  async function onImportStudents() {
+    if (!studentCtx || !studentClassId) return;
+    if (studentRows.length === 0) {
+      setPageError("Aucune ligne CSV à importer.");
       return;
     }
 
     try {
-      setErrorMsg(null);
-      setInfoMsg(null);
-      setSummary(null);
-      setImporting(true);
-
-      const result = await importStudentsToClass({
-        ctx,
-        classGroupId: classId,
-        rows,
+      setPageError(null);
+      setStudentInfo(null);
+      setStudentImporting(true);
+      const summary = await importStudentsToClass(studentCtx, {
+        classGroupId: studentClassId,
+        rows: studentRows,
       });
-      setSummary(result);
-      setInfoMsg("Import terminé.");
-
-      const updated = await listStudentsInClass(ctx, classId);
-      setStudents(updated);
-      setStudentId((prev) => (prev && updated.some((s) => s.id === prev) ? prev : updated[0]?.id ?? ""));
+      setStudentSummary(summary);
+      const updatedStudents = await listStudentsInClass(studentCtx, studentClassId);
+      setStudentInfo(
+        `Import élèves terminé ✅ ${summary.studentsCreated} créés, ${summary.studentsExisting} existants, ${summary.errors.length} erreurs. Classe: ${updatedStudents.length} élèves inscrits.`
+      );
     } catch (e: unknown) {
-      setErrorMsg(toNiceError(e));
+      setPageError(toNiceError(e));
     } finally {
-      setImporting(false);
+      setStudentImporting(false);
     }
   }
 
-  async function onGeneratePdf() {
-    if (!studentId) {
-      setErrorMsg("Choisis un élève pour générer le bulletin PDF.");
+  async function onSelectEvalFile(file: File | null) {
+    try {
+      setPageError(null);
+      setEvalSummary(null);
+      setEvalInfo(null);
+      setEvalRows([]);
+      setEvalFileName(file?.name ?? "");
+      if (!file) return;
+      const text = await file.text();
+      const parsed = parseAssessmentsCsv(text);
+      setEvalRows(parsed);
+      setEvalInfo(`${parsed.length} ligne(s) détectée(s).`);
+    } catch (e: unknown) {
+      setPageError(toNiceError(e));
+    }
+  }
+
+  async function onImportEval() {
+    if (!evalCtx) return;
+    if (evalRows.length === 0) {
+      setPageError("Aucune ligne CSV à importer.");
       return;
     }
 
     try {
-      setErrorMsg(null);
-      setInfoMsg(null);
-      const resp = await fetch(`/api/pdf/bulletin?student_id=${encodeURIComponent(studentId)}`);
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(text || `Erreur HTTP ${resp.status}`);
-      }
-
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const student = students.find((s) => s.id === studentId);
-      const filename = student
-        ? `bulletin-${student.last_name}-${student.first_name}.pdf`.replace(/\s+/g, "-")
-        : "bulletin.pdf";
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      setInfoMsg("PDF bulletin généré.");
+      setPageError(null);
+      setEvalInfo(null);
+      setEvalImporting(true);
+      const summary = await importAssessmentsCsv({
+        ctx: evalCtx,
+        rows: evalRows,
+        classes: evalClasses,
+        courses,
+        apprentissages,
+      });
+      setEvalSummary(summary);
+      setEvalInfo(`Import évaluations terminé ✅ ${summary.created} créées, ${summary.alreadyExisting} déjà existantes, ${summary.errors.length} erreurs.`);
     } catch (e: unknown) {
-      setErrorMsg(toNiceError(e));
+      setPageError(toNiceError(e));
+    } finally {
+      setEvalImporting(false);
     }
   }
 
-  const canImport = !!ctx && !!classId && rows.length > 0 && !importing;
+  async function onSelectAgendaFile(file: File | null) {
+    try {
+      setPageError(null);
+      setAgendaSummary(null);
+      setAgendaInfo(null);
+      setAgendaRows([]);
+      setAgendaFileName(file?.name ?? "");
+      if (!file) return;
+      const text = await file.text();
+      const parsed = parseScheduleCsv(text);
+      setAgendaRows(parsed);
+      setAgendaInfo(`${parsed.length} ligne(s) détectée(s).`);
+    } catch (e: unknown) {
+      setPageError(toNiceError(e));
+    }
+  }
+
+  async function onImportAgenda() {
+    if (!agendaCtx) return;
+    if (agendaRows.length === 0) {
+      setPageError("Aucune ligne CSV à importer.");
+      return;
+    }
+
+    try {
+      setPageError(null);
+      setAgendaInfo(null);
+      setAgendaImporting(true);
+      const summary = await importTeacherScheduleCsv({
+        ctx: agendaCtx,
+        rows: agendaRows,
+        classes: agendaClasses,
+      });
+      setAgendaSummary(summary);
+      setAgendaInfo(
+        `Import horaires terminé ✅ ${summary.created} créés, ${summary.updated} mis à jour, ${summary.errors.length} erreurs. Slots ${summary.minSlot ?? "—"}-${summary.maxSlot ?? "—"}.`
+      );
+    } catch (e: unknown) {
+      setPageError(toNiceError(e));
+    } finally {
+      setAgendaImporting(false);
+    }
+  }
 
   return (
-    <div>
-      {errorMsg && (
-        <div style={{ ...card, marginBottom: 14 }}>
-          <b>Erreur :</b> {errorMsg}
-        </div>
-      )}
-
-      {infoMsg && (
-        <div style={{ ...card, marginBottom: 14 }}>
-          <b>{infoMsg}</b>
+    <div style={{ display: "grid", gap: 14 }}>
+      {pageError && (
+        <div style={card}>
+          <b>Erreur :</b> {pageError}
         </div>
       )}
 
       <div style={card}>
-        <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>Importer élèves (CSV par classe)</div>
-        <div style={{ opacity: 0.8, marginBottom: 12 }}>
-          CSV attendu: <b>first_name,last_name</b> (ou <b>Prénom,Nom</b>). Optionnel: <b>student_ref</b>. Séparateur accepté:
-          <b> , </b>ou<b> ;</b>
-        </div>
-        <div style={{ opacity: 0.8, marginBottom: 12 }}>
-          Déduplication: priorité <b>student_ref</b> si fourni, sinon <b>prénom+nom</b> (insensible à la casse).
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
-          <select style={input} value={classId} onChange={(e) => setClassId(e.target.value as UUID | "")}> 
-            <option value="">Choisir une classe cible</option>
-            {classes.map((c) => (
+        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 10 }}>Import Élèves (par classe)</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 10, alignItems: "center" }}>
+          <select style={input} value={studentClassId} onChange={(e) => setStudentClassId(e.target.value as StudentUUID | "") }>
+            <option value="">Choisir une classe</option>
+            {studentClasses.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
-                {c.grade_level ? ` (niveau ${c.grade_level})` : ""}
+                {c.name}{c.grade_level ? ` (niveau ${c.grade_level})` : ""}
               </option>
             ))}
           </select>
-        </div>
-
-        <div style={{ height: 10 }} />
-
-        <input
-          ref={csvInputRef}
-          type="file"
-          accept=".csv,text/csv"
-          style={{ display: "none" }}
-          onChange={(e) => void onCsvSelected(e.target.files?.[0] ?? null)}
-        />
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <button style={btn} onClick={() => csvInputRef.current?.click()} disabled={!ctx || !classId}>
-            Importer élèves (CSV)
+          <button style={btn} onClick={() => studentInputRef.current?.click()} disabled={!studentCtx || !studentClassId}>Choisir fichier</button>
+          <button style={btnPrimary} onClick={onImportStudents} disabled={!studentCtx || !studentClassId || studentRows.length === 0 || studentImporting}>
+            {studentImporting ? "Import..." : "Importer"}
           </button>
-          <button style={btnPrimary} onClick={onImport} disabled={!canImport}>
-            {importing ? "Import en cours..." : "Confirmer import"}
-          </button>
-          <a
-            href="/templates/modele_import_eleves.xlsx"
-            target="_blank"
-            rel="noopener noreferrer"
-            download
-            style={{ ...btn, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
-          >
-            Télécharger modèle élèves (Sheets)
-          </a>
-          <a
-            href="/templates/modele_import_eleves.csv"
-            target="_blank"
-            rel="noopener noreferrer"
-            download
-            style={{ ...btn, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
-          >
-            Télécharger modèle élèves (CSV)
-          </a>
-          <a
-            href="/samples/import-classe-example.csv"
-            download
-            style={{ ...btn, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
-          >
-            Exemple CSV
-          </a>
-          <div style={{ opacity: 0.75, fontSize: 13 }}>{csvFileName ? `Fichier: ${csvFileName}` : "Aucun fichier sélectionné."}</div>
         </div>
-      </div>
+        <input ref={studentInputRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => void onSelectStudentFile(e.target.files?.[0] ?? null)} />
+        <div style={{ marginTop: 8, opacity: 0.8 }}>{studentFileName ? `Fichier: ${studentFileName}` : "Aucun fichier sélectionné."}</div>
+        {studentInfo && <div style={{ marginTop: 8, fontWeight: 700 }}>{studentInfo}</div>}
 
-      <div style={{ height: 14 }} />
-
-      <div style={card}>
-        <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>Preview (10 premières lignes)</div>
-        <div style={{ marginBottom: 8 }}>
-          Lignes: <b>{previewStats.total}</b> · Valides: <b>{previewStats.valid}</b> · Erreurs: <b>{previewStats.errors}</b>
-        </div>
-
-        {previewRows.length === 0 ? (
-          <div style={{ opacity: 0.75 }}>Aucune ligne à prévisualiser.</div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left", borderBottom: "1px solid rgba(0,0,0,0.1)", padding: 8 }}>Ligne</th>
-                  <th style={{ textAlign: "left", borderBottom: "1px solid rgba(0,0,0,0.1)", padding: 8 }}>Prénom</th>
-                  <th style={{ textAlign: "left", borderBottom: "1px solid rgba(0,0,0,0.1)", padding: 8 }}>Nom</th>
-                  <th style={{ textAlign: "left", borderBottom: "1px solid rgba(0,0,0,0.1)", padding: 8 }}>Réf élève</th>
-                </tr>
-              </thead>
-              <tbody>
-                {previewRows.map((r) => {
-                  const invalid = !r.first_name.trim() || !r.last_name.trim();
-                  return (
-                    <tr key={r.line} style={invalid ? { background: "rgba(220,38,38,0.08)" } : undefined}>
-                      <td style={{ borderBottom: "1px solid rgba(0,0,0,0.06)", padding: 8 }}>{r.line}</td>
-                      <td style={{ borderBottom: "1px solid rgba(0,0,0,0.06)", padding: 8 }}>{r.first_name || "—"}</td>
-                      <td style={{ borderBottom: "1px solid rgba(0,0,0,0.06)", padding: 8 }}>{r.last_name || "—"}</td>
-                      <td style={{ borderBottom: "1px solid rgba(0,0,0,0.06)", padding: 8 }}>{r.student_ref ?? "—"}</td>
+        {studentPreview.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>Preview (10 lignes)</div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Ligne</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Prénom</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Nom</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Réf</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentPreview.map((r) => (
+                    <tr key={r.line}>
+                      <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.line}</td>
+                      <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.first_name || "—"}</td>
+                      <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.last_name || "—"}</td>
+                      <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.student_ref ?? "—"}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {studentSummary && (
+          <div style={{ marginTop: 10 }}>
+            <b>Log:</b> créés {studentSummary.studentsCreated}, existants {studentSummary.studentsExisting}, inscriptions créées {studentSummary.enrollmentsCreated}, inscriptions existantes {studentSummary.enrollmentsExisting}, erreurs {studentSummary.errors.length}.
           </div>
         )}
       </div>
 
-      {summary && (
-        <>
-          <div style={{ height: 14 }} />
-          <div style={card}>
-            <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>Log final import</div>
-            <div>Créés: <b>{summary.studentsCreated}</b></div>
-            <div>Déjà existants: <b>{summary.studentsExisting}</b></div>
-            <div>Inscriptions (upsert): <b>{summary.enrollmentsInsertedOrUpserted}</b></div>
-            <div>Ignorés: <b>{summary.rowsSkipped}</b></div>
-            <div>Erreurs: <b>{summary.errors.length}</b></div>
-
-            <div style={{ marginTop: 10, fontWeight: 800 }}>Détail lignes</div>
-            <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
-              {summary.logs.slice(0, 100).map((log, idx) => (
-                <div key={`${log.line}-${idx}`} style={{ border: "1px solid rgba(0,0,0,0.08)", borderRadius: 8, padding: 8 }}>
-                  Ligne {log.line} — {log.first_name} {log.last_name}: {log.status}
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      <div style={{ height: 14 }} />
-
       <div style={card}>
-        <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 10 }}>Générer PDF bulletin (V1)</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10 }}>
-          <select style={input} value={classId} onChange={(e) => setClassId(e.target.value as UUID | "")}> 
-            <option value="">Choisir une classe</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.grade_level ? ` (niveau ${c.grade_level})` : ""}
-              </option>
-            ))}
-          </select>
-
-          <select style={input} value={studentId} onChange={(e) => setStudentId(e.target.value as UUID | "")}> 
-            <option value="">Choisir un élève</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.last_name} {s.first_name}
-              </option>
-            ))}
-          </select>
-
-          <button style={btnPrimary} onClick={onGeneratePdf} disabled={!studentId}>
-            Générer PDF bulletin
+        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 10 }}>Import Évaluations</div>
+        <div style={{ display: "grid", gridTemplateColumns: "auto auto", gap: 10, alignItems: "center", justifyContent: "start" }}>
+          <button style={btn} onClick={() => evalInputRef.current?.click()} disabled={!evalCtx}>Choisir fichier</button>
+          <button style={btnPrimary} onClick={onImportEval} disabled={!evalCtx || evalRows.length === 0 || evalImporting}>
+            {evalImporting ? "Import..." : "Importer"}
           </button>
         </div>
+        <input ref={evalInputRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => void onSelectEvalFile(e.target.files?.[0] ?? null)} />
+        <div style={{ marginTop: 8, opacity: 0.8 }}>{evalFileName ? `Fichier: ${evalFileName}` : "Aucun fichier sélectionné."}</div>
+        {evalInfo && <div style={{ marginTop: 8, fontWeight: 700 }}>{evalInfo}</div>}
+
+        {evalPreview.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>Preview (10 lignes)</div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Ligne</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Titre</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Date</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Type</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Statut</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evalPreview.map((r) => (
+                    <tr key={r.line}>
+                      <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.line}</td>
+                      <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.title || "—"}</td>
+                      <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.date ? formatDateFR(r.date) : "—"}</td>
+                      <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{TYPE_LABEL[(r.type_raw || "summative").toLowerCase()] ?? r.type_raw ?? "—"}</td>
+                      <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{STATUS_LABEL[(r.status_raw || "draft").toLowerCase()] ?? r.status_raw ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {evalSummary && (
+          <div style={{ marginTop: 10 }}>
+            <b>Log:</b> créées {evalSummary.created}, ignorées {evalSummary.alreadyExisting}, erreurs {evalSummary.errors.length}.
+          </div>
+        )}
+      </div>
+
+      <div style={card}>
+        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 10 }}>Import Horaire PROF</div>
+        <div style={{ marginBottom: 10, opacity: 0.8 }}>slot: P1..P10 (ou 1..10 accepté)</div>
+        <div style={{ display: "grid", gridTemplateColumns: "auto auto", gap: 10, alignItems: "center", justifyContent: "start" }}>
+          <button style={btn} onClick={() => agendaInputRef.current?.click()} disabled={!agendaCtx}>Choisir fichier</button>
+          <button style={btnPrimary} onClick={onImportAgenda} disabled={!agendaCtx || agendaRows.length === 0 || agendaImporting}>
+            {agendaImporting ? "Import..." : "Importer"}
+          </button>
+        </div>
+        <input ref={agendaInputRef} type="file" accept=".csv,text/csv" style={{ display: "none" }} onChange={(e) => void onSelectAgendaFile(e.target.files?.[0] ?? null)} />
+        <div style={{ marginTop: 8, opacity: 0.8 }}>{agendaFileName ? `Fichier: ${agendaFileName}` : "Aucun fichier sélectionné."}</div>
+        {agendaInfo && <div style={{ marginTop: 8, fontWeight: 700 }}>{agendaInfo}</div>}
+
+        {agendaPreview.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>Preview (10 lignes)</div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Ligne</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Date</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Slot</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Classe</th>
+                    <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Cours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agendaPreview.map((r) => {
+                    const normalizedSlot = r.slot_label || normalizeSlotLabel(r.slot_raw);
+                    const validSlot = !!normalizedSlot;
+                    return (
+                      <tr key={r.line} style={!validSlot ? { background: "rgba(220,38,38,0.08)" } : undefined}>
+                        <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.line}</td>
+                        <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.date ? formatDateFR(r.date) : "—"}</td>
+                        <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{normalizedSlot || r.slot_raw || "—"}</td>
+                        <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.class_ref || "—"}</td>
+                        <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.course_name_raw || "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {agendaSummary && (
+          <div style={{ marginTop: 10 }}>
+            <b>Log:</b> créés {agendaSummary.created}, mis à jour {agendaSummary.updated}, erreurs {agendaSummary.errors.length}, période {agendaSummary.minDate ? formatDateFR(agendaSummary.minDate) : "—"} → {agendaSummary.maxDate ? formatDateFR(agendaSummary.maxDate) : "—"}.
+          </div>
+        )}
+      </div>
+
+      <div style={card}>
+        <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 8 }}>QA manuel rapide</div>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+          <li>Importer un CSV dans chaque bloc puis vérifier le log “créés / ignorés / erreurs”.</li>
+          <li>Ouvrir /teacher, /evaluations et /agenda pour confirmer que les données importées sont visibles.</li>
+          <li>Vérifier qu’aucune erreur “[object Object]” n’apparaît dans les messages UI.</li>
+        </ol>
       </div>
     </div>
   );
