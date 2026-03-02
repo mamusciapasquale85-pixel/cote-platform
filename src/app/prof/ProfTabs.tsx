@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-type Tab = { key: "classes" | "evaluations" | "agenda" | "apprentissages" | "import"; label: string; href: string };
+type Tab = {
+  key: "agenda" | "classes" | "evaluations" | "apprentissages" | "import" | "discipline";
+  label: string;
+  href: string;
+};
 
 const TABS: Tab[] = [
   { key: "agenda", label: "Agenda", href: "/agenda" },
@@ -11,6 +15,7 @@ const TABS: Tab[] = [
   { key: "evaluations", label: "Évaluations", href: "/evaluations" },
   { key: "apprentissages", label: "Apprentissages", href: "/apprentissages" },
   { key: "import", label: "Import", href: "/import" },
+  { key: "discipline", label: "Discipline", href: "/discipline" },
 ];
 
 export default function ProfTabs() {
