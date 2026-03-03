@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import LogoutButton from "../teacher/LogoutButton";
 import ProfTabs from "./ProfTabs";
 
@@ -9,106 +10,165 @@ export default function ProfShell(props: {
   subtitle?: string;
   children: React.ReactNode;
 }) {
-  const wrap: React.CSSProperties = { maxWidth: 1280, margin: "0 auto", padding: "24px 16px" };
+  const wrap: React.CSSProperties = { maxWidth: 1180, margin: "0 auto", padding: "28px 16px 34px" };
 
   return (
-    <div style={wrap}>
+    <div style={wrap} className="prof-shell-root">
       <div className="prof-header">
-        <div className="prof-header-watermark" aria-hidden />
-
-        <div className="prof-header-content">
-          <div className="prof-header-left">
-            <div className="prof-title">{props.title ?? "✅ Zone PROF"}</div>
-            <div style={{ marginTop: 14 }}>
-              <ProfTabs />
-            </div>
-          </div>
-
+        <div className="prof-header-blob prof-header-blob-a" />
+        <div className="prof-header-blob prof-header-blob-b" />
+        <div className="prof-header-top">
+          <div className="prof-title">Zone PROF</div>
           <div className="prof-header-right">
             <LogoutButton />
+            <div className="prof-branding-logo" aria-hidden="true">
+              <Image
+                src="/lab-marie-curie.png"
+                alt="Lycée Alternatif Bruxellois – LAB Marie Curie"
+                width={357}
+                height={102}
+                priority
+              />
+            </div>
           </div>
+        </div>
+        <div className="prof-header-tabs">
+          <ProfTabs />
         </div>
       </div>
 
       <div style={{ height: 14 }} />
-      <div style={{ color: "#171717", opacity: 1 }}>{props.children}</div>
+      <div style={{ color: "var(--text)", opacity: 1 }}>{props.children}</div>
 
       <style jsx>{`
         .prof-header {
-          border-radius: 34px;
-          padding: 22px 30px 26px 30px;
-          background: linear-gradient(180deg, rgba(59, 107, 230, 0.96), rgba(130, 163, 236, 0.92));
-          color: white;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
           position: relative;
           overflow: hidden;
-          min-height: 220px;
+          border-radius: 28px;
+          padding: 22px 28px 24px;
+          background: linear-gradient(130deg, rgba(79, 124, 255, 0.95), rgba(111, 136, 255, 0.9) 55%, rgba(155, 123, 255, 0.9));
+          color: white;
+          box-shadow: 0 14px 36px rgba(27, 56, 120, 0.26);
+          min-height: 0;
+          border: 1px solid rgba(255, 255, 255, 0.22);
         }
 
-        .prof-header-watermark {
+        .prof-header-blob {
           position: absolute;
-          right: 34px;
-          top: 50%;
-          transform: translateY(-45%);
-          width: clamp(260px, 22vw, 360px);
-          height: clamp(64px, 7vw, 96px);
-          background-image: url('/branding/lab-marie-curie.png');
-          background-repeat: no-repeat;
-          background-position: right center;
-          background-size: contain;
-          opacity: 0.45;
+          border-radius: 999px;
           pointer-events: none;
-          z-index: 0;
+          opacity: 0.28;
+          filter: blur(2px);
         }
 
-        .prof-header-content {
+        .prof-header-blob-a {
+          width: 320px;
+          height: 160px;
+          left: -80px;
+          top: -70px;
+          background: radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0));
+        }
+
+        .prof-header-blob-b {
+          width: 260px;
+          height: 140px;
+          right: -50px;
+          bottom: -80px;
+          background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0));
+        }
+
+        .prof-header-top {
           position: relative;
           z-index: 1;
           display: flex;
           justify-content: space-between;
-          gap: 12px;
+          align-items: center;
+          gap: 16px;
           flex-wrap: wrap;
-          min-height: 160px;
         }
 
-        .prof-header-left {
-          min-width: 280px;
-          max-width: 860px;
+        .prof-header-tabs {
+          margin-top: 14px;
+          position: relative;
+          z-index: 1;
         }
 
         .prof-header-right {
           display: flex;
-          align-items: flex-start;
+          flex-direction: column;
+          align-items: flex-end;
+          justify-content: flex-end;
           gap: 10px;
-          min-width: 160px;
+          margin-left: auto;
+        }
+
+        .prof-branding-logo {
+          width: min(280px, 30vw);
+          max-width: 280px;
+          min-width: 190px;
+        }
+
+        .prof-branding-logo :global(img) {
+          width: 100%;
+          height: auto;
+          object-fit: contain;
+          display: block;
         }
 
         .prof-title {
-          font-size: clamp(48px, 5.2vw, 76px);
+          font-size: clamp(2.95rem, 4.5vw, 3.9rem);
           font-weight: 900;
           line-height: 1.04;
           letter-spacing: -0.02em;
-          text-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
-          margin-right: 320px;
+          text-shadow: 0 3px 14px rgba(27, 56, 120, 0.25);
+        }
+
+        .prof-header-right :global(button) {
+          min-height: 46px;
+          padding: 10px 24px;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.5);
+          background: rgba(255, 255, 255, 0.16);
+          color: #fff;
+          font-size: clamp(1rem, 1.2vw, 1.1rem);
+          line-height: 1.1;
+          font-weight: 700;
+          box-shadow: 0 8px 20px rgba(27, 56, 120, 0.24);
+          transition: transform 120ms ease, background 120ms ease;
+        }
+
+        .prof-header-right :global(button:hover) {
+          transform: translateY(-1px);
+          background: rgba(255, 255, 255, 0.22);
         }
 
         @media (max-width: 980px) {
+          .prof-header {
+            padding: 20px 18px 22px;
+          }
+
           .prof-title {
-            margin-right: 0;
+            font-size: clamp(2.35rem, 6.8vw, 3.2rem);
           }
         }
 
         @media (max-width: 720px) {
-          .prof-header-watermark {
-            display: none;
+          .prof-header-top {
+            align-items: flex-start;
           }
 
           .prof-title {
-            margin-right: 0;
+            font-size: clamp(2.05rem, 9.2vw, 2.7rem);
           }
 
-          .prof-header {
-            min-height: auto;
+          .prof-header-right :global(button) {
+            padding: 10px 14px;
+            font-size: 0.95rem;
+          }
+
+          .prof-branding-logo {
+            width: min(220px, 44vw);
+            min-width: 150px;
           }
         }
       `}</style>
