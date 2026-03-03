@@ -20,14 +20,15 @@ export default function ProfShell(props: {
         <div className="prof-header-top">
           <div className="prof-title">Zone PROF</div>
           <div className="prof-header-right">
-            <span className="prof-header-logo" aria-hidden="true">
+            <span className="prof-header-logo">
               <Image
-                src="/branding/logo.svg"
+                src="/branding/lab-marie-curie.png"
                 alt="Lycée Alternatif Bruxellois – LAB Marie Curie"
-                width={69}
-                height={48}
+                width={182}
+                height={52}
+                quality={100}
                 priority
-                unoptimized
+                style={{ width: "auto", height: "52px", objectFit: "contain" }}
               />
             </span>
             <LogoutButton />
@@ -105,11 +106,11 @@ export default function ProfShell(props: {
         .prof-header-logo {
           display: inline-flex;
           align-items: center;
-          height: 48px;
+          height: 52px;
         }
 
         .prof-header-logo :global(img) {
-          height: 48px;
+          height: 52px;
           width: auto;
           object-fit: contain;
           display: block;
@@ -167,11 +168,11 @@ export default function ProfShell(props: {
           }
 
           .prof-header-logo {
-            height: 40px;
+            height: 44px;
           }
 
           .prof-header-logo :global(img) {
-            height: 40px;
+            height: 44px;
           }
         }
       `}</style>
