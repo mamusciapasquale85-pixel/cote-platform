@@ -20,16 +20,17 @@ export default function ProfShell(props: {
         <div className="prof-header-top">
           <div className="prof-title">Zone PROF</div>
           <div className="prof-header-right">
-            <LogoutButton />
-            <div className="prof-branding-logo" aria-hidden="true">
+            <span className="prof-header-logo" aria-hidden="true">
               <Image
-                src="/lab-marie-curie.png"
+                src="/branding/logo.svg"
                 alt="Lycée Alternatif Bruxellois – LAB Marie Curie"
-                width={357}
-                height={102}
+                width={69}
+                height={48}
                 priority
+                unoptimized
               />
-            </div>
+            </span>
+            <LogoutButton />
           </div>
         </div>
         <div className="prof-header-tabs">
@@ -95,30 +96,29 @@ export default function ProfShell(props: {
 
         .prof-header-right {
           display: flex;
-          flex-direction: column;
-          align-items: flex-end;
+          align-items: center;
           justify-content: flex-end;
-          gap: 10px;
+          gap: 14px;
           margin-left: auto;
         }
 
-        .prof-branding-logo {
-          width: min(280px, 30vw);
-          max-width: 280px;
-          min-width: 190px;
+        .prof-header-logo {
+          display: inline-flex;
+          align-items: center;
+          height: 48px;
         }
 
-        .prof-branding-logo :global(img) {
-          width: 100%;
-          height: auto;
+        .prof-header-logo :global(img) {
+          height: 48px;
+          width: auto;
           object-fit: contain;
           display: block;
         }
 
         .prof-title {
-          font-size: clamp(2.95rem, 4.5vw, 3.9rem);
+          font-size: clamp(3rem, 5vw, 3.75rem);
           font-weight: 900;
-          line-height: 1.04;
+          line-height: 1.02;
           letter-spacing: -0.02em;
           text-shadow: 0 3px 14px rgba(27, 56, 120, 0.25);
         }
@@ -166,9 +166,12 @@ export default function ProfShell(props: {
             font-size: 0.95rem;
           }
 
-          .prof-branding-logo {
-            width: min(220px, 44vw);
-            min-width: 150px;
+          .prof-header-logo {
+            height: 40px;
+          }
+
+          .prof-header-logo :global(img) {
+            height: 40px;
           }
         }
       `}</style>
