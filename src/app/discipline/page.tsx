@@ -4,13 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { formatDateFR } from "@/lib/date";
 import {
   type UUID,
+  type TeacherContext,
+  type ClassGroup,
   type StudentLite,
-  type Remarque,
-  type RemarqueType,
+  type DisciplineNoteRow,
   getTeacherContext,
-  listStudents,
-  createRemarque,
-  listRemarquesForStudent,
+  listClassGroups,
+  listStudentsForClass,
+  createDisciplineNote,
+  listDisciplineNotes,
   toNiceError,
 } from "./remarques";
 
@@ -38,84 +40,94 @@ const btn: React.CSSProperties = {
   fontWeight: 800,
 };
 
-const TYPE_LABEL: Record<string, string> = {
-  discipline: "Discipline",
-  suivi: "Suivi",
-  parent: "Parent",
-  retard: "Retard",
-  materiel: "Matériel",
-  autre: "Autre",
-};
-
 export default function DisciplinePage() {
-  const [ctx, setCtx] = useState<Awaited<ReturnType<typeof getTeacherContext>> | null>(null);
+  const [ctx, setCtx] = useState<TeacherContext | null>(null);
+  const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [students, setStudents] = useState<StudentLite[]>([]);
+  const [rows, setRows] = useState<DisciplineNoteRow[]>([]);
+
+  const [classId, setClassId] = useState<UUID | "">("");
   const [studentId, setStudentId] = useState<UUID | "">("");
-  const [type, setType] = useState<RemarqueType>("discipline");
-  const [text, setText] = useState("");
-  const [rows, setRows] = useState<Remarque[]>([]);
+  const [note, setNote] = useState("");
+
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const selectedStudent = useMemo(() => students.find((s) => s.id === studentId) ?? null, [students, studentId]);
 
-  async function refreshRemarques(currentCtx: Awaited<ReturnType<typeof getTeacherContext>>, sid: UUID | "") {
-    if (!sid) {
-      setRows([]);
-      return;
+  async function loadStudentsAndNotes(currentCtx: TeacherContext, nextClassId: UUID | "") {
+    setStudents([]);
+    setStudentId("");
+
+    const [nextStudents, nextNotes] = await Promise.all([
+      nextClassId ? listStudentsForClass(currentCtx, nextClassId) : Promise.resolve([] as StudentLite[]),
+      listDisciplineNotes(currentCtx, { classGroupId: nextClassId, limit: 80 }),
+    ]);
+
+    setStudents(nextStudents);
+    setRows(nextNotes);
+  }
+
+  async function boot() {
+    try {
+      setErrorMsg(null);
+      const currentCtx = await getTeacherContext();
+      setCtx(currentCtx);
+
+      const cls = await listClassGroups(currentCtx);
+      setClasses(cls);
+
+      const firstClassId = cls[0]?.id ?? "";
+      setClassId(firstClassId);
+      await loadStudentsAndNotes(currentCtx, firstClassId);
+    } catch (e: unknown) {
+      setErrorMsg(toNiceError(e));
     }
-    const list = await listRemarquesForStudent(currentCtx, sid);
-    setRows(list);
   }
 
   useEffect(() => {
-    (async () => {
-      try {
-        setErrorMsg(null);
-        const c = await getTeacherContext();
-        setCtx(c);
-        const list = await listStudents(c);
-        setStudents(list);
-
-        let sidFromQuery = "";
-        if (typeof window !== "undefined") {
-          const params = new URLSearchParams(window.location.search);
-          sidFromQuery = params.get("student_id") ?? "";
-        }
-
-        const initial = (sidFromQuery && list.some((s) => s.id === sidFromQuery)) ? sidFromQuery : (list[0]?.id ?? "");
-        setStudentId(initial);
-        await refreshRemarques(c, initial as UUID | "");
-      } catch (e: unknown) {
-        setErrorMsg(toNiceError(e));
-      }
-    })();
+    void boot();
   }, []);
 
-  useEffect(() => {
+  async function onChangeClass(nextClassId: UUID | "") {
+    setClassId(nextClassId);
+    setInfoMsg(null);
+    setErrorMsg(null);
     if (!ctx) return;
-    void refreshRemarques(ctx, studentId).catch((e: unknown) => setErrorMsg(toNiceError(e)));
-  }, [ctx, studentId]);
+
+    try {
+      await loadStudentsAndNotes(ctx, nextClassId);
+    } catch (e: unknown) {
+      setErrorMsg(toNiceError(e));
+    }
+  }
 
   async function onAdd() {
     if (!ctx) return;
     try {
       setErrorMsg(null);
       setInfoMsg(null);
+
+      if (!classId) {
+        setErrorMsg("Sélectionne une classe.");
+        return;
+      }
       if (!studentId) {
         setErrorMsg("Sélectionne un élève.");
         return;
       }
-      if (!text.trim()) {
-        setErrorMsg("Le texte de la remarque est vide.");
+      if (!note.trim()) {
+        setErrorMsg("La note est vide.");
         return;
       }
+
       setSaving(true);
-      await createRemarque(ctx, { student_id: studentId, type, text });
-      setText("");
-      await refreshRemarques(ctx, studentId);
-      setInfoMsg("Remarque ajoutée ✅");
+      await createDisciplineNote(ctx, { classGroupId: classId, studentId, note });
+      setNote("");
+      const refreshed = await listDisciplineNotes(ctx, { classGroupId: classId, limit: 80 });
+      setRows(refreshed);
+      setInfoMsg("Note de discipline ajoutée ✅");
     } catch (e: unknown) {
       setErrorMsg(toNiceError(e));
     } finally {
@@ -136,39 +148,53 @@ export default function DisciplinePage() {
       )}
 
       <div style={card}>
-        <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>Remarques</div>
-        <div style={{ opacity: 0.8 }}>Remarques élève (V1)</div>
+        <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>Discipline</div>
+        <div style={{ opacity: 0.8 }}>Suivi des remarques de discipline par élève.</div>
       </div>
 
       <div style={card}>
         <div style={{ display: "grid", gap: 10 }}>
-          <select style={input} value={studentId} onChange={(e) => setStudentId(e.target.value as UUID | "")}>
-            <option value="">Choisir un élève (obligatoire)</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.last_name} {s.first_name}
-              </option>
-            ))}
-          </select>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={{ fontWeight: 800, fontSize: 13 }}>Classe</label>
+              <select style={input} value={classId} onChange={(e) => void onChangeClass(e.target.value as UUID | "")}>
+                <option value="">Choisir une classe</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}{c.grade_level ? ` (niveau ${c.grade_level})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <select style={input} value={type} onChange={(e) => setType(e.target.value as RemarqueType)}>
-            <option value="discipline">Discipline</option>
-            <option value="suivi">Suivi</option>
-            <option value="parent">Parent</option>
-            <option value="retard">Retard</option>
-            <option value="materiel">Matériel</option>
-            <option value="autre">Autre</option>
-          </select>
+            <div>
+              <label style={{ fontWeight: 800, fontSize: 13 }}>Élève</label>
+              <select style={input} value={studentId} onChange={(e) => setStudentId(e.target.value as UUID | "")}
+                disabled={!classId || students.length === 0}
+              >
+                <option value="">Choisir un élève</option>
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.last_name} {s.first_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-          <textarea
-            style={{ ...input, minHeight: 100, resize: "vertical" }}
-            placeholder="Ajouter une remarque..."
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
           <div>
-            <button style={btn} onClick={() => void onAdd()} disabled={!studentId || !text.trim() || saving}>
-              Ajouter
+            <label style={{ fontWeight: 800, fontSize: 13 }}>Note de discipline</label>
+            <textarea
+              style={{ ...input, minHeight: 110, resize: "vertical" }}
+              placeholder="Décris la remarque..."
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <button style={btn} onClick={() => void onAdd()} disabled={!classId || !studentId || !note.trim() || saving}>
+              {saving ? "Ajout..." : "Ajouter"}
             </button>
           </div>
         </div>
@@ -178,9 +204,10 @@ export default function DisciplinePage() {
         <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>
           Historique {selectedStudent ? `— ${selectedStudent.last_name} ${selectedStudent.first_name}` : ""}
         </div>
+
         {rows.length === 0 ? (
           <div style={{ opacity: 0.75 }}>
-            {studentId ? "Aucune remarque pour cet élève." : "Sélectionne un élève pour afficher l’historique."}
+            {classId ? "Aucune note de discipline pour cette classe." : "Sélectionne une classe."}
           </div>
         ) : (
           <div style={{ display: "grid", gap: 8 }}>
@@ -195,9 +222,9 @@ export default function DisciplinePage() {
                 }}
               >
                 <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 6 }}>
-                  {formatDateFR(row.created_at)} · {TYPE_LABEL[row.type] ?? row.type}
+                  {formatDateFR(row.created_at)} · {row.class_name ?? "Classe"} · {row.student_last_name} {row.student_first_name}
                 </div>
-                <div>{row.text}</div>
+                <div>{row.note}</div>
               </div>
             ))}
           </div>

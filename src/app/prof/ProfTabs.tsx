@@ -15,7 +15,7 @@ const TABS: Tab[] = [
   { key: "evaluations", label: "Évaluations", href: "/evaluations" },
   { key: "apprentissages", label: "Apprentissages", href: "/apprentissages" },
   { key: "import", label: "Import", href: "/import" },
-  { key: "discipline", label: "Remarques", href: "/discipline" },
+  { key: "discipline", label: "Discipline", href: "/discipline" },
 ];
 
 export default function ProfTabs() {

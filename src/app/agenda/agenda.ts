@@ -82,6 +82,8 @@ export type LessonScheduleRow = {
   class_group_id: UUID | null;
   title: string;
   details: string | null;
+  lesson_title: string | null;
+  tag: "eval" | "devoir" | null;
   class_groups?: ClassGroup | ClassGroup[] | null;
 };
 
@@ -143,16 +145,16 @@ export type TimetableImportSummary = {
   rowsTotal: number;
   rowsValid: number;
   rowsReady: number;
-  inserted: number;
-  deletedPrevious: number;
   created: number;
   updated: number;
+  deleted: number;
+  ignored: number;
   ignoredDuplicates: number;
   ignoredMissingClass: number;
   minDate: string | null;
   maxDate: string | null;
-  minSlot: number | null;
-  maxSlot: number | null;
+  minSlot: SlotNumber | null;
+  maxSlot: SlotNumber | null;
   replaceWeekStart: string | null;
   replaceWeekEnd: string | null;
   errors: ScheduleImportError[];
@@ -221,6 +223,23 @@ function isMissingDisciplineNotesTable(error: unknown): boolean {
 function isNoUniqueForOnConflict(error: unknown): boolean {
   const msg = errorMessage(error).toLowerCase();
   return msg.includes("no unique") || msg.includes("constraint matching");
+}
+
+function isMissingAgendaLessonColumns(error: unknown): boolean {
+  const msg = errorMessage(error).toLowerCase();
+  const missingLessonTitle = msg.includes("lesson_title") && (msg.includes("schema cache") || msg.includes("does not exist"));
+  const missingTag = msg.includes("tag") && (msg.includes("schema cache") || msg.includes("does not exist"));
+  return missingLessonTitle || missingTag;
+}
+
+function normalizeTagValue(raw: string | null | undefined): "eval" | "devoir" | null {
+  const value = (raw ?? "").trim().toLowerCase();
+  if (!value) return null;
+  if (value === "eval" || value === "evaluation" || value === "éval") return "eval";
+  if (value === "devoir") return "devoir";
+  if (value.includes("[eval]")) return "eval";
+  if (value.includes("[devoir]")) return "devoir";
+  return null;
 }
 
 function normalizeHeaderCell(header: string): string {
@@ -416,6 +435,29 @@ function normalizeLessonNoteRow(row: any): LessonNote {
   };
 }
 
+function extractLegacyLessonTitle(details: string | null | undefined): string | null {
+  if (!details) return null;
+  const lines = String(details).split(/\r?\n/);
+  const first = lines[0]?.trim() ?? "";
+  if (!first) return null;
+  const m = /^le[cç]on\s*:\s*(.+)$/i.exec(first);
+  return m ? m[1].trim() : null;
+}
+
+function normalizeLessonScheduleRow(row: any): LessonScheduleRow {
+  const normalizedTag = normalizeTagValue((row as any).tag ?? null);
+  const legacyDetails = ((row as any).details ?? null) as string | null;
+  const legacyLessonTitle = extractLegacyLessonTitle(legacyDetails);
+
+  return {
+    ...(row as LessonScheduleRow),
+    slot: parseSlotValue((row as any).slot) ?? 1,
+    lesson_title: (((row as any).lesson_title ?? null) as string | null) ?? legacyLessonTitle,
+    tag: normalizedTag,
+    class_groups: normalizeClassGroup((row as any).class_groups),
+  };
+}
+
 function normalizeAgendaRow(row: any): AgendaItem {
   return {
     ...(row as AgendaItem),
@@ -547,7 +589,9 @@ type PreparedTimetableImportRow = {
     class_group_id: UUID;
     type: "lesson";
     title: string;
+    lesson_title: string | null;
     details: string | null;
+    tag: "eval" | "devoir" | null;
   };
 };
 
@@ -562,10 +606,10 @@ export async function importTeacherTimetableCsv(params: {
     rowsTotal: rows.length,
     rowsValid: 0,
     rowsReady: 0,
-    inserted: 0,
-    deletedPrevious: 0,
     created: 0,
     updated: 0,
+    deleted: 0,
+    ignored: 0,
     ignoredDuplicates: 0,
     ignoredMissingClass: 0,
     minDate: null,
@@ -577,12 +621,13 @@ export async function importTeacherTimetableCsv(params: {
     errors: [],
   };
 
-  const preparedRaw: PreparedTimetableImportRow[] = [];
+  const preparedByKey = new Map<string, PreparedTimetableImportRow>();
 
   for (const row of rows) {
     const isoDateRaw = row.date_raw.trim();
     if (!isIsoDate(isoDateRaw)) {
       summary.errors.push({ line: row.line, message: `date invalide (${row.date_raw || "vide"}). Attendu: YYYY-MM-DD.` });
+      summary.ignored += 1;
       continue;
     }
 
@@ -592,6 +637,7 @@ export async function importTeacherTimetableCsv(params: {
         line: row.line,
         message: "slot invalide (attendu P1..P10 ou 1..10)",
       });
+      summary.ignored += 1;
       continue;
     }
     const slot = parseSlotRaw(slotLabel);
@@ -600,12 +646,14 @@ export async function importTeacherTimetableCsv(params: {
         line: row.line,
         message: "slot invalide (attendu P1..P10 ou 1..10)",
       });
+      summary.ignored += 1;
       continue;
     }
 
     const classNameRaw = row.class_name_raw.trim();
     if (!classNameRaw) {
       summary.ignoredMissingClass += 1;
+      summary.ignored += 1;
       continue;
     }
 
@@ -614,6 +662,7 @@ export async function importTeacherTimetableCsv(params: {
     const classMatch = resolveClassByName(classNameForLookup, classes);
     if (!classMatch) {
       summary.errors.push({ line: row.line, message: `classe introuvable (${classNameRaw}).` });
+      summary.ignored += 1;
       continue;
     }
 
@@ -627,17 +676,20 @@ export async function importTeacherTimetableCsv(params: {
       }
     }
 
-    const detailsParts: string[] = [];
     const lessonTitle = row.lesson_title_raw.trim();
     const detailsText = row.notes_raw.trim();
-    const tagText = row.tag_raw.trim();
-    if (lessonTitle) detailsParts.push(`Leçon: ${lessonTitle}`);
-    if (detailsText) detailsParts.push(detailsText);
-    if (tagText) detailsParts.push(`Tag: ${tagText}`);
+    const tag = normalizeTagValue(row.tag_raw);
+    const key = `${isoDate}|${slot}|${classMatch.id}`;
+    if (preparedByKey.has(key)) {
+      summary.ignoredDuplicates += 1;
+      summary.ignored += 1;
+      summary.errors.push({ line: row.line, message: "doublon CSV (date+slot+classe)." });
+      continue;
+    }
 
-    preparedRaw.push({
+    preparedByKey.set(key, {
       line: row.line,
-      key: `${isoDate}|${slot}|${classMatch.id}`,
+      key,
       date: isoDate,
       slot,
       payload: {
@@ -649,7 +701,9 @@ export async function importTeacherTimetableCsv(params: {
         class_group_id: classMatch.id,
         type: "lesson",
         title: classMatch.name,
-        details: detailsParts.length > 0 ? detailsParts.join("\n") : null,
+        lesson_title: lessonTitle || null,
+        details: detailsText || null,
+        tag,
       },
     });
 
@@ -659,75 +713,162 @@ export async function importTeacherTimetableCsv(params: {
     if (!summary.maxDate || isoDate > summary.maxDate) summary.maxDate = isoDate;
   }
 
-  const byKey = new Map<string, PreparedTimetableImportRow>();
-  for (const row of preparedRaw) {
-    if (byKey.has(row.key)) summary.ignoredDuplicates += 1;
-    byKey.set(row.key, row);
-  }
-
-  const prepared = Array.from(byKey.values());
+  const prepared = Array.from(preparedByKey.values());
   summary.rowsValid = prepared.length;
   summary.rowsReady = prepared.length;
 
   if (prepared.length === 0) return summary;
 
-  // Toujours remplacer la semaine du CSV (basée sur la plus petite date importée),
-  // indépendamment de la semaine affichée dans l'UI.
-  const baseIsoForWeek = summary.minDate ?? prepared[0].date;
-  const replaceWeekStart = startOfIsoWeekMonday(baseIsoForWeek);
-  const replaceWeekEnd = addDaysIso(replaceWeekStart, 6);
-  summary.replaceWeekStart = replaceWeekStart;
-  summary.replaceWeekEnd = replaceWeekEnd;
+  const intervalStart = summary.minDate ?? prepared[0].date;
+  const intervalEnd = summary.maxDate ?? prepared[prepared.length - 1]?.date ?? intervalStart;
+  summary.replaceWeekStart = intervalStart;
+  summary.replaceWeekEnd = intervalEnd;
 
-  const existingCountQuery = await ctx.supabase
-    .from(T.AGENDA_ITEMS)
-    .select("id", { count: "exact", head: true })
-    .eq("school_id", ctx.schoolId)
-    .eq("academic_year_id", ctx.academicYearId)
-    .eq("teacher_id", ctx.teacherId)
-    .eq("type", "lesson")
-    .gte("date", replaceWeekStart)
-    .lte("date", replaceWeekEnd);
-  if (existingCountQuery.error) throw existingCountQuery.error;
-  summary.deletedPrevious = existingCountQuery.count ?? 0;
+  const runExistingQuery = async (includeLessonCols: boolean) => {
+    const cols = includeLessonCols
+      ? "id,date,slot,class_group_id,title,lesson_title,details,tag"
+      : "id,date,slot,class_group_id,title,details";
 
-  const deleted = await ctx.supabase
-    .from(T.AGENDA_ITEMS)
-    .delete()
-    .eq("school_id", ctx.schoolId)
-    .eq("academic_year_id", ctx.academicYearId)
-    .eq("teacher_id", ctx.teacherId)
-    .eq("type", "lesson")
-    .gte("date", replaceWeekStart)
-    .lte("date", replaceWeekEnd);
-  if (deleted.error) throw deleted.error;
-
-  for (const chunk of chunkArray(prepared, 200)) {
-    const bulk = await ctx.supabase
+    return ctx.supabase
       .from(T.AGENDA_ITEMS)
-      .insert(chunk.map((row) => row.payload));
+      .select(cols)
+      .eq("school_id", ctx.schoolId)
+      .eq("academic_year_id", ctx.academicYearId)
+      .eq("teacher_id", ctx.teacherId)
+      .eq("type", "lesson")
+      .gte("date", intervalStart)
+      .lte("date", intervalEnd)
+      .order("date", { ascending: true })
+      .order("slot", { ascending: true })
+      .order("created_at", { ascending: true });
+  };
 
-    if (!bulk.error) {
-      for (const row of chunk) {
-        void row;
-        summary.inserted += 1;
-        summary.created += 1;
+  let existingRowsResult = await runExistingQuery(true);
+  if (existingRowsResult.error && isMissingAgendaLessonColumns(existingRowsResult.error)) {
+    existingRowsResult = await runExistingQuery(false);
+  }
+  if (existingRowsResult.error) throw existingRowsResult.error;
+
+  type ExistingLessonRow = {
+    id: UUID;
+    date: string;
+    slot: number | string | null;
+    class_group_id: UUID | null;
+    title: string | null;
+    lesson_title?: string | null;
+    details?: string | null;
+    tag?: string | null;
+  };
+
+  const existingRows = (existingRowsResult.data ?? []) as unknown as ExistingLessonRow[];
+  const existingByKey = new Map<string, ExistingLessonRow>();
+  const duplicateExistingIds: UUID[] = [];
+
+  for (const row of existingRows) {
+    if (!row.class_group_id) continue;
+    const slot = parseSlotValue(row.slot);
+    if (!slot) continue;
+    const key = `${row.date}|${slot}|${row.class_group_id}`;
+    if (existingByKey.has(key)) {
+      duplicateExistingIds.push(row.id);
+      continue;
+    }
+    existingByKey.set(key, row);
+  }
+
+  const touchedExistingIds = new Set<UUID>();
+  const preparedKeys = new Set(prepared.map((r) => r.key));
+  const supportsLessonColumns = (existingRowsResult.data ?? []).some(
+    (row: any) => Object.prototype.hasOwnProperty.call(row, "lesson_title") || Object.prototype.hasOwnProperty.call(row, "tag")
+  );
+
+  for (const row of prepared) {
+    const existing = existingByKey.get(row.key);
+    if (existing) {
+      touchedExistingIds.add(existing.id);
+      const existingLessonTitle = (existing.lesson_title ?? extractLegacyLessonTitle(existing.details)) ?? null;
+      const existingTag = normalizeTagValue(existing.tag ?? existing.details ?? null);
+      const hasDiff =
+        (existing.title ?? "") !== row.payload.title ||
+        (existing.details ?? null) !== row.payload.details ||
+        (existingLessonTitle ?? null) !== row.payload.lesson_title ||
+        (existingTag ?? null) !== row.payload.tag;
+
+      if (!hasDiff) continue;
+
+      const updatePayload: Record<string, unknown> = {
+        title: row.payload.title,
+        details: row.payload.details,
+      };
+      if (supportsLessonColumns) {
+        updatePayload.lesson_title = row.payload.lesson_title;
+        updatePayload.tag = row.payload.tag;
       }
+
+      let updateResult = await ctx.supabase
+        .from(T.AGENDA_ITEMS)
+        .update(updatePayload)
+        .eq("id", existing.id);
+
+      if (updateResult.error && !supportsLessonColumns && isMissingAgendaLessonColumns(updateResult.error)) {
+        updateResult = await ctx.supabase
+          .from(T.AGENDA_ITEMS)
+          .update({ title: row.payload.title, details: row.payload.details })
+          .eq("id", existing.id);
+      }
+
+      if (updateResult.error) {
+        summary.errors.push({ line: row.line, message: errorMessage(updateResult.error) });
+        continue;
+      }
+      summary.updated += 1;
       continue;
     }
 
-    for (const row of chunk) {
-      const one = await ctx.supabase
-        .from(T.AGENDA_ITEMS)
-        .insert(row.payload);
+    const insertPayload: Record<string, unknown> = {
+      school_id: row.payload.school_id,
+      academic_year_id: row.payload.academic_year_id,
+      teacher_id: row.payload.teacher_id,
+      date: row.payload.date,
+      slot: row.payload.slot,
+      class_group_id: row.payload.class_group_id,
+      type: "lesson",
+      title: row.payload.title,
+      details: row.payload.details,
+      lesson_title: row.payload.lesson_title,
+      tag: row.payload.tag,
+    };
 
-      if (one.error) {
-        summary.errors.push({ line: row.line, message: errorMessage(one.error) });
-      } else {
-        summary.inserted += 1;
-        summary.created += 1;
-      }
+    let insertResult = await ctx.supabase.from(T.AGENDA_ITEMS).insert(insertPayload);
+    if (insertResult.error && isMissingAgendaLessonColumns(insertResult.error)) {
+      const fallbackPayload = { ...insertPayload };
+      delete fallbackPayload.lesson_title;
+      delete fallbackPayload.tag;
+      insertResult = await ctx.supabase.from(T.AGENDA_ITEMS).insert(fallbackPayload);
     }
+
+    if (insertResult.error) {
+      summary.errors.push({ line: row.line, message: errorMessage(insertResult.error) });
+      continue;
+    }
+    summary.created += 1;
+  }
+
+  const idsToDelete: UUID[] = [...duplicateExistingIds];
+  for (const [key, row] of existingByKey.entries()) {
+    if (preparedKeys.has(key)) continue;
+    if (touchedExistingIds.has(row.id)) continue;
+    idsToDelete.push(row.id);
+  }
+
+  for (const chunk of chunkArray(idsToDelete, 200)) {
+    if (chunk.length === 0) continue;
+    const deleted = await ctx.supabase
+      .from(T.AGENDA_ITEMS)
+      .delete()
+      .in("id", chunk);
+    if (deleted.error) throw deleted.error;
+    summary.deleted += chunk.length;
   }
 
   return summary;
@@ -740,25 +881,32 @@ export async function listLessonScheduleWeek(params: {
 }): Promise<LessonScheduleRow[]> {
   const { ctx, dateFrom, dateTo } = params;
 
-  const { data, error } = await ctx.supabase
-    .from(T.AGENDA_ITEMS)
-    .select("id,date,slot,class_group_id,title,details,class_groups(id,name,grade_level)")
-    .eq("school_id", ctx.schoolId)
-    .eq("academic_year_id", ctx.academicYearId)
-    .eq("teacher_id", ctx.teacherId)
-    .eq("type", "lesson")
-    .gte("date", dateFrom)
-    .lte("date", dateTo)
-    .order("date", { ascending: true })
-    .order("slot", { ascending: true })
-    .order("created_at", { ascending: true });
+  const runQuery = async (includeLessonCols: boolean) => {
+    const cols = includeLessonCols
+      ? "id,date,slot,class_group_id,title,lesson_title,details,tag,class_groups(id,name,grade_level)"
+      : "id,date,slot,class_group_id,title,details,class_groups(id,name,grade_level)";
 
-  if (error) throw error;
-  return ((data ?? []) as any[]).map((row) => ({
-    ...(row as LessonScheduleRow),
-    slot: parseSlotValue((row as any).slot) ?? 1,
-    class_groups: normalizeClassGroup((row as any).class_groups),
-  }));
+    return ctx.supabase
+      .from(T.AGENDA_ITEMS)
+      .select(cols)
+      .eq("school_id", ctx.schoolId)
+      .eq("academic_year_id", ctx.academicYearId)
+      .eq("teacher_id", ctx.teacherId)
+      .eq("type", "lesson")
+      .gte("date", dateFrom)
+      .lte("date", dateTo)
+      .order("date", { ascending: true })
+      .order("slot", { ascending: true })
+      .order("created_at", { ascending: true });
+  };
+
+  let result = await runQuery(true);
+  if (result.error && isMissingAgendaLessonColumns(result.error)) {
+    result = await runQuery(false);
+  }
+
+  if (result.error) throw result.error;
+  return ((result.data ?? []) as any[]).map(normalizeLessonScheduleRow);
 }
 
 export async function listStudentsForClass(params: {
@@ -804,6 +952,83 @@ export async function listStudentsForClass(params: {
 
   if (stuErr) throw stuErr;
   return (students ?? []) as unknown as AgendaStudent[];
+}
+
+export async function upsertLessonScheduleCell(params: {
+  ctx: TeacherContext;
+  date: string;
+  slot: SlotNumber;
+  classGroupId: UUID;
+  className: string;
+  lessonTitle: string | null;
+  details: string | null;
+  tag?: string | null;
+}): Promise<void> {
+  const { ctx, date, slot, classGroupId, className, lessonTitle, details } = params;
+  const tag = normalizeTagValue(params.tag ?? null);
+  if (!isIsoDate(date)) throw new Error("Date invalide (YYYY-MM-DD attendu).");
+
+  const existing = await ctx.supabase
+    .from(T.AGENDA_ITEMS)
+    .select("id,class_group_id")
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("teacher_id", ctx.teacherId)
+    .eq("type", "lesson")
+    .eq("date", date)
+    .eq("slot", slot);
+  if (existing.error) throw existing.error;
+
+  const existingRows = (existing.data ?? []) as Array<{ id: UUID; class_group_id: UUID | null }>;
+  const matching = existingRows.find((row) => row.class_group_id === classGroupId) ?? null;
+  const duplicateIds = existingRows
+    .filter((row) => !matching || row.id !== matching.id)
+    .map((row) => row.id);
+
+  const payloadWithColumns: Record<string, unknown> = {
+    school_id: ctx.schoolId,
+    academic_year_id: ctx.academicYearId,
+    teacher_id: ctx.teacherId,
+    class_group_id: classGroupId,
+    date,
+    slot,
+    type: "lesson",
+    title: className,
+    lesson_title: lessonTitle?.trim() || null,
+    details: details?.trim() || null,
+    tag,
+  };
+
+  if (matching) {
+    let update = await ctx.supabase
+      .from(T.AGENDA_ITEMS)
+      .update(payloadWithColumns)
+      .eq("id", matching.id);
+    if (update.error && isMissingAgendaLessonColumns(update.error)) {
+      const fallbackPayload = { ...payloadWithColumns };
+      delete fallbackPayload.lesson_title;
+      delete fallbackPayload.tag;
+      update = await ctx.supabase
+        .from(T.AGENDA_ITEMS)
+        .update(fallbackPayload)
+        .eq("id", matching.id);
+    }
+    if (update.error) throw update.error;
+  } else {
+    let insert = await ctx.supabase.from(T.AGENDA_ITEMS).insert(payloadWithColumns);
+    if (insert.error && isMissingAgendaLessonColumns(insert.error)) {
+      const fallbackPayload = { ...payloadWithColumns };
+      delete fallbackPayload.lesson_title;
+      delete fallbackPayload.tag;
+      insert = await ctx.supabase.from(T.AGENDA_ITEMS).insert(fallbackPayload);
+    }
+    if (insert.error) throw insert.error;
+  }
+
+  if (duplicateIds.length > 0) {
+    const deleted = await ctx.supabase.from(T.AGENDA_ITEMS).delete().in("id", duplicateIds);
+    if (deleted.error) throw deleted.error;
+  }
 }
 
 export async function listAttendanceForClassDate(params: {

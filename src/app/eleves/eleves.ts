@@ -61,6 +61,7 @@ const T = {
   ASSESSMENTS: "assessments",
   APPRENTISSAGES: "apprentissages",
   REMARQUES: "remarques",
+  DISCIPLINE_NOTES: "discipline_notes",
 } as const;
 
 function errMessage(e: unknown): string {
@@ -97,6 +98,11 @@ function maybeJoinedOne<T>(value: T | T[] | null | undefined): T | null {
 function isMissingRemarquesTable(error: unknown): boolean {
   const msg = errMessage(error).toLowerCase();
   return msg.includes("remarques") && (msg.includes("schema cache") || msg.includes("does not exist"));
+}
+
+function isMissingDisciplineNotesTable(error: unknown): boolean {
+  const msg = errMessage(error).toLowerCase();
+  return msg.includes("discipline_notes") && (msg.includes("schema cache") || msg.includes("does not exist"));
 }
 
 function isMissingApprentissageColumn(error: unknown): boolean {
@@ -268,8 +274,41 @@ export async function listRecentRemarques(ctx: TeacherContext, studentId: UUID, 
     .limit(limit);
 
   if (error) {
-    if (isMissingRemarquesTable(error)) return { rows: [], tableMissing: true };
-    throw error;
+    if (!isMissingRemarquesTable(error)) throw error;
+
+    const runFallback = async (teacherColumn: "teacher_id" | "teacher_user_id") =>
+      ctx.supabase
+        .from(T.DISCIPLINE_NOTES)
+        .select("id,note,created_at,date")
+        .eq("school_id", ctx.schoolId)
+        .eq("academic_year_id", ctx.academicYearId)
+        .eq(teacherColumn, ctx.teacherId)
+        .eq("student_id", studentId)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+    let fallback = await runFallback("teacher_id");
+    if (fallback.error) {
+      const msg = errMessage(fallback.error).toLowerCase();
+      if (msg.includes("teacher_id") && (msg.includes("schema cache") || msg.includes("does not exist"))) {
+        fallback = await runFallback("teacher_user_id");
+      }
+    }
+
+    if (fallback.error) {
+      if (isMissingDisciplineNotesTable(fallback.error)) return { rows: [], tableMissing: true };
+      throw fallback.error;
+    }
+
+    return {
+      rows: (fallback.data ?? []).map((row: any) => ({
+        id: row.id as UUID,
+        type: "discipline",
+        text: String(row.note ?? ""),
+        created_at: (row.created_at ?? `${String(row.date)}T00:00:00.000Z`) as string,
+      })),
+      tableMissing: false,
+    };
   }
 
   return { rows: (data ?? []) as Remarque[], tableMissing: false };
