@@ -85,6 +85,39 @@ export type LessonScheduleRow = {
   class_groups?: ClassGroup | ClassGroup[] | null;
 };
 
+export type AgendaStudent = {
+  id: UUID;
+  first_name: string;
+  last_name: string;
+  student_ref?: string | null;
+};
+
+export type AttendanceStatus = "present" | "absent";
+
+export type AttendanceRecord = {
+  student_id: UUID;
+  class_group_id: UUID;
+  date: string;
+  status: AttendanceStatus;
+};
+
+export type AttendancePeriodSummaryRow = {
+  student_id: UUID;
+  first_name: string;
+  last_name: string;
+  student_ref?: string | null;
+  present_count: number;
+  absent_count: number;
+  total_marked: number;
+};
+
+export type AgendaQuickRemark = {
+  id: UUID;
+  student_id: UUID;
+  text: string;
+  created_at: string;
+};
+
 export type ParsedTimetableCsvRow = {
   line: number;
   day_of_week_raw: string;
@@ -143,6 +176,11 @@ const T = {
   LESSON_NOTES: "lesson_notes",
   AGENDA_ITEMS: "agenda_items",
   ASSESSMENTS: "assessments",
+  STUDENT_ENROLLMENTS: "student_enrollments",
+  STUDENTS: "students",
+  ATTENDANCE_RECORDS: "attendance_records",
+  REMARQUES: "remarques",
+  DISCIPLINE_NOTES: "discipline_notes",
 } as const;
 
 function errorMessage(error: unknown): string {
@@ -153,6 +191,36 @@ function errorMessage(error: unknown): string {
     if ("error_description" in error && typeof error.error_description === "string") return error.error_description;
   }
   return String(error);
+}
+
+function isMissingLessonNotesTable(error: unknown): boolean {
+  const msg = errorMessage(error).toLowerCase();
+  return msg.includes("lesson_notes") && (msg.includes("schema cache") || msg.includes("does not exist"));
+}
+
+function isMissingStudentRefColumn(error: unknown): boolean {
+  const msg = errorMessage(error).toLowerCase();
+  return msg.includes("student_ref") && (msg.includes("schema cache") || msg.includes("does not exist"));
+}
+
+function isMissingAttendanceTable(error: unknown): boolean {
+  const msg = errorMessage(error).toLowerCase();
+  return msg.includes("attendance_records") && (msg.includes("schema cache") || msg.includes("does not exist"));
+}
+
+function isMissingRemarquesTable(error: unknown): boolean {
+  const msg = errorMessage(error).toLowerCase();
+  return msg.includes("remarques") && (msg.includes("schema cache") || msg.includes("does not exist"));
+}
+
+function isMissingDisciplineNotesTable(error: unknown): boolean {
+  const msg = errorMessage(error).toLowerCase();
+  return msg.includes("discipline_notes") && (msg.includes("schema cache") || msg.includes("does not exist"));
+}
+
+function isNoUniqueForOnConflict(error: unknown): boolean {
+  const msg = errorMessage(error).toLowerCase();
+  return msg.includes("no unique") || msg.includes("constraint matching");
 }
 
 function normalizeHeaderCell(header: string): string {
@@ -487,9 +555,8 @@ export async function importTeacherTimetableCsv(params: {
   ctx: TeacherContext;
   rows: ParsedTimetableCsvRow[];
   classes: ClassGroup[];
-  weekStartIso?: string;
 }): Promise<TimetableImportSummary> {
-  const { ctx, rows, classes, weekStartIso } = params;
+  const { ctx, rows, classes } = params;
 
   const summary: TimetableImportSummary = {
     rowsTotal: rows.length,
@@ -513,8 +580,8 @@ export async function importTeacherTimetableCsv(params: {
   const preparedRaw: PreparedTimetableImportRow[] = [];
 
   for (const row of rows) {
-    const isoDate = row.date_raw.trim();
-    if (!isIsoDate(isoDate)) {
+    const isoDateRaw = row.date_raw.trim();
+    if (!isIsoDate(isoDateRaw)) {
       summary.errors.push({ line: row.line, message: `date invalide (${row.date_raw || "vide"}). Attendu: YYYY-MM-DD.` });
       continue;
     }
@@ -536,16 +603,28 @@ export async function importTeacherTimetableCsv(params: {
       continue;
     }
 
-    const className = row.class_name_raw.trim();
-    if (!className) {
+    const classNameRaw = row.class_name_raw.trim();
+    if (!classNameRaw) {
       summary.ignoredMissingClass += 1;
       continue;
     }
 
-    const classMatch = resolveClassByName(className, classes);
+    // Correction legacy: certains CSV exportés contiennent "3GTIMM" au lieu de "3GTIM".
+    const classNameForLookup = normalizeNameForMatch(classNameRaw) === "3gtimm" ? "3GTIM" : classNameRaw;
+    const classMatch = resolveClassByName(classNameForLookup, classes);
     if (!classMatch) {
-      summary.errors.push({ line: row.line, message: `classe introuvable (${className}).` });
+      summary.errors.push({ line: row.line, message: `classe introuvable (${classNameRaw}).` });
       continue;
+    }
+
+    let isoDate = isoDateRaw;
+    // Correction semaine type: les lignes "3GTIMM" (P9/P10) issues de l'ancien export
+    // doivent être placées le mardi au lieu du mercredi.
+    if (normalizeNameForMatch(classNameRaw) === "3gtimm" && (slot === 9 || slot === 10)) {
+      const dow = new Date(`${isoDateRaw}T12:00:00`).getDay(); // 3 = mercredi
+      if (dow === 3) {
+        isoDate = addDaysIso(isoDateRaw, -1);
+      }
     }
 
     const detailsParts: string[] = [];
@@ -592,8 +671,10 @@ export async function importTeacherTimetableCsv(params: {
 
   if (prepared.length === 0) return summary;
 
+  // Toujours remplacer la semaine du CSV (basée sur la plus petite date importée),
+  // indépendamment de la semaine affichée dans l'UI.
   const baseIsoForWeek = summary.minDate ?? prepared[0].date;
-  const replaceWeekStart = weekStartIso && isIsoDate(weekStartIso) ? weekStartIso : startOfIsoWeekMonday(baseIsoForWeek);
+  const replaceWeekStart = startOfIsoWeekMonday(baseIsoForWeek);
   const replaceWeekEnd = addDaysIso(replaceWeekStart, 6);
   summary.replaceWeekStart = replaceWeekStart;
   summary.replaceWeekEnd = replaceWeekEnd;
@@ -680,6 +761,268 @@ export async function listLessonScheduleWeek(params: {
   }));
 }
 
+export async function listStudentsForClass(params: {
+  ctx: TeacherContext;
+  classGroupId: UUID;
+}): Promise<AgendaStudent[]> {
+  const { ctx, classGroupId } = params;
+  const { data: enrollments, error: enrErr } = await ctx.supabase
+    .from(T.STUDENT_ENROLLMENTS)
+    .select("student_id")
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("class_group_id", classGroupId);
+
+  if (enrErr) throw enrErr;
+
+  const studentIds = Array.from(
+    new Set((enrollments ?? []).map((row: any) => row.student_id).filter(Boolean) as UUID[])
+  );
+  if (studentIds.length === 0) return [];
+
+  const runQuery = async (includeStudentRef: boolean) => {
+    const selectCols = includeStudentRef
+      ? "id,first_name,last_name,student_ref"
+      : "id,first_name,last_name";
+
+    return ctx.supabase
+      .from(T.STUDENTS)
+      .select(selectCols)
+      .eq("school_id", ctx.schoolId)
+      .in("id", studentIds)
+      .order("last_name", { ascending: true })
+      .order("first_name", { ascending: true });
+  };
+
+  let { data: students, error: stuErr } = await runQuery(true);
+  if (stuErr && isMissingStudentRefColumn(stuErr)) {
+    const fallback = await runQuery(false);
+    if (fallback.error) throw fallback.error;
+    students = (fallback.data ?? []).map((row: any) => ({ ...row, student_ref: null }));
+    stuErr = null;
+  }
+
+  if (stuErr) throw stuErr;
+  return (students ?? []) as unknown as AgendaStudent[];
+}
+
+export async function listAttendanceForClassDate(params: {
+  ctx: TeacherContext;
+  classGroupId: UUID;
+  date: string;
+}): Promise<AttendanceRecord[]> {
+  const { ctx, classGroupId, date } = params;
+  const { data, error } = await ctx.supabase
+    .from(T.ATTENDANCE_RECORDS)
+    .select("student_id,class_group_id,date,status")
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("teacher_id", ctx.teacherId)
+    .eq("class_group_id", classGroupId)
+    .eq("date", date);
+
+  if (error) {
+    if (isMissingAttendanceTable(error)) return [];
+    throw error;
+  }
+  return (data ?? []) as AttendanceRecord[];
+}
+
+export async function upsertAttendanceForClassDate(params: {
+  ctx: TeacherContext;
+  classGroupId: UUID;
+  date: string;
+  rows: Array<{ studentId: UUID; absent: boolean }>;
+}): Promise<void> {
+  const { ctx, classGroupId, date, rows } = params;
+  if (!isIsoDate(date)) throw new Error("Date invalide (YYYY-MM-DD attendu).");
+  if (rows.length === 0) return;
+
+  const payload = rows.map((row) => ({
+    school_id: ctx.schoolId,
+    academic_year_id: ctx.academicYearId,
+    teacher_id: ctx.teacherId,
+    class_group_id: classGroupId,
+    student_id: row.studentId,
+    date,
+    status: row.absent ? "absent" : "present",
+  }));
+
+  const upsertResult = await ctx.supabase
+    .from(T.ATTENDANCE_RECORDS)
+    .upsert(payload, { onConflict: "student_id,class_group_id,date" });
+
+  if (!upsertResult.error) return;
+
+  if (isMissingAttendanceTable(upsertResult.error)) {
+    throw new Error("Table attendance_records absente. Applique la migration SQL puis réessaie.");
+  }
+
+  if (!isNoUniqueForOnConflict(upsertResult.error)) throw upsertResult.error;
+
+  // Fallback si la contrainte unique n'existe pas encore dans certains environnements.
+  const studentIds = Array.from(new Set(rows.map((r) => r.studentId)));
+  const deleted = await ctx.supabase
+    .from(T.ATTENDANCE_RECORDS)
+    .delete()
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("teacher_id", ctx.teacherId)
+    .eq("class_group_id", classGroupId)
+    .eq("date", date)
+    .in("student_id", studentIds);
+  if (deleted.error) throw deleted.error;
+
+  const inserted = await ctx.supabase
+    .from(T.ATTENDANCE_RECORDS)
+    .insert(payload);
+  if (inserted.error) throw inserted.error;
+}
+
+export async function listAttendanceSummaryForClassPeriod(params: {
+  ctx: TeacherContext;
+  classGroupId: UUID;
+  dateFrom: string;
+  dateTo: string;
+}): Promise<AttendancePeriodSummaryRow[]> {
+  const { ctx, classGroupId, dateFrom, dateTo } = params;
+  const students = await listStudentsForClass({ ctx, classGroupId });
+  if (students.length === 0) return [];
+
+  const { data, error } = await ctx.supabase
+    .from(T.ATTENDANCE_RECORDS)
+    .select("student_id,status")
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("teacher_id", ctx.teacherId)
+    .eq("class_group_id", classGroupId)
+    .gte("date", dateFrom)
+    .lte("date", dateTo);
+
+  if (error) {
+    if (isMissingAttendanceTable(error)) return students.map((s) => ({
+      student_id: s.id,
+      first_name: s.first_name,
+      last_name: s.last_name,
+      student_ref: s.student_ref ?? null,
+      present_count: 0,
+      absent_count: 0,
+      total_marked: 0,
+    }));
+    throw error;
+  }
+
+  const counts = new Map<UUID, { present: number; absent: number }>();
+  for (const row of (data ?? []) as Array<{ student_id: UUID; status: AttendanceStatus }>) {
+    const current = counts.get(row.student_id) ?? { present: 0, absent: 0 };
+    if (row.status === "absent") current.absent += 1;
+    else current.present += 1;
+    counts.set(row.student_id, current);
+  }
+
+  return students.map((student) => {
+    const c = counts.get(student.id) ?? { present: 0, absent: 0 };
+    return {
+      student_id: student.id,
+      first_name: student.first_name,
+      last_name: student.last_name,
+      student_ref: student.student_ref ?? null,
+      present_count: c.present,
+      absent_count: c.absent,
+      total_marked: c.present + c.absent,
+    };
+  });
+}
+
+export async function listQuickRemarquesForStudent(params: {
+  ctx: TeacherContext;
+  studentId: UUID;
+  limit?: number;
+}): Promise<AgendaQuickRemark[]> {
+  const { ctx, studentId, limit = 5 } = params;
+  if (!studentId) return [];
+
+  const fromRemarques = await ctx.supabase
+    .from(T.REMARQUES)
+    .select("id,student_id,text,created_at")
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("teacher_id", ctx.teacherId)
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (!fromRemarques.error) {
+    return (fromRemarques.data ?? []) as AgendaQuickRemark[];
+  }
+
+  if (!isMissingRemarquesTable(fromRemarques.error)) {
+    throw fromRemarques.error;
+  }
+
+  const fromDiscipline = await ctx.supabase
+    .from(T.DISCIPLINE_NOTES)
+    .select("id,student_id,note,created_at,date")
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("teacher_user_id", ctx.teacherId)
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (fromDiscipline.error) {
+    if (isMissingDisciplineNotesTable(fromDiscipline.error)) return [];
+    throw fromDiscipline.error;
+  }
+
+  return (fromDiscipline.data ?? []).map((row: any) => ({
+    id: row.id as UUID,
+    student_id: row.student_id as UUID,
+    text: String(row.note ?? "").trim(),
+    created_at: (row.created_at as string | null) ?? `${String(row.date)}T00:00:00.000Z`,
+  }));
+}
+
+export async function createQuickRemarque(params: {
+  ctx: TeacherContext;
+  studentId: UUID;
+  text: string;
+}): Promise<void> {
+  const { ctx, studentId } = params;
+  const text = params.text.trim();
+  if (!studentId) throw new Error("Élève obligatoire.");
+  if (!text) throw new Error("Remarque vide.");
+
+  const toRemarques = await ctx.supabase.from(T.REMARQUES).insert({
+    school_id: ctx.schoolId,
+    academic_year_id: ctx.academicYearId,
+    teacher_id: ctx.teacherId,
+    student_id: studentId,
+    type: "discipline",
+    text,
+  });
+
+  if (!toRemarques.error) return;
+  if (!isMissingRemarquesTable(toRemarques.error)) throw toRemarques.error;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const toDiscipline = await ctx.supabase.from(T.DISCIPLINE_NOTES).insert({
+    school_id: ctx.schoolId,
+    academic_year_id: ctx.academicYearId,
+    teacher_user_id: ctx.teacherId,
+    student_id: studentId,
+    date: today,
+    note: text,
+  });
+
+  if (toDiscipline.error) {
+    if (isMissingDisciplineNotesTable(toDiscipline.error)) {
+      throw new Error("Aucune table de remarques disponible (remarques / discipline_notes).");
+    }
+    throw toDiscipline.error;
+  }
+}
+
 export async function listTimetableWeek(params: {
   ctx: TeacherContext;
   classGroupId?: UUID;
@@ -757,7 +1100,10 @@ export async function listLessonNotesWeek(params: {
   if (classGroupId) query = query.eq("class_group_id", classGroupId);
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) {
+    if (isMissingLessonNotesTable(error)) return [];
+    throw error;
+  }
 
   return ((data ?? []) as any[]).map(normalizeLessonNoteRow);
 }
@@ -779,7 +1125,10 @@ export async function getLessonNote(params: {
     .eq("slot", slot)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingLessonNotesTable(error)) return null;
+    throw error;
+  }
   return data ? normalizeLessonNoteRow(data) : null;
 }
 
@@ -816,7 +1165,12 @@ export async function upsertLessonNote(params: {
       }
     );
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingLessonNotesTable(error)) {
+      throw new Error("Table lesson_notes absente. Applique la migration SQL puis réessaie.");
+    }
+    throw error;
+  }
 }
 
 export async function listAgendaItems(params: {
@@ -947,13 +1301,11 @@ export async function importTeacherScheduleCsv(params: {
   ctx: TeacherContext;
   rows: ParsedScheduleCsvRow[];
   classes: ClassGroup[];
-  weekStartIso?: string;
 }): Promise<ScheduleImportSummary> {
   return importTeacherTimetableCsv({
     ctx: params.ctx,
     rows: params.rows,
     classes: params.classes,
-    weekStartIso: params.weekStartIso,
   });
 }
 
