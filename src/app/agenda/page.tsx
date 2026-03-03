@@ -84,15 +84,17 @@ function hashString(v: string): number {
 function classCellStyle(classId: UUID | null): React.CSSProperties {
   if (!classId) {
     return {
-      background: "rgba(156,163,175,0.10)",
-      border: "1px solid rgba(156,163,175,0.25)",
+      background: "rgba(255,255,255,0.84)",
+      border: "1px solid rgba(15,23,42,0.10)",
+      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.72)",
     };
   }
 
   const h = hashString(classId) % 360;
   return {
-    background: `hsl(${h} 88% 90%)`,
-    border: `1px solid hsl(${h} 62% 64%)`,
+    background: `hsl(${h} 88% 92%)`,
+    border: `1px solid hsl(${h} 65% 70%)`,
+    boxShadow: "0 6px 16px rgba(15,23,42,0.07)",
   };
 }
 
@@ -109,42 +111,54 @@ function normalizeTag(raw: string | null | undefined): "eval" | "devoir" | null 
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven"] as const;
 
 const card: React.CSSProperties = {
-  borderRadius: 18,
+  borderRadius: 22,
   padding: 16,
-  background: "white",
-  border: "1px solid rgba(0,0,0,0.10)",
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  boxShadow: "var(--shadow-soft)",
 };
 
 const input: React.CSSProperties = {
   width: "100%",
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.15)",
+  minHeight: 46,
+  padding: "11px 13px",
+  borderRadius: 14,
+  border: "1px solid var(--border)",
+  background: "rgba(255,255,255,0.96)",
+  color: "var(--text)",
 };
 
 const btn: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.15)",
-  background: "white",
+  minHeight: 44,
+  padding: "10px 14px",
+  borderRadius: 14,
+  border: "1px solid var(--border)",
+  background: "rgba(255,255,255,0.96)",
   cursor: "pointer",
   fontWeight: 800,
+  color: "var(--text)",
+  boxShadow: "var(--shadow-card)",
 };
 
 const btnPrimary: React.CSSProperties = {
   ...btn,
-  background: "rgba(37,99,235,0.10)",
-  borderColor: "rgba(37,99,235,0.25)",
+  background: "var(--primary)",
+  borderColor: "var(--primary)",
+  color: "#fff",
+  boxShadow: "0 12px 24px rgba(79,124,255,0.28)",
 };
 
 const btnArrow: React.CSSProperties = {
   ...btn,
   padding: "4px 10px",
-  minWidth: 34,
+  minWidth: 36,
   borderRadius: 999,
   fontSize: 14,
   lineHeight: 1,
 };
+
+const QUICK_NOTE_STORAGE_KEY = "agenda-note-rapide-v1";
+const LEGACY_QUICK_NOTE_KEYS = ["agendaQuickNote", "agenda_note_rapide_v1", "agenda-note-rapide"];
 
 type ModalState = {
   open: boolean;
@@ -183,6 +197,8 @@ export default function AgendaPage() {
   const [modalClassGroupId, setModalClassGroupId] = useState<UUID | "">("");
   const [lessonTitle, setLessonTitle] = useState("");
   const [lessonDetails, setLessonDetails] = useState("");
+  const [quickNote, setQuickNote] = useState("");
+  const quickNoteRef = useRef<HTMLTextAreaElement | null>(null);
 
   const weekDays = useMemo(
     () => Array.from({ length: 5 }).map((_, i) => toISODate(addDays(weekStart, i))),
@@ -216,6 +232,13 @@ export default function AgendaPage() {
     }
     return Array.from(tags).sort((a, b) => a.localeCompare(b, "fr"));
   }, [slotsRows]);
+
+  function resizeQuickNoteTextarea() {
+    const textarea = quickNoteRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.max(44, textarea.scrollHeight)}px`;
+  }
 
   async function boot() {
     try {
@@ -265,6 +288,29 @@ export default function AgendaPage() {
     if (!modal?.open) return;
     void loadStudents(modalClassGroupId).catch((e: unknown) => setModalError(toNiceError(e)));
   }, [modal?.open, modalClassGroupId, ctx]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const direct = window.localStorage.getItem(QUICK_NOTE_STORAGE_KEY);
+    if (direct !== null) {
+      setQuickNote(direct);
+      return;
+    }
+    for (const key of LEGACY_QUICK_NOTE_KEYS) {
+      const legacyValue = window.localStorage.getItem(key);
+      if (legacyValue !== null) {
+        setQuickNote(legacyValue);
+        window.localStorage.setItem(QUICK_NOTE_STORAGE_KEY, legacyValue);
+        break;
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(QUICK_NOTE_STORAGE_KEY, quickNote);
+    resizeQuickNoteTextarea();
+  }, [quickNote]);
 
   async function onSelectCsv(file: File | null) {
     try {
@@ -433,125 +479,145 @@ export default function AgendaPage() {
           </div>
         </div>
 
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", minWidth: 980, borderCollapse: "separate", borderSpacing: 6 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", width: 72, padding: 8 }}>Slot</th>
+                {weekDays.map((date, idx) => (
+                  <th key={date} style={{ textAlign: "left", padding: 8, fontWeight: 900 }}>
+                    {WEEKDAY_LABELS[idx]} {formatDateShortFR(date)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {SLOTS.map((slot) => (
+                <tr key={`slot-${slot}`}>
+                  <td style={{ verticalAlign: "top", padding: 8, fontWeight: 900 }}>P{slot}</td>
+
+                  {weekDays.map((date) => {
+                    const row = slotByDateAndPeriod.get(`${date}|${slot}`) ?? null;
+
+                    const classId = row?.class_group_id ?? null;
+                    const className = classId
+                      ? (row?.class_groups && !Array.isArray(row.class_groups) ? row.class_groups.name : classNameById.get(classId) ?? "Classe")
+                      : "";
+
+                    const rowTag = normalizeTag(row?.tag);
+
+                    return (
+                      <td
+                        key={`${date}|${slot}`}
+                        style={{
+                          verticalAlign: "top",
+                          minHeight: 92,
+                          borderRadius: 12,
+                          padding: 10,
+                          cursor: "pointer",
+                          ...classCellStyle(classId),
+                        }}
+                        onClick={() =>
+                          void openCellModal({
+                            date,
+                            slot,
+                            classGroupId: classId,
+                            hadExistingLesson: !!row,
+                            lessonTitle: row?.lesson_title ?? null,
+                            details: row?.details ?? null,
+                          })
+                        }
+                      >
+                        <div style={{ fontWeight: 900, fontSize: 13 }}>{className || ""}</div>
+                        <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700 }}>{row?.lesson_title || ""}</div>
+
+                        {rowTag && (
+                          <button
+                            style={{
+                              marginTop: 8,
+                              border: "none",
+                              borderRadius: 999,
+                              padding: "2px 8px",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              color: "white",
+                              background: rowTag === "eval" ? "#dc2626" : "#f59e0b",
+                              cursor: "pointer",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (rowTag === "eval" && classId) {
+                                router.push(`/evaluations?date=${date}&class_group_id=${classId}`);
+                              }
+                            }}
+                            title={rowTag === "eval" ? "Aller vers Évaluations" : "Tag devoir"}
+                          >
+                            {rowTag === "eval" ? "Éval" : "Devoir"}
+                          </button>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0,1fr) minmax(220px, 280px)",
-            gap: 12,
-            alignItems: "start",
+            marginTop: 16,
+            width: "100%",
+            borderRadius: 14,
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow-card)",
+            background: "rgba(255,255,255,0.94)",
+            padding: "9px 10px",
           }}
         >
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", minWidth: 980, borderCollapse: "separate", borderSpacing: 6 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left", width: 72, padding: 8 }}>Slot</th>
-                  {weekDays.map((date, idx) => (
-                    <th key={date} style={{ textAlign: "left", padding: 8, fontWeight: 900 }}>
-                      {WEEKDAY_LABELS[idx]} {formatDateShortFR(date)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-
-              <tbody>
-                {SLOTS.map((slot) => (
-                  <tr key={`slot-${slot}`}>
-                    <td style={{ verticalAlign: "top", padding: 8, fontWeight: 900 }}>P{slot}</td>
-
-                    {weekDays.map((date) => {
-                      const row = slotByDateAndPeriod.get(`${date}|${slot}`) ?? null;
-
-                      const classId = row?.class_group_id ?? null;
-                      const className = classId
-                        ? (row?.class_groups && !Array.isArray(row.class_groups) ? row.class_groups.name : classNameById.get(classId) ?? "Classe")
-                        : "";
-
-                      const rowTag = normalizeTag(row?.tag);
-
-                      return (
-                        <td
-                          key={`${date}|${slot}`}
-                          style={{
-                            verticalAlign: "top",
-                            minHeight: 92,
-                            borderRadius: 12,
-                            padding: 10,
-                            cursor: "pointer",
-                            ...classCellStyle(classId),
-                          }}
-                          onClick={() =>
-                            void openCellModal({
-                              date,
-                              slot,
-                              classGroupId: classId,
-                              hadExistingLesson: !!row,
-                              lessonTitle: row?.lesson_title ?? null,
-                              details: row?.details ?? null,
-                            })
-                          }
-                        >
-                          <div style={{ fontWeight: 900, fontSize: 13 }}>{className || ""}</div>
-                          <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700 }}>{row?.lesson_title || ""}</div>
-
-                          {rowTag && (
-                            <button
-                              style={{
-                                marginTop: 8,
-                                border: "none",
-                                borderRadius: 999,
-                                padding: "2px 8px",
-                                fontSize: 11,
-                                fontWeight: 800,
-                                color: "white",
-                                background: rowTag === "eval" ? "#dc2626" : "#f59e0b",
-                                cursor: "pointer",
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (rowTag === "eval" && classId) {
-                                  router.push(`/evaluations?date=${date}&class_group_id=${classId}`);
-                                }
-                              }}
-                              title={rowTag === "eval" ? "Aller vers Évaluations" : "Tag devoir"}
-                            >
-                              {rowTag === "eval" ? "Éval" : "Devoir"}
-                            </button>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 900, paddingTop: 8, minWidth: 120 }}>
+              Idées / Tags
+            </div>
+            <div style={{ flex: "1 1 420px", minWidth: "min(100%, 280px)" }}>
+              <textarea
+                ref={quickNoteRef}
+                value={quickNote}
+                onChange={(e) => setQuickNote(e.target.value)}
+                onInput={resizeQuickNoteTextarea}
+                placeholder="Note rapide..."
+                style={{
+                  ...input,
+                  minHeight: 44,
+                  height: 44,
+                  resize: "none",
+                  overflow: "hidden",
+                  padding: "10px 12px",
+                }}
+              />
+            </div>
           </div>
 
-          <aside style={{ ...card, padding: 12 }}>
-            <div style={{ fontSize: 16, fontWeight: 900, marginBottom: 10 }}>Idées / Tags</div>
-            {ideaTags.length === 0 ? (
-              <div style={{ opacity: 0.7, marginBottom: 12 }}>Aucun tag détecté pour l’instant.</div>
+          <div style={{ marginTop: 8, opacity: 0.72, fontSize: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {ideaTags.length > 0 ? (
+              ideaTags.map((tag) => (
+                <span key={tag} style={{ fontWeight: 700 }}>
+                  #{tag}
+                </span>
+              ))
             ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                {ideaTags.map((tag) => (
-                  <span
-                    key={tag}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(37,99,235,0.25)",
-                      background: "rgba(37,99,235,0.08)",
-                      fontWeight: 700,
-                      fontSize: 12,
-                    }}
-                  >
-                    #{tag}
-                  </span>
-                ))}
-              </div>
+              <span>V1 placeholder.</span>
             )}
-            <div style={{ opacity: 0.65, fontSize: 12 }}>V1 placeholder.</div>
-          </aside>
+          </div>
         </div>
       </div>
 
@@ -587,10 +653,10 @@ export default function AgendaPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Ligne</th>
-                      <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Date</th>
-                      <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Slot</th>
-                      <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Classe</th>
+                      <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Ligne</th>
+                      <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Date</th>
+                      <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Slot</th>
+                      <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Classe</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -599,10 +665,10 @@ export default function AgendaPage() {
                       const isRowValid = isIsoDate(r.date_raw) && !!normalizedSlot && !!r.class_name_raw.trim();
                       return (
                         <tr key={r.line} style={!isRowValid ? { background: "rgba(220,38,38,0.08)" } : undefined}>
-                          <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.line}</td>
-                          <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.date_raw || "—"}</td>
-                          <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{normalizedSlot || r.slot_raw || "—"}</td>
-                          <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.class_name_raw || "—"}</td>
+                          <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>{r.line}</td>
+                          <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>{r.date_raw || "—"}</td>
+                          <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>{normalizedSlot || r.slot_raw || "—"}</td>
+                          <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>{r.class_name_raw || "—"}</td>
                         </tr>
                       );
                     })}
@@ -650,10 +716,11 @@ export default function AgendaPage() {
               width: "min(920px, 96vw)",
               maxHeight: "92vh",
               overflow: "auto",
-              background: "white",
-              borderRadius: 16,
-              padding: 16,
-              border: "1px solid rgba(0,0,0,0.12)",
+              background: "var(--surface)",
+              borderRadius: 20,
+              padding: 18,
+              border: "1px solid var(--border)",
+              boxShadow: "0 24px 56px rgba(15,23,42,0.30)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -736,17 +803,17 @@ export default function AgendaPage() {
                       <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <thead>
                           <tr>
-                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Élève</th>
-                            <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Fiche</th>
+                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Élève</th>
+                            <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid var(--border)" }}>Fiche</th>
                           </tr>
                         </thead>
                         <tbody>
                           {modalStudents.map((student) => (
                             <tr key={student.id}>
-                              <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)", fontWeight: 700 }}>
+                              <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)", fontWeight: 700 }}>
                                 {student.last_name} {student.first_name}
                               </td>
-                              <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)", textAlign: "right" }}>
+                              <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)", textAlign: "right" }}>
                                 <button
                                   style={{ ...btn, padding: "6px 10px" }}
                                   onClick={() => router.push(`/eleves/${student.id}`)}
