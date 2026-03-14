@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import EleveDashboardDrawer from "@/components/eleve/EleveDashboardDrawer";
+
 import {
   type UUID,
   type Level,
@@ -9,8 +11,6 @@ import {
   type Student,
   type Assessment,
   type Resultat,
-  type AttendanceRecord,
-  type AttendanceStatus,
   type CsvStudentImportRow,
   type CsvStudentImportSummary,
   getTeacherContext,
@@ -23,41 +23,52 @@ import {
   listAssessmentsForClass,
   upsertResult,
   listResultatsForStudent,
-  listStudentsForClasses,
-  listAttendanceForDate,
-  upsertAttendanceForClass,
 } from "../resultats/resultats";
-import { formatDateFR } from "@/lib/date";
 
 const LEVELS: Level[] = ["NI", "I", "S", "B", "TB"];
 
 const card: React.CSSProperties = {
-  borderRadius: 18,
+  borderRadius: 22,
   padding: 16,
-  background: "white",
-  border: "1px solid rgba(0,0,0,0.10)",
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  boxShadow: "var(--shadow-soft)",
 };
 
 const input: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.15)",
+  minHeight: 46,
+  padding: "11px 13px",
+  borderRadius: 14,
+  border: "1px solid var(--border)",
+  background: "rgba(255,255,255,0.96)",
+  color: "var(--text)",
   width: "100%",
 };
 
 const btn: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.15)",
-  background: "white",
+  minHeight: 44,
+  padding: "10px 14px",
+  borderRadius: 14,
+  border: "1px solid var(--border)",
+  background: "rgba(255,255,255,0.96)",
+  color: "var(--text)",
   cursor: "pointer",
   fontWeight: 800,
+  boxShadow: "var(--shadow-card)",
 };
 
 const btnPrimary: React.CSSProperties = {
   ...btn,
-  background: "rgba(37,99,235,0.10)",
-  borderColor: "rgba(37,99,235,0.25)",
+  background: "var(--primary)",
+  borderColor: "var(--primary)",
+  color: "#fff",
+  boxShadow: "0 12px 24px rgba(79,124,255,0.28)",
+};
+
+const studentLink: React.CSSProperties = {
+  color: "var(--primary)",
+  textDecoration: "none",
+  fontWeight: 800,
 };
 
 function errorMessage(err: unknown): string {
@@ -81,11 +92,7 @@ function isRlsDenied(err: unknown): boolean {
   const anyErr = err as any;
   const code = String(anyErr?.code ?? "");
   const message = String(anyErr?.message ?? "").toLowerCase();
-  return (
-    code === "42501" ||
-    message.includes("row-level security") ||
-    message.includes("permission denied")
-  );
+  return code === "42501" || message.includes("row-level security") || message.includes("permission denied");
 }
 
 function splitCsvLine(line: string, delimiter: "," | ";"): string[] {
@@ -161,8 +168,9 @@ function parseStudentsCsv(text: string): CsvStudentImportRow[] {
   const headers = splitCsvLine(headerLine, delimiter).map(normalizeHeaderCell);
   const idxFirst = findHeaderIndex(headers, ["first_name", "prenom", "first", "firstname"]);
   const idxLast = findHeaderIndex(headers, ["last_name", "nom", "last", "lastname"]);
-  const idxRef = findHeaderIndex(headers, ["student_ref", "ordre", "id_externe", "student_id", "external_id"]);
+  const idxRef = findHeaderIndex(headers, ["student_ref", "ordre", "num", "id_externe", "student_id", "external_id"]);
   const idxEmail = findHeaderIndex(headers, ["email_ecole", "email"]);
+
   if (idxFirst < 0 || idxLast < 0) {
     throw new Error("Colonnes requises manquantes. Attendu: prenom/first_name + nom/last_name.");
   }
@@ -180,36 +188,11 @@ function parseStudentsCsv(text: string): CsvStudentImportRow[] {
       email: idxEmail >= 0 ? ((cols[idxEmail] ?? "").trim() || null) : null,
     });
   }
+
   return rows;
 }
 
-type AttendanceByClass = Record<UUID, Record<UUID, boolean>>;
-type AttendanceFeedback = { type: "success" | "error"; text: string };
-
-function todayIsoDate(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function createAttendanceSelection(
-  studentsByClass: Record<UUID, Student[]>,
-  records: AttendanceRecord[]
-): AttendanceByClass {
-  const out: AttendanceByClass = {};
-  for (const [classId, students] of Object.entries(studentsByClass) as Array<[UUID, Student[]]>) {
-    out[classId] = {};
-    for (const student of students) out[classId][student.id] = false;
-  }
-
-  for (const row of records) {
-    if (!out[row.class_group_id]) continue;
-    out[row.class_group_id][row.student_id] = row.status === "absent";
-  }
-  return out;
-}
+type StudentMeta = { student_ref: string | null; email: string | null };
 
 export default function TeacherCotationView() {
   const [ctx, setCtx] = useState<TeacherContext | null>(null);
@@ -217,9 +200,12 @@ export default function TeacherCotationView() {
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
   const [classes, setClasses] = useState<ClassGroup[]>([]);
+  const [classCounts, setClassCounts] = useState<Record<UUID, number>>({});
   const [classId, setClassId] = useState<UUID | "">("");
+  const [addStudentClassId, setAddStudentClassId] = useState<UUID | "">("");
 
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentMetaById, setStudentMetaById] = useState<Record<UUID, StudentMeta>>({});
   const [studentId, setStudentId] = useState<UUID | "">("");
 
   const [assessments, setAssessments] = useState<Assessment[]>([]);
@@ -238,15 +224,11 @@ export default function TeacherCotationView() {
   const [csvSummary, setCsvSummary] = useState<CsvStudentImportSummary | null>(null);
   const csvInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [classModalOpen, setClassModalOpen] = useState(false);
+  const [selectedEleveId, setSelectedEleveId] = useState<UUID | null>(null);
+
   const [valueInput, setValueInput] = useState("");
   const [levelInput, setLevelInput] = useState<Level | "">("");
-  const [studentsByClass, setStudentsByClass] = useState<Record<UUID, Student[]>>({});
-  const [attendanceByClass, setAttendanceByClass] = useState<AttendanceByClass>({});
-  const [attendanceSaving, setAttendanceSaving] = useState<Record<UUID, boolean>>({});
-  const [attendanceFeedback, setAttendanceFeedback] = useState<Record<UUID, AttendanceFeedback | null>>({});
-
-  const today = useMemo(() => todayIsoDate(), []);
-  const todayLabel = useMemo(() => formatDateFR(today), [today]);
 
   const canSaveResult = useMemo(() => {
     if (!ctx || !studentId || !assessmentId) return false;
@@ -254,6 +236,88 @@ export default function TeacherCotationView() {
   }, [ctx, studentId, assessmentId, valueInput, levelInput]);
 
   const csvPreviewRows = useMemo(() => csvRows.slice(0, 10), [csvRows]);
+
+  const selectedClass = useMemo(
+    () => classes.find((c) => c.id === classId) ?? null,
+    [classes, classId]
+  );
+
+  const sortedClasses = useMemo(
+    () =>
+      [...classes].sort((a, b) => {
+        const ga = a.grade_level ?? Number.MAX_SAFE_INTEGER;
+        const gb = b.grade_level ?? Number.MAX_SAFE_INTEGER;
+        if (ga !== gb) return ga - gb;
+        return a.name.localeCompare(b.name, "fr");
+      }),
+    [classes]
+  );
+
+  async function reloadClassCounts(c: TeacherContext): Promise<Record<UUID, number>> {
+    const { data, error } = await c.supabase
+      .from("student_enrollments")
+      .select("class_group_id")
+      .eq("school_id", c.schoolId)
+      .eq("academic_year_id", c.academicYearId);
+
+    if (error) throw error;
+
+    const counts: Record<UUID, number> = {};
+    for (const row of (data ?? []) as Array<{ class_group_id: UUID | null }>) {
+      if (!row.class_group_id) continue;
+      counts[row.class_group_id] = (counts[row.class_group_id] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  async function loadStudentMeta(c: TeacherContext, rows: Student[]) {
+    const ids = rows.map((s) => s.id);
+    if (ids.length === 0) {
+      setStudentMetaById({});
+      return;
+    }
+
+    try {
+      let data: Array<{ id: UUID; student_ref?: string | null; email?: string | null }> | null = null;
+      let queryError: unknown = null;
+
+      const withEmail = await c.supabase
+        .from("students")
+        .select("id,student_ref,email")
+        .eq("school_id", c.schoolId)
+        .in("id", ids);
+
+      if (withEmail.error) {
+        const fallback = await c.supabase
+          .from("students")
+          .select("id,student_ref")
+          .eq("school_id", c.schoolId)
+          .in("id", ids);
+        if (fallback.error) {
+          queryError = fallback.error;
+        } else {
+          data = (fallback.data ?? []) as Array<{ id: UUID; student_ref?: string | null }>;
+        }
+      } else {
+        data = (withEmail.data ?? []) as Array<{ id: UUID; student_ref?: string | null; email?: string | null }>;
+      }
+
+      if (queryError) throw queryError;
+
+      const next: Record<UUID, StudentMeta> = {};
+      for (const row of data ?? []) {
+        next[row.id] = { student_ref: row.student_ref ?? null, email: row.email ?? null };
+      }
+      for (const s of rows) {
+        if (!next[s.id]) next[s.id] = { student_ref: null, email: null };
+      }
+      setStudentMetaById(next);
+    } catch {
+      const fallback: Record<UUID, StudentMeta> = {};
+      for (const s of rows) fallback[s.id] = { student_ref: null, email: null };
+      setStudentMetaById(fallback);
+    }
+  }
 
   async function boot() {
     try {
@@ -263,8 +327,11 @@ export default function TeacherCotationView() {
       setCtx(c);
       const cls = await listClassGroups(c);
       setClasses(cls);
-      if (cls[0]?.id) setClassId(cls[0].id);
-      await reloadAttendanceData(c, cls);
+      const counts = await reloadClassCounts(c);
+      setClassCounts(counts);
+      const first = cls[0]?.id ?? "";
+      setClassId(first);
+      setAddStudentClassId(first);
     } catch (e: unknown) {
       setErr(errorMessage(e));
     }
@@ -273,6 +340,7 @@ export default function TeacherCotationView() {
   async function reloadClassData(c: TeacherContext, selectedClassId: UUID | "") {
     if (!selectedClassId) {
       setStudents([]);
+      setStudentMetaById({});
       setAssessments([]);
       setStudentId("");
       setAssessmentId("");
@@ -287,6 +355,7 @@ export default function TeacherCotationView() {
 
     setStudents(stu);
     setAssessments(eva);
+    await loadStudentMeta(c, stu);
 
     setStudentId((prev) => (prev && stu.some((s) => s.id === prev) ? prev : stu[0]?.id ?? ""));
     setAssessmentId((prev) => (prev && eva.some((a) => a.id === prev) ? prev : eva[0]?.id ?? ""));
@@ -299,39 +368,6 @@ export default function TeacherCotationView() {
     }
     const rows = await listResultatsForStudent(c, { studentId: selectedStudentId });
     setResults(rows);
-  }
-
-  async function reloadAttendanceData(c: TeacherContext, classList: ClassGroup[]) {
-    const classIds = classList.map((cg) => cg.id);
-    if (classIds.length === 0) {
-      setStudentsByClass({});
-      setAttendanceByClass({});
-      setAttendanceFeedback({});
-      return;
-    }
-
-    const [studentsMap, attendanceRows] = await Promise.all([
-      listStudentsForClasses(c, classIds),
-      listAttendanceForDate(c, { date: today, classGroupIds: classIds }),
-    ]);
-
-    setStudentsByClass(studentsMap);
-    setAttendanceByClass(createAttendanceSelection(studentsMap, attendanceRows));
-    setAttendanceFeedback((prev) => {
-      const next: Record<UUID, AttendanceFeedback | null> = {};
-      for (const classId of classIds) next[classId] = prev[classId] ?? null;
-      return next;
-    });
-  }
-
-  function setAbsentForStudent(classGroupId: UUID, studentId: UUID, absent: boolean) {
-    setAttendanceByClass((prev) => ({
-      ...prev,
-      [classGroupId]: {
-        ...(prev[classGroupId] ?? {}),
-        [studentId]: absent,
-      },
-    }));
   }
 
   useEffect(() => {
@@ -354,6 +390,11 @@ export default function TeacherCotationView() {
     });
   }, [ctx, studentId]);
 
+  useEffect(() => {
+    if (!classId) return;
+    setAddStudentClassId(classId);
+  }, [classId]);
+
   async function onCreateClass() {
     if (!ctx) return;
     try {
@@ -362,9 +403,10 @@ export default function TeacherCotationView() {
       const newId = await upsertClassGroup(ctx, { name: newClassName, grade_level: newClassGrade });
       const cls = await listClassGroups(ctx);
       setClasses(cls);
+      setClassCounts(await reloadClassCounts(ctx));
       setClassId(newId);
+      setAddStudentClassId(newId);
       setNewClassName("");
-      await reloadAttendanceData(ctx, cls);
     } catch (e: unknown) {
       setErr(errorMessage(e));
     }
@@ -378,29 +420,36 @@ export default function TeacherCotationView() {
       await deleteClassGroup(ctx, classId);
       const cls = await listClassGroups(ctx);
       setClasses(cls);
-      setClassId(cls[0]?.id ?? "");
-      await reloadAttendanceData(ctx, cls);
+      setClassCounts(await reloadClassCounts(ctx));
+      const nextId = cls[0]?.id ?? "";
+      setClassId(nextId);
+      setAddStudentClassId(nextId);
     } catch (e: unknown) {
       setErr(errorMessage(e));
     }
   }
 
   async function onAddStudent() {
-    if (!ctx || !classId) return;
+    if (!ctx || !addStudentClassId) {
+      setErr("Sélectionne une classe cible pour ajouter l'élève.");
+      return;
+    }
     try {
       setErr(null);
       setInfoMsg(null);
       await addStudentAndEnroll(ctx, {
-        classGroupId: classId,
+        classGroupId: addStudentClassId,
         first_name: newStudentFirst,
         last_name: newStudentLast,
       });
       setNewStudentFirst("");
       setNewStudentLast("");
-      await reloadClassData(ctx, classId);
+      setClassCounts(await reloadClassCounts(ctx));
+      if (classId === addStudentClassId) {
+        await reloadClassData(ctx, classId);
+      }
       const cls = await listClassGroups(ctx);
       setClasses(cls);
-      await reloadAttendanceData(ctx, cls);
     } catch (e: unknown) {
       setErr(errorMessage(e));
     }
@@ -424,7 +473,11 @@ export default function TeacherCotationView() {
   }
 
   async function onImportCsv() {
-    if (!ctx || !classId) return;
+    if (!ctx) return;
+    if (!classId) {
+      setErr("Sélectionne une classe avant d'importer.");
+      return;
+    }
     if (csvRows.length === 0) {
       setErr("Aucune ligne CSV à importer.");
       return;
@@ -433,19 +486,12 @@ export default function TeacherCotationView() {
       setErr(null);
       setInfoMsg(null);
       setCsvImporting(true);
-      console.log("[Import élèves] payload", {
-        schoolId: ctx.schoolId,
-        academicYearId: ctx.academicYearId,
-        classGroupId: classId,
-        rows: csvRows.length,
-      });
       const summary = await importStudentsToClass(ctx, { classGroupId: classId, rows: csvRows });
       setCsvSummary(summary);
-      let fetchedStudentsCount = 0;
+
+      let refreshedStudents: Student[] = [];
       try {
-        const refreshedStudents = await listStudentsInClass(ctx, classId);
-        fetchedStudentsCount = refreshedStudents.length;
-        setStudents(refreshedStudents);
+        refreshedStudents = await listStudentsInClass(ctx, classId);
       } catch (fetchErr: unknown) {
         if (isRlsDenied(fetchErr)) {
           setErr("RLS: SELECT interdit sur students/student_enrollments. Vérifie les policies Supabase.");
@@ -453,78 +499,21 @@ export default function TeacherCotationView() {
         }
         throw fetchErr;
       }
+
+      setStudents(refreshedStudents);
+      await loadStudentMeta(ctx, refreshedStudents);
+
       const cls = await listClassGroups(ctx);
       setClasses(cls);
-      await reloadAttendanceData(ctx, cls);
-      console.log("[Import élèves] summary", {
-        createdStudents: summary.studentsCreated,
-        existingStudents: summary.studentsExisting,
-        createdEnrollments: summary.enrollmentsCreated,
-        existingEnrollments: summary.enrollmentsExisting,
-        fetchedStudents: fetchedStudentsCount,
-      });
-      if (
-        fetchedStudentsCount === 0 &&
-        (summary.enrollmentsCreated > 0 || summary.enrollmentsExisting > 0)
-      ) {
-        setErr("Import DB OK mais aucun élève relu. RLS probable sur students/student_enrollments.");
-      }
+      setClassCounts(await reloadClassCounts(ctx));
+
       setInfoMsg(
-        `Import terminé ✅ Élèves créés: ${summary.studentsCreated}, existants: ${summary.studentsExisting}, inscriptions créées: ${summary.enrollmentsCreated}, existantes: ${summary.enrollmentsExisting}, relus: ${fetchedStudentsCount}. Diagnostic: school=${ctx.schoolId}, year=${ctx.academicYearId}, class=${classId}, rows=${csvRows.length}.`
+        `Import terminé ✅ Élèves créés: ${summary.studentsCreated}, existants: ${summary.studentsExisting}, inscriptions créées: ${summary.enrollmentsCreated}, existantes: ${summary.enrollmentsExisting}, relus: ${refreshedStudents.length}.`
       );
     } catch (e: unknown) {
       setErr(errorMessage(e));
     } finally {
       setCsvImporting(false);
-    }
-  }
-
-  async function onSaveAttendance(classGroupId: UUID) {
-    if (!ctx) return;
-    const classStudents = studentsByClass[classGroupId] ?? [];
-    if (classStudents.length === 0) {
-      setAttendanceFeedback((prev) => ({
-        ...prev,
-        [classGroupId]: { type: "error", text: "Aucun élève dans cette classe." },
-      }));
-      return;
-    }
-
-    try {
-      setAttendanceSaving((prev) => ({ ...prev, [classGroupId]: true }));
-      setAttendanceFeedback((prev) => ({ ...prev, [classGroupId]: null }));
-
-      const rows = classStudents.map((student) => {
-        const absent = attendanceByClass[classGroupId]?.[student.id] ?? false;
-        const status: AttendanceStatus = absent ? "absent" : "present";
-        return { studentId: student.id, status };
-      });
-
-      await upsertAttendanceForClass(ctx, {
-        classGroupId,
-        date: today,
-        rows,
-      });
-
-      const absentCount = rows.filter((r) => r.status === "absent").length;
-      const presentCount = rows.length - absentCount;
-      setAttendanceFeedback((prev) => ({
-        ...prev,
-        [classGroupId]: {
-          type: "success",
-          text: `Présence enregistrée ✅ (${presentCount} présents, ${absentCount} absents)`,
-        },
-      }));
-    } catch (e: unknown) {
-      setAttendanceFeedback((prev) => ({
-        ...prev,
-        [classGroupId]: {
-          type: "error",
-          text: errorMessage(e),
-        },
-      }));
-    } finally {
-      setAttendanceSaving((prev) => ({ ...prev, [classGroupId]: false }));
     }
   }
 
@@ -554,6 +543,11 @@ export default function TeacherCotationView() {
     }
   }
 
+  function openEleveDashboard(studentUuid: UUID) {
+    setClassModalOpen(false);
+    setSelectedEleveId(studentUuid);
+  }
+
   return (
     <div>
       {err && (
@@ -567,18 +561,17 @@ export default function TeacherCotationView() {
         </div>
       )}
 
-      <div style={card}>
+      <div style={{ ...card, padding: 12 }}>
         <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>Actions rapides</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10 }}>
-          <select style={input} value={classId} onChange={(e) => setClassId(e.target.value as UUID | "")}>
-            <option value="">Choisir une classe</option>
-            {classes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.grade_level ? ` (niveau ${c.grade_level})` : ""}
-              </option>
-            ))}
-          </select>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "center" }}>
+          <div style={{ opacity: 0.8 }}>
+            Classe active:{" "}
+            <b>
+              {selectedClass
+                ? `${selectedClass.name}${selectedClass.grade_level ? ` (niveau ${selectedClass.grade_level})` : ""}`
+                : "Aucune"}
+            </b>
+          </div>
           <button style={btn} disabled={!classId} onClick={onDeleteClass}>
             Supprimer classe
           </button>
@@ -608,22 +601,35 @@ export default function TeacherCotationView() {
 
         <div style={{ height: 14 }} />
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr 1fr auto", gap: 10 }}>
+          <select
+            style={input}
+            value={addStudentClassId}
+            onChange={(e) => setAddStudentClassId(e.target.value as UUID | "")}
+          >
+            <option value="">Classe cible</option>
+            {sortedClasses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.grade_level ? ` (niveau ${c.grade_level})` : ""}
+              </option>
+            ))}
+          </select>
           <input
             style={input}
             placeholder="Prénom élève"
             value={newStudentFirst}
             onChange={(e) => setNewStudentFirst(e.target.value)}
-            disabled={!classId}
+            disabled={!addStudentClassId}
           />
           <input
             style={input}
             placeholder="Nom élève"
             value={newStudentLast}
             onChange={(e) => setNewStudentLast(e.target.value)}
-            disabled={!classId}
+            disabled={!addStudentClassId}
           />
-          <button style={btnPrimary} onClick={onAddStudent} disabled={!classId}>
+          <button style={btnPrimary} onClick={onAddStudent} disabled={!addStudentClassId}>
             Ajouter élève
           </button>
         </div>
@@ -643,31 +649,25 @@ export default function TeacherCotationView() {
           <button
             style={btn}
             onClick={() => {
+              if (!classId) {
+                setErr("Sélectionne une classe avant d'importer.");
+                return;
+              }
               setImportPanelOpen(true);
               csvInputRef.current?.click();
             }}
-            disabled={!classId}
           >
-            Importer
+            Importer élèves (CSV)
           </button>
-          <a
-            href="/templates/modele_import_eleves.csv"
-            target="_blank"
-            rel="noopener noreferrer"
-            download
-            style={{ ...btn, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
-          >
-            Télécharger modèle CSV
-          </a>
         </div>
 
         {importPanelOpen && (
           <>
             <div style={{ height: 10 }} />
-            <div style={{ border: "1px solid rgba(0,0,0,0.1)", borderRadius: 12, padding: 12 }}>
+            <div style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 12 }}>
               <div style={{ fontWeight: 900, marginBottom: 8 }}>Import CSV pour la classe sélectionnée</div>
               <div style={{ opacity: 0.8, marginBottom: 8 }}>
-                Colonnes supportées (FR/EN): <b>prenom/first_name</b>, <b>nom/last_name</b>, optionnel <b>ordre/student_ref/id_externe</b>,
+                Colonnes supportées (FR/EN): <b>prenom/first_name</b>, <b>nom/last_name</b>, optionnel <b>ordre/num/student_ref/id_externe</b>,
                 optionnel <b>email_ecole/email</b>. Séparateur accepté: <b>,</b> ou <b>;</b>.
               </div>
 
@@ -695,10 +695,10 @@ export default function TeacherCotationView() {
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Ligne</th>
-                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Prénom</th>
-                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Nom</th>
-                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Réf élève</th>
+                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Ligne</th>
+                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Prénom</th>
+                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Nom</th>
+                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Réf élève</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -706,10 +706,10 @@ export default function TeacherCotationView() {
                         const invalid = !r.first_name.trim() || !r.last_name.trim();
                         return (
                           <tr key={r.line} style={invalid ? { background: "rgba(220,38,38,0.08)" } : undefined}>
-                            <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.line}</td>
-                            <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.first_name || "—"}</td>
-                            <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.last_name || "—"}</td>
-                            <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.student_ref ?? "—"}</td>
+                            <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>{r.line}</td>
+                            <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>{r.first_name || "—"}</td>
+                            <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>{r.last_name || "—"}</td>
+                            <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>{r.student_ref ?? "—"}</td>
                           </tr>
                         );
                       })}
@@ -750,75 +750,62 @@ export default function TeacherCotationView() {
 
       <div style={{ height: 14 }} />
 
-      <div style={{ display: "grid", gap: 14 }}>
-        {classes.map((cls) => {
-          const classStudents = studentsByClass[cls.id] ?? [];
-          const feedback = attendanceFeedback[cls.id];
-          const isSaving = attendanceSaving[cls.id] ?? false;
-          return (
-            <div key={cls.id} style={card}>
-              <div style={{ fontSize: 18, fontWeight: 900 }}>
-                {cls.name}
-                {cls.grade_level ? ` - niveau ${cls.grade_level}` : ""}
-              </div>
-              <div style={{ opacity: 0.8, marginTop: 4, marginBottom: 10 }}>
-                {todayLabel} - Présences du jour
-              </div>
-
-              {classStudents.length === 0 ? (
-                <div style={{ opacity: 0.72 }}>Aucun élève dans cette classe.</div>
-              ) : (
-                <>
-                  <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                      <thead>
-                        <tr>
-                          <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Nom</th>
-                          <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Prénom</th>
-                          <th style={{ textAlign: "center", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Absence</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {classStudents.map((student) => {
-                          const absent = attendanceByClass[cls.id]?.[student.id] ?? false;
-                          return (
-                            <tr key={student.id}>
-                              <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{student.last_name}</td>
-                              <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{student.first_name}</td>
-                              <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)", textAlign: "center" }}>
-                                <input
-                                  type="checkbox"
-                                  checked={absent}
-                                  onChange={(e) => setAbsentForStudent(cls.id, student.id, e.target.checked)}
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+      <div style={card}>
+        <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>Classes</div>
+        {sortedClasses.length === 0 ? (
+          <div style={{ opacity: 0.75 }}>Aucune classe.</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 12 }}>
+            {sortedClasses.map((cls) => {
+              const isActive = cls.id === classId;
+              const studentCount = classCounts[cls.id] ?? 0;
+              return (
+                <button
+                  key={cls.id}
+                  style={{
+                    borderRadius: 22,
+                    minHeight: 180,
+                    padding: 16,
+                    border: isActive ? "2px solid rgba(79,124,255,0.75)" : "1px solid var(--border)",
+                    boxShadow: isActive ? "0 16px 28px rgba(79,124,255,0.24)" : "var(--shadow-card)",
+                    background: isActive ? "linear-gradient(180deg, rgba(79,124,255,0.13), rgba(155,123,255,0.08))" : "var(--surface)",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease",
+                  }}
+                  onClick={() => {
+                    setClassId(cls.id);
+                    setClassModalOpen(true);
+                  }}
+                >
+                  <div style={{ fontSize: 34, fontWeight: 900, lineHeight: 1 }}>{cls.name}</div>
+                  <div style={{ marginTop: 8, opacity: 0.78, fontWeight: 700 }}>
+                    {cls.grade_level ? `Niveau ${cls.grade_level}` : "Niveau —"}
                   </div>
-
-                  <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <button style={btnPrimary} onClick={() => void onSaveAttendance(cls.id)} disabled={isSaving}>
-                      {isSaving ? "Enregistrement..." : "Enregistrer la présence"}
-                    </button>
-                    {feedback && (
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          color: feedback.type === "success" ? "#166534" : "#b91c1c",
-                        }}
-                      >
-                        {feedback.type === "error" ? `Erreur: ${feedback.text}` : feedback.text}
-                      </div>
-                    )}
+                  <div style={{ marginTop: 8, opacity: 0.9, fontSize: 13, fontWeight: 700 }}>
+                    {studentCount} élève{studentCount > 1 ? "s" : ""}
                   </div>
-                </>
-              )}
-            </div>
-          );
-        })}
+                  {isActive && (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        display: "inline-flex",
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        background: "rgba(79,124,255,0.14)",
+                        border: "1px solid rgba(79,124,255,0.35)",
+                        fontSize: 12,
+                        fontWeight: 800,
+                      }}
+                    >
+                      Sélectionnée
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div style={{ height: 14 }} />
@@ -827,7 +814,7 @@ export default function TeacherCotationView() {
         <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 10 }}>Cotation</div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <select style={input} value={studentId} onChange={(e) => setStudentId(e.target.value as UUID | "")}>
+          <select style={input} value={studentId} onChange={(e) => setStudentId(e.target.value as UUID | "") }>
             <option value="">Choisir un élève</option>
             {students.map((s) => (
               <option key={s.id} value={s.id}>
@@ -836,7 +823,7 @@ export default function TeacherCotationView() {
             ))}
           </select>
 
-          <select style={input} value={assessmentId} onChange={(e) => setAssessmentId(e.target.value as UUID | "")}>
+          <select style={input} value={assessmentId} onChange={(e) => setAssessmentId(e.target.value as UUID | "") }>
             <option value="">Choisir une évaluation</option>
             {assessments.map((a) => (
               <option key={a.id} value={a.id}>
@@ -857,7 +844,7 @@ export default function TeacherCotationView() {
             onChange={(e) => setValueInput(e.target.value)}
             inputMode="decimal"
           />
-          <select style={input} value={levelInput} onChange={(e) => setLevelInput(e.target.value as Level | "")}>
+          <select style={input} value={levelInput} onChange={(e) => setLevelInput(e.target.value as Level | "") }>
             <option value="">Niveau (optionnel)</option>
             {LEVELS.map((l) => (
               <option key={l} value={l}>
@@ -885,7 +872,7 @@ export default function TeacherCotationView() {
                 style={{
                   padding: 12,
                   borderRadius: 12,
-                  border: "1px solid rgba(0,0,0,0.10)",
+                  border: "1px solid var(--border)",
                   display: "flex",
                   justifyContent: "space-between",
                   gap: 10,
@@ -905,6 +892,122 @@ export default function TeacherCotationView() {
           </div>
         )}
       </div>
+
+      {classModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.40)",
+            zIndex: 80,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+          onClick={() => setClassModalOpen(false)}
+        >
+          <div
+            style={{
+              width: "min(920px,96vw)",
+              maxHeight: "85vh",
+              overflow: "auto",
+              background: "var(--surface)",
+              borderRadius: 20,
+              padding: 18,
+              border: "1px solid var(--border)",
+              boxShadow: "0 24px 56px rgba(15,23,42,0.30)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div style={{ fontSize: 24, fontWeight: 900 }}>
+                Élèves — {selectedClass ? selectedClass.name : "Classe"}
+              </div>
+              <button style={btn} onClick={() => setClassModalOpen(false)}>
+                Fermer
+              </button>
+            </div>
+
+            <div style={{ marginTop: 10, opacity: 0.8 }}>
+              {selectedClass?.grade_level ? `Niveau ${selectedClass.grade_level}` : "Niveau —"} · {students.length} élève
+              {students.length > 1 ? "s" : ""}
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              {students.length === 0 ? (
+                <div style={{ opacity: 0.75 }}>Aucun élève dans cette classe.</div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Ordre</th>
+                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Nom</th>
+                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Prénom</th>
+                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Email</th>
+                        <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Fiche</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {students.map((student, idx) => {
+                        const meta = studentMetaById[student.id] ?? { student_ref: null, email: null };
+                        return (
+                          <tr key={student.id}>
+                            <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+                              {meta.student_ref || String(idx + 1)}
+                            </td>
+                            <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+                              <button
+                                type="button"
+                                style={{
+                                  ...studentLink,
+                                  border: "none",
+                                  background: "transparent",
+                                  padding: 0,
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => openEleveDashboard(student.id)}
+                              >
+                                {student.last_name}
+                              </button>
+                            </td>
+                            <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+                              <button
+                                type="button"
+                                style={{
+                                  ...studentLink,
+                                  border: "none",
+                                  background: "transparent",
+                                  padding: 0,
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => openEleveDashboard(student.id)}
+                              >
+                                {student.first_name}
+                              </button>
+                            </td>
+                            <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>{meta.email || "—"}</td>
+                            <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+                              <button style={btn} onClick={() => openEleveDashboard(student.id)}>
+                                Ouvrir
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedEleveId && (
+        <EleveDashboardDrawer eleveId={selectedEleveId} onClose={() => setSelectedEleveId(null)} />
+      )}
     </div>
   );
 }

@@ -29,34 +29,41 @@ function toNiceError(e: unknown): string {
 }
 
 const card: React.CSSProperties = {
-  borderRadius: 18,
+  borderRadius: 22,
   padding: 16,
-  background: "white",
-  border: "1px solid rgba(0,0,0,0.10)",
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  boxShadow: "var(--shadow-soft)",
 };
 
 const input: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.15)",
+  minHeight: 46,
+  padding: "11px 13px",
+  borderRadius: 14,
+  border: "1px solid var(--border)",
+  background: "rgba(255,255,255,0.96)",
+  color: "var(--text)",
   width: "100%",
-  color: "#171717",
-  background: "#ffffff",
 };
 
 const btn: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.15)",
-  background: "white",
+  minHeight: 44,
+  padding: "10px 14px",
+  borderRadius: 14,
+  border: "1px solid var(--border)",
+  background: "rgba(255,255,255,0.96)",
+  color: "var(--text)",
   cursor: "pointer",
   fontWeight: 800,
+  boxShadow: "var(--shadow-card)",
 };
 
 const btnPrimary: React.CSSProperties = {
   ...btn,
-  background: "rgba(37,99,235,0.10)",
-  borderColor: "rgba(37,99,235,0.25)",
+  background: "var(--primary)",
+  borderColor: "var(--primary)",
+  color: "#fff",
+  boxShadow: "0 12px 24px rgba(79,124,255,0.28)",
 };
 
 export default function ApprentissagesPage() {
@@ -230,8 +237,9 @@ export default function ApprentissagesPage() {
                   gap: 10,
                   alignItems: "center",
                   padding: 10,
-                  border: "1px solid rgba(0,0,0,0.08)",
-                  borderRadius: 12,
+                  border: "1px solid var(--border)",
+                  borderRadius: 14,
+                  background: "rgba(255,255,255,0.92)",
                 }}
               >
                 <div style={{ fontWeight: 900, opacity: 0.75 }}>#{item.order_index}</div>

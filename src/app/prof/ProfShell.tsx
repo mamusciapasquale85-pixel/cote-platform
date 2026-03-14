@@ -1,181 +1,148 @@
 "use client";
+import React, { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
 
-import React from "react";
-import Image from "next/image";
-import LogoutButton from "../teacher/LogoutButton";
-import ProfTabs from "./ProfTabs";
+const NAV_ITEMS = [
+  { label: "Accueil", icon: "🏠", href: "/dashboard" },
+  { label: "Planification", icon: "N", href: "/planification" },
+  { label: "Classes", icon: "👥", href: "/teacher" },
+  { label: "Évaluations", icon: "📝", href: "/evaluations" },
+  
+  { label: "Remédiations", icon: "🩺", href: "/remediations" },
+  { label: "Agenda", icon: "📅", href: "/agenda" },
+  { label: "Générateur IA", icon: "✨", href: "/generateur" },
+  { label: "Import", icon: "⬆️", href: "/import" },
+];
 
-export default function ProfShell(props: {
-  title?: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  const wrap: React.CSSProperties = { maxWidth: 1180, margin: "0 auto", padding: "28px 16px 34px" };
+export default function ProfShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
+
+  const currentPage = NAV_ITEMS.find(i => pathname === i.href || (i.href !== "/" && pathname?.startsWith(i.href)));
 
   return (
-    <div style={wrap} className="prof-shell-root">
-      <div className="prof-header">
-        <div className="prof-header-blob prof-header-blob-a" />
-        <div className="prof-header-blob prof-header-blob-b" />
-        <div className="prof-header-top">
-          <div className="prof-title">Zone PROF</div>
-          <div className="prof-header-right">
-            <span className="prof-header-logo">
-              <Image
-                src="/branding/lab-marie-curie.png"
-                alt="Lycée Alternatif Bruxellois – LAB Marie Curie"
-                width={182}
-                height={52}
-                quality={100}
-                priority
-                style={{ width: "auto", height: "52px", objectFit: "contain" }}
-              />
+    <div style={{ minHeight: "100vh", background: "#F7F8FC", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+
+      {/* TOPBAR */}
+      <header style={{
+        position: "sticky", top: 0, zIndex: 100,
+        background: "rgba(255,255,255,0.92)",
+        backdropFilter: "blur(12px)",
+        borderBottom: "1px solid rgba(15,23,42,0.08)",
+        boxShadow: "0 1px 0 rgba(15,23,42,0.06)",
+      }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 58, display: "flex", alignItems: "center", gap: 0 }}>
+
+          {/* LOGO */}
+          <a href="/dashboard" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10, marginRight: 32, flexShrink: 0 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+              background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 4px 12px rgba(10,132,255,0.3)",
+            }}>
+              <span style={{ fontSize: 16, color: "#fff" }}>✦</span>
+            </div>
+            <span style={{ fontSize: "1.15rem", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.03em" }}>
+              Klasbook
             </span>
-            <LogoutButton />
+          </a>
+
+          {/* NAV LINKS — desktop */}
+          <nav style={{ display: "flex", alignItems: "center", gap: 2, flex: 1 }}>
+            {NAV_ITEMS.map(item => {
+              const active = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
+              return (
+                <a key={item.href} href={item.href} style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 12px", borderRadius: 8,
+                  textDecoration: "none", fontSize: "0.875rem",
+                  fontWeight: active ? 700 : 500,
+                  color: active ? "#0f172a" : "#64748b",
+                  background: active ? "rgba(15,23,42,0.07)" : "transparent",
+                  transition: "all 0.15s",
+                  position: "relative",
+                }}>
+                  <span style={{ fontSize: 14 }}>{item.icon}</span>
+                  {item.label}
+                  {active && (
+                    <span style={{
+                      position: "absolute", bottom: -13, left: "50%", transform: "translateX(-50%)",
+                      width: 28, height: 2, borderRadius: 2,
+                      background: "linear-gradient(90deg, #FF3B30, #0A84FF)",
+                    }} />
+                  )}
+                </a>
+              );
+            })}
+          </nav>
+
+          {/* AVATAR + DÉCONNEXION */}
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <button onClick={() => setMenuOpen(v => !v)} style={{
+              width: 36, height: 36, borderRadius: "50%", border: "none", cursor: "pointer",
+              background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 800, color: "#fff", fontSize: 14,
+              boxShadow: "0 2px 8px rgba(10,132,255,0.3)",
+            }}>P</button>
+
+            {menuOpen && (
+              <div style={{
+                position: "absolute", top: 44, right: 0, zIndex: 200,
+                background: "#fff", borderRadius: 12, border: "1px solid rgba(15,23,42,0.1)",
+                boxShadow: "0 8px 32px rgba(15,23,42,0.16)", padding: 6, minWidth: 180,
+              }}>
+                <div style={{ padding: "8px 12px", fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>
+                  LAB Marie Curie
+                </div>
+                <hr style={{ border: "none", borderTop: "1px solid #f1f5f9", margin: "4px 0" }} />
+                <button onClick={handleLogout} disabled={loggingOut} style={{
+                  width: "100%", padding: "9px 12px", borderRadius: 8,
+                  border: "none", background: "transparent", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8,
+                  fontSize: "0.875rem", fontWeight: 600, color: "#ef4444",
+                  textAlign: "left",
+                }}>
+                  🚪 {loggingOut ? "Déconnexion..." : "Se déconnecter"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
-        <div className="prof-header-tabs">
-          <ProfTabs />
+      </header>
+
+      {/* BREADCRUMB */}
+      {currentPage && (
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "16px 24px 0", display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 13, color: "#94a3b8" }}>Klasbook</span>
+          <span style={{ fontSize: 13, color: "#cbd5e1" }}>›</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{currentPage.icon} {currentPage.label}</span>
         </div>
-      </div>
+      )}
 
-      <div style={{ height: 14 }} />
-      <div style={{ color: "var(--text)", opacity: 1 }}>{props.children}</div>
+      {/* CONTENT */}
+      <main style={{ maxWidth: 1280, margin: "0 auto", padding: "20px 24px 48px" }}>
+        {children}
+      </main>
 
-      <style jsx>{`
-        .prof-header {
-          position: relative;
-          overflow: hidden;
-          border-radius: 28px;
-          padding: 22px 28px 24px;
-          background: linear-gradient(130deg, rgba(79, 124, 255, 0.95), rgba(111, 136, 255, 0.9) 55%, rgba(155, 123, 255, 0.9));
-          color: white;
-          box-shadow: 0 14px 36px rgba(27, 56, 120, 0.26);
-          min-height: 0;
-          border: 1px solid rgba(255, 255, 255, 0.22);
-        }
-
-        .prof-header-blob {
-          position: absolute;
-          border-radius: 999px;
-          pointer-events: none;
-          opacity: 0.28;
-          filter: blur(2px);
-        }
-
-        .prof-header-blob-a {
-          width: 320px;
-          height: 160px;
-          left: -80px;
-          top: -70px;
-          background: radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0));
-        }
-
-        .prof-header-blob-b {
-          width: 260px;
-          height: 140px;
-          right: -50px;
-          bottom: -80px;
-          background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0));
-        }
-
-        .prof-header-top {
-          position: relative;
-          z-index: 1;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 16px;
-          flex-wrap: wrap;
-        }
-
-        .prof-header-tabs {
-          margin-top: 14px;
-          position: relative;
-          z-index: 1;
-        }
-
-        .prof-header-right {
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          gap: 14px;
-          margin-left: auto;
-        }
-
-        .prof-header-logo {
-          display: inline-flex;
-          align-items: center;
-          height: 52px;
-        }
-
-        .prof-header-logo :global(img) {
-          height: 52px;
-          width: auto;
-          object-fit: contain;
-          display: block;
-        }
-
-        .prof-title {
-          font-size: clamp(3rem, 5vw, 3.75rem);
-          font-weight: 900;
-          line-height: 1.02;
-          letter-spacing: -0.02em;
-          text-shadow: 0 3px 14px rgba(27, 56, 120, 0.25);
-        }
-
-        .prof-header-right :global(button) {
-          min-height: 46px;
-          padding: 10px 24px;
-          border-radius: 999px;
-          border: 1px solid rgba(255, 255, 255, 0.5);
-          background: rgba(255, 255, 255, 0.16);
-          color: #fff;
-          font-size: clamp(1rem, 1.2vw, 1.1rem);
-          line-height: 1.1;
-          font-weight: 700;
-          box-shadow: 0 8px 20px rgba(27, 56, 120, 0.24);
-          transition: transform 120ms ease, background 120ms ease;
-        }
-
-        .prof-header-right :global(button:hover) {
-          transform: translateY(-1px);
-          background: rgba(255, 255, 255, 0.22);
-        }
-
-        @media (max-width: 980px) {
-          .prof-header {
-            padding: 20px 18px 22px;
-          }
-
-          .prof-title {
-            font-size: clamp(2.35rem, 6.8vw, 3.2rem);
-          }
-        }
-
-        @media (max-width: 720px) {
-          .prof-header-top {
-            align-items: flex-start;
-          }
-
-          .prof-title {
-            font-size: clamp(2.05rem, 9.2vw, 2.7rem);
-          }
-
-          .prof-header-right :global(button) {
-            padding: 10px 14px;
-            font-size: 0.95rem;
-          }
-
-          .prof-header-logo {
-            height: 44px;
-          }
-
-          .prof-header-logo :global(img) {
-            height: 44px;
-          }
-        }
-      `}</style>
+      {/* Click outside to close menu */}
+      {menuOpen && (
+        <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 150 }} />
+      )}
     </div>
   );
 }

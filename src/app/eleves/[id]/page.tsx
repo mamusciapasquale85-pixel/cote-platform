@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-
 import { formatDateFR } from "@/lib/date";
 import {
   type UUID,
@@ -19,6 +18,7 @@ import {
   listRecentRemarques,
 } from "../eleves";
 
+/* ─── helpers ─── */
 function toNiceError(e: unknown): string {
   if (!e) return "Erreur inconnue";
   if (typeof e === "string") return e;
@@ -26,11 +26,7 @@ function toNiceError(e: unknown): string {
     if ("message" in e && typeof e.message === "string") return e.message;
     if ("error_description" in e && typeof e.error_description === "string") return e.error_description;
   }
-  try {
-    return JSON.stringify(e, null, 2);
-  } catch {
-    return String(e);
-  }
+  try { return JSON.stringify(e, null, 2); } catch { return String(e); }
 }
 
 function toPercent(sumValue: number, sumMax: number): string {
@@ -38,37 +34,81 @@ function toPercent(sumValue: number, sumMax: number): string {
   return `${((sumValue / sumMax) * 100).toFixed(1)} %`;
 }
 
+function isNi(level: string | null | undefined): boolean {
+  if (!level) return false;
+  return level.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase() === "ni";
+}
+
+function masteryColor(score: number): string {
+  if (score < 50) return "#EF4444";
+  if (score <= 75) return "#F59E0B";
+  return "#22C55E";
+}
+
+function masteryLabel(score: number): string {
+  if (score < 50) return "Insuffisant";
+  if (score <= 75) return "En progrès";
+  return "Maîtrisé";
+}
+
+const REMARQUE_TYPE_LABEL: Record<string, string> = {
+  discipline: "Discipline", suivi: "Suivi", parent: "Parent",
+  retard: "Retard", materiel: "Matériel", autre: "Autre",
+};
+
+/* ─── styles ─── */
 const card: React.CSSProperties = {
-  borderRadius: 18,
-  padding: 16,
-  background: "white",
-  border: "1px solid rgba(0,0,0,0.10)",
+  borderRadius: 16, padding: "18px 20px", background: "white",
+  border: "1px solid rgba(15,23,42,0.09)", boxShadow: "0 1px 4px rgba(15,23,42,0.06)",
+};
+
+const sectionTitle: React.CSSProperties = {
+  fontSize: 17, fontWeight: 900, marginBottom: 14, display: "flex", alignItems: "center", gap: 8,
+};
+
+const statBox: React.CSSProperties = {
+  borderRadius: 12, padding: "12px 16px", background: "rgba(15,23,42,0.04)",
+};
+
+const badge: React.CSSProperties = {
+  borderRadius: 999, padding: "3px 10px", fontSize: 12, fontWeight: 800, display: "inline-block",
 };
 
 const btn: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.15)",
-  background: "white",
-  cursor: "pointer",
-  fontWeight: 800,
+  padding: "9px 14px", borderRadius: 10, border: "1px solid rgba(15,23,42,0.15)",
+  background: "white", cursor: "pointer", fontWeight: 700, fontSize: 13,
 };
 
 const btnPrimary: React.CSSProperties = {
-  ...btn,
-  background: "rgba(37,99,235,0.10)",
-  borderColor: "rgba(37,99,235,0.25)",
+  ...btn, background: "rgba(10,132,255,0.08)", borderColor: "rgba(10,132,255,0.25)", color: "#0A63BF",
 };
 
-const TYPE_LABEL: Record<string, string> = {
-  discipline: "Discipline",
-  suivi: "Suivi",
-  parent: "Parent",
-  retard: "Retard",
-  materiel: "Matériel",
-  autre: "Autre",
-};
+/* ─── ScoreGauge ─── */
+function ScoreGauge({ score }: { score: number }) {
+  const r = 56;
+  const cx = 70;
+  const cy = 70;
+  const circumference = 2 * Math.PI * r;
+  const arc = (score / 100) * circumference;
+  const color = masteryColor(score);
 
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <svg width={140} height={140}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(15,23,42,0.07)" strokeWidth={11} />
+        <circle
+          cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={11}
+          strokeDasharray={`${arc} ${circumference - arc}`}
+          strokeDashoffset={circumference / 4} strokeLinecap="round"
+        />
+        <text x={cx} y={cy - 5} textAnchor="middle" fontSize={26} fontWeight={900} fill="#0F172A">{score}%</text>
+        <text x={cx} y={cy + 16} textAnchor="middle" fontSize={12} fill={color} fontWeight={700}>{masteryLabel(score)}</text>
+      </svg>
+    </div>
+  );
+}
+
+/* ─── Page ─── */
 export default function ElevePage() {
   const params = useParams();
   const router = useRouter();
@@ -82,7 +122,6 @@ export default function ElevePage() {
   const [classInfo, setClassInfo] = useState<StudentClassInfo | null>(null);
   const [results, setResults] = useState<StudentResult[]>([]);
   const [hasApprentissage, setHasApprentissage] = useState<boolean>(false);
-
   const [remarqueRows, setRemarqueRows] = useState<Remarque[]>([]);
   const [remarquesTableMissing, setRemarquesTableMissing] = useState(false);
 
@@ -91,13 +130,8 @@ export default function ElevePage() {
 
   const averages = useMemo(() => {
     const valid = results.filter((r) => r.value != null && r.max_points != null && (r.max_points ?? 0) > 0);
-
-    let sumValue = 0;
-    let sumMax = 0;
-    for (const r of valid) {
-      sumValue += r.value ?? 0;
-      sumMax += r.max_points ?? 0;
-    }
+    let sumValue = 0, sumMax = 0;
+    for (const r of valid) { sumValue += r.value ?? 0; sumMax += r.max_points ?? 0; }
 
     const byApp = new Map<string, { label: string; sumValue: number; sumMax: number }>();
     if (hasApprentissage) {
@@ -111,16 +145,21 @@ export default function ElevePage() {
       }
     }
 
+    const totalEvals = results.length;
+    const reussies = results.filter((r) => !isNi(r.level)).length;
+    const scoreMaitrise = totalEvals > 0 ? Math.round((reussies / totalEvals) * 100) : 0;
+    const lacunes = results.filter((r) => isNi(r.level)).length;
+
     return {
       global: toPercent(sumValue, sumMax),
       byApprentissage: Array.from(byApp.values()).sort((a, b) => a.label.localeCompare(b.label, "fr", { sensitivity: "base" })),
+      scoreMaitrise, reussies, totalEvals, lacunes,
     };
   }, [results, hasApprentissage]);
 
   async function loadAll(currentCtx: TeacherContext, sid: UUID) {
     setErrorMsg(null);
     setInfoMsg(null);
-
     const [identity, cls, resultPayload, remarques] = await Promise.all([
       getStudentIdentity(currentCtx, sid),
       getCurrentClassInfo(currentCtx, sid),
@@ -142,114 +181,173 @@ export default function ElevePage() {
         const c = await getTeacherContext();
         setCtx(c);
         await loadAll(c, studentId as UUID);
-      } catch (e: unknown) {
-        setErrorMsg(toNiceError(e));
-      }
+      } catch (e: unknown) { setErrorMsg(toNiceError(e)); }
     })();
   }, [studentId]);
 
+  const initials = student
+    ? `${student.first_name?.[0] ?? ""}${student.last_name?.[0] ?? ""}`.toUpperCase()
+    : "?";
+
   return (
-    <div style={{ display: "grid", gap: 14 }}>
+    <div style={{ maxWidth: 900, margin: "0 auto", display: "grid", gap: 16, padding: "0 4px 32px" }}>
+
+      {/* Messages */}
       {errorMsg && (
-        <div style={card}>
-          <b>Erreur:</b> {errorMsg}
+        <div style={{ ...card, borderColor: "rgba(220,38,38,0.25)", background: "rgba(220,38,38,0.06)", color: "#991B1B" }}>
+          <b>Erreur :</b> {errorMsg}
         </div>
       )}
-
       {infoMsg && (
-        <div style={{ ...card, borderColor: "rgba(22,163,74,0.25)", background: "rgba(22,163,74,0.06)" }}>
+        <div style={{ ...card, borderColor: "rgba(22,163,74,0.25)", background: "rgba(22,163,74,0.06)", color: "#166534" }}>
           {infoMsg}
         </div>
       )}
 
-      <div style={card}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-          <div>
-            <div style={{ fontSize: 24, fontWeight: 900 }}>
-              {student ? `${student.last_name} ${student.first_name}` : "Fiche élève"}
-            </div>
-            <div style={{ marginTop: 6, opacity: 0.85 }}>
-              Classe: {classInfo?.class_name ?? "—"}
-              {classInfo?.grade_level ? ` (niveau ${classInfo.grade_level})` : ""}
-            </div>
-          </div>
-          <button style={btn} onClick={() => router.back()}>Retour</button>
-        </div>
+      {/* ── EN-TÊTE ÉLÈVE ── */}
+      <div style={{
+        borderRadius: 18, overflow: "hidden",
+        boxShadow: "0 4px 20px rgba(15,23,42,0.12)",
+      }}>
+        {/* Bandeau gradient */}
+        <div style={{ background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)", padding: "24px 24px 64px" }} />
 
-        <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 10 }}>
-          <div>
-            <b>Référence</b>
-            <div>{student?.student_ref ?? "—"}</div>
+        {/* Corps identité */}
+        <div style={{ background: "white", padding: "0 24px 24px", marginTop: -48 }}>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
+              {/* Avatar */}
+              <div style={{
+                width: 80, height: 80, borderRadius: "50%",
+                background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
+                border: "4px solid white", boxShadow: "0 4px 12px rgba(15,23,42,0.2)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 26, fontWeight: 900, color: "white", flexShrink: 0,
+              }}>
+                {initials}
+              </div>
+              <div style={{ paddingBottom: 4 }}>
+                <div style={{ fontSize: 26, fontWeight: 900, color: "#0F172A" }}>
+                  {student ? `${student.last_name} ${student.first_name}` : "Fiche élève"}
+                </div>
+                <div style={{ marginTop: 4, color: "#64748B", fontWeight: 600 }}>
+                  {classInfo?.class_name ?? "—"}
+                  {classInfo?.grade_level ? ` · Niveau ${classInfo.grade_level}` : ""}
+                </div>
+              </div>
+            </div>
+            <button style={btn} onClick={() => router.back()}>← Retour</button>
           </div>
-          <div>
-            <b>Email élève</b>
-            <div>{student?.email ?? "—"}</div>
-          </div>
-          <div>
-            <b>Téléphone parent</b>
-            <div>{student?.parent_phone ?? "—"}</div>
-          </div>
-          <div>
-            <b>Email parent</b>
-            <div>{student?.parent_email ?? "—"}</div>
+
+          {/* Infos contact */}
+          <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+            {[
+              { label: "Référence", value: student?.student_ref ?? "—" },
+              { label: "Email élève", value: student?.email ?? "—" },
+              { label: "Tél. parent", value: student?.parent_phone ?? "—" },
+              { label: "Email parent", value: student?.parent_email ?? "—" },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ ...statBox }}>
+                <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>{label}</div>
+                <div style={{ fontWeight: 700, fontSize: 14, wordBreak: "break-word" }}>{value}</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
+      {/* ── SCORE DE MAÎTRISE ── */}
       <div style={card}>
-        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 8 }}>Résultats</div>
-        <div style={{ marginBottom: 10 }}>
-          Moyenne globale: <b>{averages.global}</b>
+        <div style={sectionTitle}>📊 Score de maîtrise global</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+          <ScoreGauge score={averages.scoreMaitrise} />
+
+          <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
+            <div style={{ ...statBox }}>
+              <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Total évals</div>
+              <div style={{ fontSize: 28, fontWeight: 900 }}>{averages.totalEvals}</div>
+            </div>
+            <div style={{ ...statBox, background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.2)" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#166534", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Réussies</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: "#166534" }}>{averages.reussies}</div>
+            </div>
+            <div style={{ ...statBox, background: "rgba(220,38,38,0.07)", border: "1px solid rgba(220,38,38,0.2)" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#991B1B", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Lacunes (NI)</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: "#991B1B" }}>{averages.lacunes}</div>
+            </div>
+            <div style={{ ...statBox, background: "rgba(15,23,42,0.04)" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.55, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Moy. globale</div>
+              <div style={{ fontSize: 28, fontWeight: 900 }}>{averages.global}</div>
+            </div>
+          </div>
         </div>
 
-        {hasApprentissage ? (
-          <div style={{ marginBottom: 10 }}>
-            <b>Moyenne par apprentissage</b>
-            {averages.byApprentissage.length === 0 ? (
-              <div style={{ opacity: 0.8, marginTop: 4 }}>Aucune moyenne disponible.</div>
-            ) : (
-              <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
-                {averages.byApprentissage.map((row) => (
+        {/* Moyenne par apprentissage */}
+        {hasApprentissage && averages.byApprentissage.length > 0 && (
+          <div style={{ marginTop: 16, borderTop: "1px solid rgba(15,23,42,0.07)", paddingTop: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>Détail par apprentissage</div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {averages.byApprentissage.map((row) => {
+                const pct = row.sumMax > 0 ? (row.sumValue / row.sumMax) * 100 : 0;
+                return (
                   <div key={row.label}>
-                    {row.label}: <b>{toPercent(row.sumValue, row.sumMax)}</b>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                      <span>{row.label}</span>
+                      <span style={{ color: masteryColor(pct) }}>{toPercent(row.sumValue, row.sumMax)}</span>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 999, background: "rgba(15,23,42,0.08)", overflow: "hidden" }}>
+                      <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", background: masteryColor(pct) }} />
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
           </div>
-        ) : (
-          <div style={{ marginBottom: 10, opacity: 0.8 }}>Moyenne détaillée indisponible sur ce schéma.</div>
         )}
+      </div>
 
+      {/* ── RÉSULTATS ── */}
+      <div style={card}>
+        <div style={sectionTitle}>📋 Résultats des évaluations</div>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
-              <tr>
-                <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Évaluation</th>
-                <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Date</th>
-                <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Points</th>
-                <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Niveau</th>
-                {hasApprentissage && (
-                  <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid rgba(0,0,0,0.12)" }}>Apprentissage</th>
-                )}
+              <tr style={{ background: "rgba(15,23,42,0.03)" }}>
+                {["Évaluation", "Date", "Note", "Niveau", ...(hasApprentissage ? ["Apprentissage"] : [])].map((h) => (
+                  <th key={h} style={{ textAlign: "left", padding: "10px 12px", fontWeight: 800, opacity: 0.65, borderBottom: "1px solid rgba(15,23,42,0.09)", whiteSpace: "nowrap" }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {results.length === 0 ? (
-                <tr>
-                  <td style={{ padding: 8, opacity: 0.8 }} colSpan={hasApprentissage ? 5 : 4}>Aucun résultat.</td>
-                </tr>
+                <tr><td style={{ padding: "16px 12px", opacity: 0.7 }} colSpan={hasApprentissage ? 5 : 4}>Aucun résultat pour cet élève.</td></tr>
               ) : (
                 results.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.title}</td>
-                    <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.date ? formatDateFR(r.date) : "—"}</td>
-                    <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                  <tr key={r.id} style={{ transition: "background 0.15s" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(15,23,42,0.02)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <td style={{ padding: "10px 12px", borderBottom: "1px solid rgba(15,23,42,0.06)", fontWeight: 600 }}>{r.title}</td>
+                    <td style={{ padding: "10px 12px", borderBottom: "1px solid rgba(15,23,42,0.06)", opacity: 0.7, whiteSpace: "nowrap" }}>
+                      {r.date ? formatDateFR(r.date) : "—"}
+                    </td>
+                    <td style={{ padding: "10px 12px", borderBottom: "1px solid rgba(15,23,42,0.06)", fontWeight: 700 }}>
                       {r.value != null && r.max_points != null ? `${r.value}/${r.max_points}` : "—"}
                     </td>
-                    <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>{r.level ?? "—"}</td>
+                    <td style={{ padding: "10px 12px", borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
+                      {r.level ? (
+                        <span style={{
+                          ...badge,
+                          ...(isNi(r.level)
+                            ? { background: "rgba(220,38,38,0.12)", color: "#991B1B", border: "1px solid rgba(220,38,38,0.3)" }
+                            : { background: "rgba(34,197,94,0.12)", color: "#166534", border: "1px solid rgba(34,197,94,0.3)" })
+                        }}>
+                          {r.level}
+                        </span>
+                      ) : "—"}
+                    </td>
                     {hasApprentissage && (
-                      <td style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                      <td style={{ padding: "10px 12px", borderBottom: "1px solid rgba(15,23,42,0.06)", opacity: 0.8 }}>
                         {r.apprentissage_name ?? "—"}
                       </td>
                     )}
@@ -261,77 +359,74 @@ export default function ElevePage() {
         </div>
       </div>
 
+      {/* ── REMARQUES ── */}
       <div style={card}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-          <div style={{ fontSize: 20, fontWeight: 900 }}>Remarques</div>
-          <Link href={`/discipline?student_id=${studentId}`} style={btn}>
-            Voir tout
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={sectionTitle}>📝 Remarques récentes</div>
+          <Link href={`/discipline?student_id=${studentId}`} style={{ ...btn, textDecoration: "none", color: "#0F172A" }}>
+            Voir tout →
           </Link>
         </div>
 
         {remarquesTableMissing ? (
-          <div style={{ marginTop: 10, marginBottom: 10, opacity: 0.85 }}>
-            La table <code>remarques</code> n’est pas encore disponible. Applique la migration SQL puis recharge.
+          <div style={{ opacity: 0.75, fontSize: 13 }}>
+            La table <code>remarques</code> n'est pas encore disponible. Applique la migration SQL puis recharge.
           </div>
         ) : remarqueRows.length === 0 ? (
-          <div style={{ marginTop: 10, opacity: 0.8 }}>Aucune remarque.</div>
+          <div style={{ opacity: 0.7, fontSize: 13 }}>Aucune remarque enregistrée.</div>
         ) : (
-          <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+          <div style={{ display: "grid", gap: 8 }}>
             {remarqueRows.map((row) => (
-              <div key={row.id} style={{ border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10, padding: 10 }}>
-                <div style={{ fontWeight: 800 }}>
-                  {formatDateFR(row.created_at)} · {TYPE_LABEL[row.type] ?? row.type}
+              <div key={row.id} style={{ border: "1px solid rgba(15,23,42,0.09)", borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ ...badge, background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.25)", color: "#4338CA" }}>
+                    {REMARQUE_TYPE_LABEL[row.type] ?? row.type}
+                  </span>
+                  <span style={{ opacity: 0.6, fontSize: 12 }}>{formatDateFR(row.created_at)}</span>
                 </div>
-                <div style={{ marginTop: 4 }}>{row.text}</div>
+                <div style={{ fontSize: 14 }}>{row.text}</div>
               </div>
             ))}
           </div>
         )}
       </div>
 
+      {/* ── COMMUNICATION PARENTS ── */}
       <div style={card}>
-        <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 8 }}>Communication parents</div>
-        <button style={btn} onClick={() => setShowCommModal(true)}>Message aux parents</button>
-        <div style={{ marginTop: 8, opacity: 0.8 }}>V1 placeholder: sauvegarde à brancher plus tard (table messages).</div>
+        <div style={sectionTitle}>💬 Communication parents</div>
+        <button style={btnPrimary} onClick={() => setShowCommModal(true)}>
+          ✉️ Envoyer un message
+        </button>
+        <div style={{ marginTop: 8, opacity: 0.65, fontSize: 12 }}>
+          Fonctionnalité à venir — la table messages sera branchée prochainement.
+        </div>
       </div>
 
+      {/* Modal communication */}
       {showCommModal && (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.45)",
-            zIndex: 80,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-          }}
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
           onClick={() => setShowCommModal(false)}
         >
           <div
-            style={{ width: "min(700px,96vw)", background: "white", borderRadius: 14, padding: 16 }}
+            style={{ width: "min(640px, 96vw)", background: "white", borderRadius: 18, padding: 24, boxShadow: "0 20px 60px rgba(15,23,42,0.3)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 8 }}>Message aux parents</div>
+            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 14 }}>Message aux parents</div>
+            <div style={{ marginBottom: 10, opacity: 0.7, fontSize: 13 }}>
+              Destinataire : {student?.parent_email ?? "Email parent non renseigné"}
+            </div>
             <textarea
-              style={{ width: "100%", minHeight: 120, resize: "vertical", padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.15)" }}
-              placeholder="Texte du message"
+              style={{ width: "100%", minHeight: 120, resize: "vertical", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(15,23,42,0.2)", fontSize: 14, boxSizing: "border-box" }}
+              placeholder="Rédigez votre message..."
               value={commText}
               onChange={(e) => setCommText(e.target.value)}
             />
-            <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-              <button
-                style={btnPrimary}
-                onClick={() => {
-                  setShowCommModal(false);
-                  setCommText("");
-                  setInfoMsg("TODO: brancher la table messages pour l’envoi.");
-                }}
-              >
+            <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
+              <button style={btnPrimary} onClick={() => { setShowCommModal(false); setCommText(""); setInfoMsg("TODO : brancher la table messages."); }}>
                 Enregistrer (TODO)
               </button>
-              <button style={btn} onClick={() => setShowCommModal(false)}>Fermer</button>
+              <button style={btn} onClick={() => setShowCommModal(false)}>Annuler</button>
             </div>
           </div>
         </div>

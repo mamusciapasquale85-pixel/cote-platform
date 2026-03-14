@@ -25,6 +25,24 @@ const T = {
   APPRENTISSAGES: "apprentissages",
 } as const;
 
+function getErrMessage(error: unknown): string {
+  if (!error) return "";
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && error !== null) {
+    if ("message" in error && typeof error.message === "string") return error.message;
+  }
+  return String(error);
+}
+
+function isMissingApprentissagesTable(error: unknown): boolean {
+  const m = getErrMessage(error).toLowerCase();
+  return m.includes("public.apprentissages") && m.includes("schema cache");
+}
+
+function apprentissagesNotEnabledError(): Error {
+  return new Error("Le module Apprentissages n'est pas encore activé en base (migration Supabase non appliquée).");
+}
+
 export async function getTeacherContext(): Promise<TeacherContext> {
   const supabase = createClient();
 
@@ -68,7 +86,11 @@ export async function listApprentissages(ctx: TeacherContext): Promise<Apprentis
     .order("order_index", { ascending: true })
     .order("name", { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    // La page reste utilisable même si la migration n'est pas encore appliquée.
+    if (isMissingApprentissagesTable(error)) return [];
+    throw error;
+  }
   return (data ?? []) as Apprentissage[];
 }
 
@@ -85,7 +107,10 @@ export async function createApprentissage(ctx: TeacherContext, params: { name: s
     .limit(1)
     .maybeSingle();
 
-  if (lastErr) throw lastErr;
+  if (lastErr) {
+    if (isMissingApprentissagesTable(lastErr)) throw apprentissagesNotEnabledError();
+    throw lastErr;
+  }
 
   const nextOrder = (last?.order_index ?? -1) + 1;
 
@@ -101,7 +126,10 @@ export async function createApprentissage(ctx: TeacherContext, params: { name: s
     .select("id,name,order_index,active,created_at,updated_at")
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingApprentissagesTable(error)) throw apprentissagesNotEnabledError();
+    throw error;
+  }
   if (!data) throw new Error("Création échouée (pas de retour).");
 
   return data as Apprentissage;
@@ -132,7 +160,10 @@ export async function updateApprentissage(
     .select("id,name,order_index,active,created_at,updated_at")
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    if (isMissingApprentissagesTable(error)) throw apprentissagesNotEnabledError();
+    throw error;
+  }
   if (!data) throw new Error("Mise à jour échouée (pas de retour).");
 
   return data as Apprentissage;
@@ -156,7 +187,10 @@ export async function reorderApprentissages(
     .eq("school_id", ctx.schoolId)
     .eq("academic_year_id", ctx.academicYearId);
 
-  if (firstErr) throw firstErr;
+  if (firstErr) {
+    if (isMissingApprentissagesTable(firstErr)) throw apprentissagesNotEnabledError();
+    throw firstErr;
+  }
 
   const { error: secondErr } = await ctx.supabase
     .from(T.APPRENTISSAGES)
@@ -165,5 +199,8 @@ export async function reorderApprentissages(
     .eq("school_id", ctx.schoolId)
     .eq("academic_year_id", ctx.academicYearId);
 
-  if (secondErr) throw secondErr;
+  if (secondErr) {
+    if (isMissingApprentissagesTable(secondErr)) throw apprentissagesNotEnabledError();
+    throw secondErr;
+  }
 }

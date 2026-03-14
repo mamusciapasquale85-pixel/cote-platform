@@ -1,0 +1,3 @@
+class,course,title,type,date,max_points,weight,status,parent_visible,instructions
+3GTA,Néerlandais,Interro vocabulaire 1,summative,2026-03-02,20,1,draft,true,Étudier la liste 1
+3GTA,Néerlandais,Exercice oral,formative,2026-03-09,10,,published,false,

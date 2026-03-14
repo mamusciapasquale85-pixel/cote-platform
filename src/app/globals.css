@@ -1,19 +1,192 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f8ff;
+  --surface: #ffffff;
+  --text: #0f172a;
+  --primary: #4f7cff;
+  --secondary: #9b7bff;
+  --accent1: #ff5a7a;
+  --accent2: #22c55e;
+  --warning: #f59e0b;
+  --border: rgba(15, 23, 42, 0.08);
+  --shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.1);
+  --shadow-card: 0 8px 20px rgba(15, 23, 42, 0.08);
+  --radius-card: 20px;
+  --radius-pill: 999px;
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-foreground: var(--text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
 body {
-  background: #ffffff;
-  color: #171717;
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(820px 380px at -5% -10%, rgba(79, 124, 255, 0.2), transparent 62%),
+    radial-gradient(620px 360px at 96% -2%, rgba(155, 123, 255, 0.2), transparent 64%),
+    radial-gradient(520px 300px at 84% 88%, rgba(255, 90, 122, 0.14), transparent 72%),
+    var(--background);
+  color: var(--text);
+  font-family: var(--font-dm-sans), "Avenir Next", "Segoe UI", sans-serif;
+  min-height: 100vh;
+  line-height: 1.45;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: -1;
+}
+
+body::before {
+  width: 390px;
+  height: 390px;
+  border-radius: 999px;
+  left: -140px;
+  top: 80px;
+  background: radial-gradient(circle at 35% 35%, rgba(79, 124, 255, 0.28), rgba(79, 124, 255, 0));
+  opacity: 0.22;
+}
+
+body::after {
+  width: 360px;
+  height: 360px;
+  border-radius: 999px;
+  right: -110px;
+  top: 220px;
+  background: radial-gradient(circle at 50% 50%, rgba(155, 123, 255, 0.25), rgba(155, 123, 255, 0));
+  opacity: 0.2;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible {
+  outline: 2px solid rgba(79, 124, 255, 0.35);
+  outline-offset: 1px;
+}
+
+.ui-card {
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  padding: 16px;
+}
+
+.ui-section {
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow-soft);
+}
+
+.ui-title {
+  font-size: clamp(1.125rem, 1vw + 0.95rem, 1.45rem);
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.ui-muted {
+  color: rgba(15, 23, 42, 0.7);
+}
+
+.ui-input {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  padding: 11px 13px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.ui-btn {
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 10px 14px;
+  box-shadow: var(--shadow-card);
+  transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+}
+
+.ui-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+}
+
+.ui-btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(79, 124, 255, 0.28);
+}
+
+.ui-btn-primary:hover {
+  box-shadow: 0 14px 28px rgba(79, 124, 255, 0.34);
+}
+
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(79, 124, 255, 0.25);
+  background: rgba(79, 124, 255, 0.1);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 10px;
+}
+
+@media (max-width: 740px) {
+  body::before {
+    width: 300px;
+    height: 300px;
+    left: -120px;
+    top: 110px;
+  }
+
+  body::after {
+    width: 270px;
+    height: 270px;
+    right: -120px;
+    top: 280px;
+  }
 }

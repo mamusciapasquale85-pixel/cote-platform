@@ -2,10 +2,11 @@ import ProfShell from "./ProfShell";
 
 export default function ProfHomePage() {
   const card: React.CSSProperties = {
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 16,
-    background: "white",
-    border: "1px solid rgba(0,0,0,0.10)",
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    boxShadow: "var(--shadow-soft)",
   };
 
   return (

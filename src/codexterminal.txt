@@ -1,0 +1,41 @@
+Last login: Wed Mar 11 20:25:21 on ttys011
+/Users/pasquale/.zshrc:source:2: no such file or directory: /Users/pasquale/.openclaw/completions/openclaw.zsh
+pasquale@Mac ~ % npm install -g @openai/codex
+
+added 2 packages in 6s
+pasquale@Mac ~ % npx poe-code@latest configure codex
+┌   Poe - configure codex 
+│
+◇  Codex model
+│  openai/gpt-5.4
+│
+◆  Configured Codex.
+│
+└  Problems? https://github.com/poe-platform/poe-code/issues
+
+pasquale@Mac ~ % codex                              
+
+╭──────────────────────────────────────────────╮
+│ >_ OpenAI Codex (v0.114.0)                   │
+│                                              │
+│ model:     gpt-5.4 medium   /model to change │
+│ directory: ~                                 │
+╰──────────────────────────────────────────────╯
+
+  Tip: Paste an image with Ctrl+V to attach it to your next message.
+
+ 
+› Improve documentation in @filename
+ 
+  gpt-5.4 medium · 100% left · ~
+
+
+
+
+
+
+
+
+
+
+

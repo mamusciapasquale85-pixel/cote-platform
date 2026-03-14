@@ -17,27 +17,33 @@ import {
 } from "./remarques";
 
 const card: React.CSSProperties = {
-  borderRadius: 18,
+  borderRadius: 22,
   padding: 16,
-  background: "white",
-  border: "1px solid rgba(0,0,0,0.10)",
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  boxShadow: "var(--shadow-soft)",
 };
 
 const input: React.CSSProperties = {
+  minHeight: 46,
   width: "100%",
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.15)",
+  padding: "11px 13px",
+  borderRadius: 14,
+  border: "1px solid var(--border)",
+  background: "rgba(255,255,255,0.96)",
+  color: "var(--text)",
 };
 
 const btn: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(0,0,0,0.15)",
-  background: "rgba(37,99,235,0.10)",
-  borderColor: "rgba(37,99,235,0.25)",
+  minHeight: 44,
+  padding: "10px 14px",
+  borderRadius: 14,
+  border: "1px solid var(--primary)",
+  background: "var(--primary)",
+  color: "#fff",
   cursor: "pointer",
   fontWeight: 800,
+  boxShadow: "0 12px 24px rgba(79,124,255,0.28)",
 };
 
 export default function DisciplinePage() {
@@ -215,7 +221,7 @@ export default function DisciplinePage() {
               <div
                 key={row.id}
                 style={{
-                  border: "1px solid rgba(0,0,0,0.08)",
+                  border: "1px solid var(--border)",
                   borderRadius: 10,
                   padding: 10,
                   background: "rgba(0,0,0,0.01)",
