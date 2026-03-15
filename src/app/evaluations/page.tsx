@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatDateFR } from "@/lib/date";
 import {
   type UUID, type TeacherContext, type ClassGroup, type Course, type Apprentissage,
@@ -161,12 +161,46 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
 }
 
 // ── Card évaluation ──────────────────────────────────────────────────────────
-function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus, onArchive, onDelete }: {
+function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus, onArchive, onDelete, onRefresh }: {
   a: Assessment; apprentissageNameById: Map<string, string>; highlighted: boolean;
   onToggleStatus: (a: Assessment) => void; onArchive: (a: Assessment) => void; onDelete: (id: UUID) => void;
+  onRefresh: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isFormative = a.type === "formative";
+
+  async function handleUpload(file: File) {
+    setUploading(true); setUploadMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("assessmentId", a.id);
+      const res = await fetch("/api/evaluations/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setUploadMsg("✅ Fichier uploadé");
+      setTimeout(() => setUploadMsg(null), 3000);
+      onRefresh();
+    } catch (e) {
+      setUploadMsg("❌ " + (e instanceof Error ? e.message : "Erreur"));
+    } finally { setUploading(false); }
+  }
+
+  async function handleDownload() {
+    if (!a.fichier_path) return;
+    const res = await fetch(`/api/evaluations/upload?path=${encodeURIComponent(a.fichier_path)}`);
+    const data = await res.json();
+    if (data.url) { window.open(data.url, "_blank"); }
+  }
+
+  async function handleDeleteFile() {
+    if (!a.fichier_path) return;
+    const res = await fetch(`/api/evaluations/upload?assessmentId=${a.id}&path=${encodeURIComponent(a.fichier_path)}`, { method: "DELETE" });
+    if (res.ok) { onRefresh(); }
+  }
   const isPublished = a.status === "published";
   const isArchived = a.status === "archived";
 
@@ -216,6 +250,27 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
               {a.instructions}
             </div>
           )}
+
+          {/* Zone fichier */}
+          <div style={{ marginTop: 10 }}>
+            <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg" style={{ display: "none" }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
+            {a.fichier_path ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0" }}>
+                <span style={{ fontSize: 16 }}>📎</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#166534", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.fichier_nom}</span>
+                <button onClick={handleDownload} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, border: "1px solid #BBF7D0", background: "#DCFCE7", color: "#166534", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>⬇ Ouvrir</button>
+                <button onClick={handleDeleteFile} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, border: "1px solid #FECACA", background: "#FEF2F2", color: "#B91C1C", cursor: "pointer", fontWeight: 600 }}>✕</button>
+              </div>
+            ) : (
+              <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 8, border: "1.5px dashed #D1D5DB", background: uploading ? "#F9FAFB" : "#FFF", color: "#9CA3AF", fontSize: 12, cursor: uploading ? "not-allowed" : "pointer", fontWeight: 500 }}>
+                <span>📎</span>
+                {uploading ? "Upload en cours…" : "Joindre un fichier PDF / Word"}
+              </button>
+            )}
+            {uploadMsg && <div style={{ fontSize: 11, marginTop: 4, color: uploadMsg.startsWith("✅") ? "#166534" : "#B91C1C" }}>{uploadMsg}</div>}
+          </div>
         </div>
 
         {/* Actions */}
@@ -496,7 +551,8 @@ export default function EvaluationsPage() {
           filteredRows.map(a => (
             <AssessmentCard key={a.id} a={a} apprentissageNameById={apprentissageNameById}
               highlighted={a.id === highlightedId}
-              onToggleStatus={onToggleStatus} onArchive={onArchive} onDelete={onDelete} />
+              onToggleStatus={onToggleStatus} onArchive={onArchive} onDelete={onDelete}
+              onRefresh={() => ctx && refresh(ctx)} />
           ))
         )}
       </div>

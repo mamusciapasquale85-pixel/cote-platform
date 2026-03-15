@@ -47,6 +47,8 @@ export type Assessment = {
   apprentissage_id: UUID | null;
   created_at: string;
   updated_at: string;
+  fichier_path: string | null;
+  fichier_nom: string | null;
 };
 
 export type ParsedAssessmentCsvRow = {
