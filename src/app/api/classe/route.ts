@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   const { data: enrollments, error: enrollErr } = await supabase
     .from("student_enrollments")
-    .select("student_id, students (id, first_name, last_name)")
+    .select("student_id, students!student_enrollments_student_id_fkey (id, first_name, last_name)")
     .eq("class_group_id", classGroupId);
 
   if (enrollErr) return NextResponse.json({ error: enrollErr.message }, { status: 500 });
