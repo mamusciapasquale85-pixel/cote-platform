@@ -6,7 +6,7 @@ import { createBrowserClient } from "@supabase/ssr";
 const NAV_ITEMS = [
   { label: "Accueil", icon: "🏠", href: "/dashboard" },
   { label: "Planification", icon: "N", href: "/planification" },
-  { label: "Classes", icon: "👥", href: "/teacher" },
+  { label: "Classes", icon: "👥", href: "/classe" },
   { label: "Évaluations", icon: "📝", href: "/evaluations" },
   
   { label: "Remédiations", icon: "🩺", href: "/remediations" },
