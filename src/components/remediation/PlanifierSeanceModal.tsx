@@ -2,10 +2,23 @@
 import { useEffect, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 
+type SeanceStatut = string;
+
+interface SeanceInitiale {
+  id: string;
+  remediation_id: string;
+  date_seance: string;
+  duree_minutes: number;
+  statut: SeanceStatut;
+  notes: string | null;
+  eleve_ids: string[];
+}
+
 interface PlanifierSeanceModalProps {
   remediationId: string;
   remediationAttendu?: string;
   eleveIdPreselectionne?: string;
+  seanceInitiale?: SeanceInitiale;
   onClose: () => void;
   onSuccess: () => void;
 }
