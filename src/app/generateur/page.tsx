@@ -1,408 +1,278 @@
 "use client";
-import { useState, useEffect } from "react";
-import { createBrowserClient } from "@supabase/ssr";
+import { useRef, useState } from "react";
+
+type Message = { role: "user" | "assistant"; content: string; id: string };
+type Skill = "chat" | "analyse" | "grille" | "diff" | "planning" | "tandem";
 
 const GRADIENT = "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)";
-type Mode = "exercice" | "evaluation" | "activite";
-type Niveau = "A1" | "A2" | "B1" | "B2";
-type Langue = "nl" | "en";
-type HistoryItem = { id: string; mode: Mode; subType: string; titre: string; contenu: string; createdAt: string; };
 
-// ── Thèmes suggérés par RIT / niveau ───────────────────────────────────────
-const THEMES_PAR_NIVEAU: Record<Niveau, string[]> = {
-  A1: ["Se présenter", "La famille", "Les couleurs", "Les chiffres", "L'école", "Les animaux", "Les jours de la semaine", "La nourriture", "Les vêtements", "La maison"],
-  A2: ["Les transports", "Le temps libre", "Faire des achats", "Chez le médecin", "Les sports", "La ville", "Les verbes modaux", "Le passé composé", "Les comparatifs", "Donner des directions"],
-  B1: ["Les voyages", "L'environnement", "Le monde du travail", "Les médias", "La santé", "Les relations sociales", "L'immigration", "Les stéréotypes", "La technologie", "Le bénévolat"],
-  B2: ["Les enjeux climatiques", "La politique", "L'économie", "Les réseaux sociaux", "L'intelligence artificielle", "La littérature flamande", "Les inégalités sociales", "Le marché du travail", "La démocratie", "L'identité culturelle"],
+const SKILLS: { id: Skill; label: string; emoji: string; color: string; description: string }[] = [
+  { id: "chat",     label: "Chat libre",      emoji: "💬", color: "#0A84FF", description: "Questions sur le référentiel FWB" },
+  { id: "analyse",  label: "Analyser copie",  emoji: "📝", color: "#FF3B30", description: "Évaluer une production selon FWB" },
+  { id: "grille",   label: "Créer grille",    emoji: "📊", color: "#FF9500", description: "Grille critériée conforme FWB" },
+  { id: "diff",     label: "Différenciation", emoji: "🎯", color: "#34C759", description: "3 niveaux d'un même exercice" },
+  { id: "planning", label: "Planification",   emoji: "📅", color: "#AF52DE", description: "Plan annuel conforme FWB" },
+  { id: "tandem",   label: "Tandem Brio",     emoji: "📗", color: "#00C7BE", description: "Lier le manuel aux attendus FWB" },
+];
+
+const SUGGESTIONS: Record<Skill, { label: string; prompt: string }[]> = {
+  chat: [
+    { label: "Attendus 1S néerlandais", prompt: "Quels sont exactement les attendus grammaticaux néerlandais pour la 1re secondaire selon le référentiel FWB ?" },
+    { label: "Attendus 2S néerlandais", prompt: "Quels sont les savoirs grammaticaux néerlandais de la 2e secondaire selon le référentiel FWB ?" },
+    { label: "Différence A2.2 vs B1.1", prompt: "Quelle est la différence concrète entre le niveau A2.2 (1S) et B1.1 (2S) en termes d'exigences et de tolérance aux erreurs ?" },
+    { label: "5 compétences FWB", prompt: "Explique-moi les 5 compétences du référentiel FWB (EOSI, EOEI, CA, CL, EE) avec des exemples concrets pour la 1re secondaire." },
+    { label: "Tolérance aux erreurs", prompt: "Quelles erreurs sont tolérées en 1re secondaire selon le référentiel FWB pour les productions orales et écrites ?" },
+    { label: "Critères inspection", prompt: "Quels sont les points de vigilance lors d'une visite d'inspection pour un cours de néerlandais en 1re secondaire FWB ?" },
+  ],
+  analyse: [
+    { label: "Production écrite 1S", prompt: "Analyse cette production écrite d'un élève de 1re secondaire (niveau A2.2, compétence EE) :\n\n[Colle la production ici]" },
+    { label: "Production orale 1S", prompt: "Voici la retranscription d'une production orale d'élève de 1re secondaire (EOSI, A2.2). Analyse selon le référentiel FWB :\n\n[Colle la retranscription ici]" },
+    { label: "Production écrite 2S", prompt: "Analyse cette production écrite d'un élève de 2e secondaire (niveau B1.1, compétence EE) :\n\n[Colle la production ici]" },
+    { label: "Réponses compréhension", prompt: "Voici les réponses d'un élève de 1re secondaire à un exercice de compréhension à la lecture. Évalue selon le référentiel FWB :\nTexte : [texte néerlandais]\nRéponses : [réponses élève]" },
+  ],
+  grille: [
+    { label: "Grille EE 1S", prompt: "Crée une grille d'évaluation critériée complète et conforme FWB pour l'expression écrite (EE) en 1re secondaire (niveau A2.2)." },
+    { label: "Grille EOSI 1S", prompt: "Crée une grille pour l'expression orale sans interaction (EOSI) en 1re secondaire (niveau A2.2), conforme référentiel FWB." },
+    { label: "Grille CA 2S", prompt: "Crée une grille pour la compréhension à l'audition (CA) en 2e secondaire (niveau B1.1), conforme référentiel FWB." },
+    { label: "Grille EOEI 2S", prompt: "Crée une grille pour l'expression orale en interaction (EOEI) en 2e secondaire (niveau B1.1), conforme référentiel FWB." },
+    { label: "Grille CL 1S", prompt: "Crée une grille pour la compréhension à la lecture (CL) en 1re secondaire (niveau A2.2), avec les critères FWB exacts." },
+  ],
+  diff: [
+    { label: "Différencier texte à trous 1S", prompt: "Crée 3 niveaux de différenciation pour un texte à trous sur les auxiliaires de mode (moeten, kunnen, mogen, willen), 1re secondaire." },
+    { label: "Différencier dialogue 1S", prompt: "Crée 3 niveaux de différenciation pour un dialogue à compléter sur le thème des loisirs, 1re secondaire niveau A2.2." },
+    { label: "Différencier production écrite 2S", prompt: "Crée 3 niveaux pour une tâche d'expression écrite sur la vie quotidienne, 2e secondaire niveau B1.1." },
+    { label: "Différencier compréhension 2S", prompt: "Crée 3 niveaux pour un exercice de compréhension à la lecture sur les relations avec les autres, 2e secondaire." },
+  ],
+  planning: [
+    { label: "Plan annuel 1re secondaire", prompt: "Génère une planification annuelle complète et conforme au référentiel FWB pour la 1re secondaire (néerlandais, niveau A2.2), avec 4 périodes de 9 semaines et 4 heures/semaine." },
+    { label: "Plan annuel 2e secondaire", prompt: "Génère une planification annuelle complète et conforme au référentiel FWB pour la 2e secondaire (néerlandais, niveau B1.1), avec 4 périodes et 4 heures/semaine." },
+    { label: "Répartition des compétences", prompt: "Comment répartir les 5 compétences (EOSI, EOEI, CA, CL, EE) sur l'année en 1re secondaire pour être conforme au référentiel FWB et assurer un équilibre ?" },
+    { label: "Séquence sur les champs thématiques", prompt: "Dans quel ordre aborder les 12 champs thématiques en 1re secondaire selon le référentiel FWB pour assurer la progression spiralaire ?" },
+    { label: "Progression grammaticale 1S", prompt: "Quelle progression grammaticale respecter sur l'année en 1re secondaire pour couvrir tous les savoirs FWB de manière cohérente ?" },
+  ],
+  tandem: [
+    { label: "Tandem Brio — Chapitre 1", prompt: "Fais le lien entre le chapitre 1 de Tandem Brio et les attendus du référentiel FWB pour la 1re secondaire. Quels attendus sont couverts et lesquels manquent ?" },
+    { label: "Tandem Brio — Unité vocabulaire", prompt: "Dans Tandem Brio, l'unité sur la famille et les présentations — quels champs thématiques FWB couvre-t-elle et quelles compétences sont travaillées ?" },
+    { label: "Tandem Brio — Grammaire OTT", prompt: "Le chapitre de Tandem Brio sur l'OTT (présent) — est-il conforme aux attendus FWB de 1re secondaire ? Que faut-il ajouter ou adapter ?" },
+    { label: "Tandem Brio — Tâche finale", prompt: "Comment adapter la tâche finale d'une unité de Tandem Brio pour la rendre conforme aux attendus FWB (compétence EE ou EOSI) en 1re secondaire ?" },
+    { label: "Manque Tandem Brio vs FWB", prompt: "Quels points du référentiel FWB néerlandais 1re secondaire ne sont PAS couverts par Tandem Brio et nécessitent des activités supplémentaires ?" },
+  ],
 };
 
-const EXERCICE_TYPES = [
-  { id: "lacunes", label: "Texte à trous", emoji: "✏️", desc: "Mots manquants + banque" },
-  { id: "qcm", label: "QCM", emoji: "🔘", desc: "10 questions 4 choix" },
-  { id: "dialogue", label: "Dialogue", emoji: "💬", desc: "Conversation à compléter" },
-  { id: "associer", label: "Association", emoji: "🔗", desc: "Relier mots/traductions" },
-  { id: "traduction", label: "Traduction", emoji: "🔄", desc: "NL↔FR phrases" },
-  { id: "conjugaison", label: "Conjugaison", emoji: "📝", desc: "Verbes en contexte" },
-  { id: "remise_ordre", label: "Remise en ordre", emoji: "🔀", desc: "Phrases désordonnées" },
-  { id: "lecture", label: "Compréhension", emoji: "📖", desc: "Texte + questions" },
-  { id: "vocabulaire_images", label: "Vocabulaire", emoji: "📚", desc: "Listes bilingues" },
-  { id: "mots_meles", label: "Mots mêlés", emoji: "🔤", desc: "Grille + corrigé" },
-  { id: "flashcards", label: "Flashcards", emoji: "🗂️", desc: "20 cartes NL|FR|exemple" },
-  { id: "kahoot_csv", label: "Kahoot", emoji: "🎮", desc: "10 questions format CSV" },
-];
-const EVALUATION_TYPES = [
-  { id: "formative", label: "Formative", emoji: "📊", desc: "Non notée, diagnostic" },
-  { id: "sommative", label: "Sommative", emoji: "🎓", desc: "Notée, fin séquence" },
-  { id: "diagnostique", label: "Diagnostique", emoji: "🔍", desc: "Début de séquence" },
-  { id: "oral", label: "Orale", emoji: "🎤", desc: "Production orale guidée" },
-];
-const ACTIVITE_TYPES = [
-  { id: "jeu_role", label: "Jeu de rôle", emoji: "🎭", desc: "Simulation situation réelle" },
-  { id: "debat", label: "Débat", emoji: "💡", desc: "Arguments pour/contre" },
-  { id: "projet", label: "Mini-projet", emoji: "🏗️", desc: "Tâche collaborative" },
-  { id: "jeu", label: "Jeu éducatif", emoji: "🎲", desc: "Bingo, memory, quiz" },
-  { id: "chanson", label: "Chanson à trous", emoji: "🎵", desc: "Activité musicale" },
-  { id: "video", label: "Activité vidéo", emoji: "🎬", desc: "Exploitation document" },
-  { id: "lecture_classe", label: "Lecture partagée", emoji: "📖", desc: "Lecture + questions" },
-  { id: "brainstorm", label: "Brainstorming", emoji: "🧠", desc: "Mise en commun guidée" },
-];
-const MODES = [
-  { id: "exercice" as Mode, label: "Exercice", emoji: "✏️", desc: "Lacunes, QCM, flashcards…" },
-  { id: "evaluation" as Mode, label: "Évaluation", emoji: "📋", desc: "Formative ou sommative" },
-  { id: "activite" as Mode, label: "Activité", emoji: "🎯", desc: "Jeu, débat, projet…" },
-];
-const NIVEAUX: Niveau[] = ["A1", "A2", "B1", "B2"];
+const PLACEHOLDERS: Record<Skill, string> = {
+  chat: "Question sur le référentiel FWB, les attendus, les niveaux CECRL…",
+  analyse: "Colle la production de l'élève (précise la classe 1S/2S et la compétence)…",
+  grille: "Précise la compétence (EOSI/EOEI/CA/CL/EE), la classe (1S/2S) et le champ thématique…",
+  diff: "Décris l'exercice à différencier (type, thème, classe)…",
+  planning: "Précise la classe (1S/2S), le nombre d'heures/semaine, et toute contrainte spécifique…",
+  tandem: "Mentionne un chapitre, une unité ou un point de grammaire de Tandem Brio…",
+};
 
-function toNiceError(e: unknown): string {
-  if (!e) return "Erreur inconnue";
-  if (typeof e === "string") return e;
-  if (typeof e === "object" && e !== null && "message" in e) return String((e as { message: unknown }).message);
-  try { return JSON.stringify(e); } catch { return String(e); }
-}
-
-// ── Rendu structuré du résultat ─────────────────────────────────────────────
-function RenderContenu({ contenu }: { contenu: string }) {
-  const lines = contenu.split("\n");
+function MarkdownText({ text }: { text: string }) {
+  const lines = text.split("\n");
   return (
-    <div style={{ fontSize: 14, lineHeight: 1.8, color: "#1e293b" }}>
+    <div style={{ fontSize: 14, lineHeight: 1.85, color: "#1e293b" }}>
       {lines.map((line, i) => {
-        const trimmed = line.trim();
-        if (!trimmed) return <div key={i} style={{ height: 8 }} />;
-        // Titre de section (MAJUSCULES ou précédé de ##/*)
-        if (/^(#{1,3}|\*\*|__)?[A-ZÉÀÈÙÂÊÎÔÛÄËÏÖÜ][A-ZÉÀÈÙÂÊÎÔÛÄËÏÖÜ\s\d:–\-()]{4,}(:|##)?$/.test(trimmed)) {
+        const t = line.trim();
+        if (!t) return <div key={i} style={{ height: 8 }} />;
+        if (/^### /.test(t)) return <div key={i} style={{ fontWeight: 900, fontSize: 12, color: "#0A84FF", marginTop: 16, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.07em", borderBottom: "1px solid #e2e8f0", paddingBottom: 3 }}>{t.replace(/^### /, "")}</div>;
+        if (/^## /.test(t)) return <div key={i} style={{ fontWeight: 900, fontSize: 15, color: "#FF3B30", marginTop: 20, marginBottom: 6 }}>{t.replace(/^## /, "")}</div>;
+        if (/^# /.test(t)) return <div key={i} style={{ fontWeight: 900, fontSize: 17, color: "#0F172A", marginTop: 22, marginBottom: 8 }}>{t.replace(/^# /, "")}</div>;
+        if (/^---+$/.test(t)) return <hr key={i} style={{ border: "none", borderTop: "2px solid #f1f5f9", margin: "14px 0" }} />;
+        if (/^(✅|🟢)/.test(t)) return <div key={i} style={{ padding: "4px 10px", background: "rgba(34,197,94,0.08)", borderLeft: "3px solid #22c55e", borderRadius: "0 8px 8px 0", marginBottom: 4, color: "#166534", fontWeight: 600 }}>{t}</div>;
+        if (/^(❌|🔴)/.test(t)) return <div key={i} style={{ padding: "4px 10px", background: "rgba(220,38,38,0.08)", borderLeft: "3px solid #ef4444", borderRadius: "0 8px 8px 0", marginBottom: 4, color: "#991b1b", fontWeight: 600 }}>{t}</div>;
+        if (/^(⚠️|🟡)/.test(t)) return <div key={i} style={{ padding: "4px 10px", background: "rgba(234,179,8,0.08)", borderLeft: "3px solid #eab308", borderRadius: "0 8px 8px 0", marginBottom: 4, color: "#854d0e", fontWeight: 600 }}>{t}</div>;
+        if (/^\*\*(.+)\*\*$/.test(t)) return <div key={i} style={{ fontWeight: 800, color: "#0F172A", marginTop: 8, marginBottom: 2 }}>{t.replace(/\*\*/g, "")}</div>;
+        if (/^\|/.test(t)) {
+          if (/^\|[-| ]+\|$/.test(t)) return null;
+          const cells = t.split("|").slice(1, -1).map(c => c.trim());
+          const isHeader = lines[i + 1]?.trim().startsWith("|---");
           return (
-            <div key={i} style={{ marginTop: 16, marginBottom: 4, padding: "6px 12px", background: "#EFF6FF", borderLeft: "3px solid #0A84FF", borderRadius: "0 8px 8px 0", fontWeight: 700, fontSize: 13, color: "#0A63BF", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              {trimmed.replace(/^#+\s*/, "").replace(/\*\*/g, "")}
+            <div key={i} style={{ display: "grid", gridTemplateColumns: `repeat(${cells.length}, 1fr)`, gap: 1, marginBottom: 1 }}>
+              {cells.map((cell, j) => (
+                <div key={j} style={{ padding: "5px 8px", background: isHeader ? "#f1f5f9" : j === 0 ? "rgba(10,132,255,0.04)" : "#fff", border: "1px solid #e2e8f0", fontSize: 12, fontWeight: isHeader ? 700 : 400 }}>{cell}</div>
+              ))}
             </div>
           );
         }
-        // Corrigé
-        if (/^(corrig[eé]|réponses?|answers?)/i.test(trimmed)) {
-          return (
-            <div key={i} style={{ marginTop: 16, padding: "6px 12px", background: "#F0FDF4", borderLeft: "3px solid #22C55E", borderRadius: "0 8px 8px 0", fontWeight: 700, fontSize: 13, color: "#166534", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-              ✓ {trimmed.replace(/^#+\s*/, "")}
-            </div>
-          );
-        }
-        // Ligne numérotée (exercice)
-        if (/^\d+[.)]\s/.test(trimmed)) {
-          return (
-            <div key={i} style={{ padding: "3px 0 3px 4px", display: "flex", gap: 8 }}>
-              <span style={{ color: "#0A84FF", fontWeight: 700, minWidth: 24, flexShrink: 0 }}>{trimmed.match(/^\d+/)?.[0]}.</span>
-              <span>{trimmed.replace(/^\d+[.)]\s/, "")}</span>
-            </div>
-          );
-        }
-        // Flashcard (contient |)
-        if (trimmed.includes("|") && trimmed.split("|").length >= 2) {
-          const parts = trimmed.split("|").map(p => p.trim());
-          return (
-            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 2fr", gap: 8, padding: "4px 0", borderBottom: "1px solid #F1F5F9", fontSize: 13 }}>
-              <span style={{ fontWeight: 700, color: "#0f172a" }}>{parts[0]}</span>
-              <span style={{ color: "#0A63BF" }}>{parts[1]}</span>
-              <span style={{ color: "#64748b", fontStyle: "italic" }}>{parts[2] ?? ""}</span>
-            </div>
-          );
-        }
-        return <div key={i} style={{ paddingLeft: line.startsWith(" ") || line.startsWith("\t") ? 20 : 0 }}>{trimmed}</div>;
+        if (/^[-•]\s/.test(t)) return <div key={i} style={{ padding: "2px 0 2px 16px", borderLeft: "3px solid #e2e8f0", marginBottom: 2, color: "#374151" }}>{t.slice(2)}</div>;
+        if (/^\d+\.\s/.test(t)) return <div key={i} style={{ padding: "3px 0 3px 20px", marginBottom: 3, color: "#334155" }}>{t}</div>;
+        const bold = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+)`/g, '<code style="background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:12px">$1</code>');
+        return <div key={i} dangerouslySetInnerHTML={{ __html: bold }} style={{ marginBottom: 2 }} />;
       })}
     </div>
   );
 }
 
-export default function GenerateurPage() {
-  const [mode, setMode] = useState<Mode>("exercice");
-  const [subType, setSubType] = useState("lacunes");
-  const [niveau, setNiveau] = useState<Niveau>("A1");
-  const [langue, setLangue] = useState<Langue>("nl");
-  const [theme, setTheme] = useState("");
-  const [contexte, setContexte] = useState("");
+export default function InspecteurFWBPage() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [titre, setTitre] = useState("");
-  const [contenu, setContenu] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
-  const [selectedHistory, setSelectedHistory] = useState<HistoryItem | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [activeSkill, setActiveSkill] = useState<Skill>("chat");
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    const supabase = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-    supabase.auth.getSession().then(({ data }) => { if (!data.session) window.location.href = "/login"; });
-  }, []);
-
-  useEffect(() => {
-    try { const raw = localStorage.getItem("klasbook_gen_history"); if (raw) setHistory(JSON.parse(raw) as HistoryItem[]); } catch { /* */ }
-  }, []);
-
-  useEffect(() => {
-    if (mode === "exercice") setSubType("lacunes");
-    else if (mode === "evaluation") setSubType("formative");
-    else setSubType("jeu_role");
-  }, [mode]);
-
-  useEffect(() => { if (!copied) return; const t = setTimeout(() => setCopied(false), 1400); return () => clearTimeout(t); }, [copied]);
-
-  function saveToHistory(item: Omit<HistoryItem, "id" | "createdAt">) {
-    const n: HistoryItem = { ...item, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-    const updated = [n, ...history].slice(0, 25);
-    setHistory(updated);
-    try { localStorage.setItem("klasbook_gen_history", JSON.stringify(updated)); } catch { /* */ }
+  function autoResize() {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
   }
 
-  async function onGenerate() {
-    if (!theme.trim()) { setErrorMsg("Veuillez renseigner un thème."); return; }
+  async function sendMessage(content: string) {
+    if (!content.trim() || loading) return;
+    const userMsg: Message = { role: "user", content: content.trim(), id: Date.now().toString() };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    setLoading(true);
+    setError(null);
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+
     try {
-      setLoading(true); setErrorMsg(null); setCopied(false); setSelectedHistory(null); setContenu(""); setTitre("");
-      const res = await fetch("/api/generer-exercice", {
+      const res = await fetch("/api/inspecteur-fwb", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type_exercice: subType, niveau, langue, theme: theme.trim(), contexte_remediation: contexte.trim() || undefined }),
+        body: JSON.stringify({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) }),
       });
-      const payload = await res.json() as { exercice?: string; titre?: string; error?: string };
-      if (res.status === 401) { window.location.href = "/login"; return; }
-      if (!res.ok) throw new Error(payload.error || "La génération a échoué.");
-      const t = payload.titre?.trim() || `${mode} – ${theme}`;
-      const c = payload.exercice?.trim() || "";
-      setTitre(t); setContenu(c);
-      saveToHistory({ mode, subType, titre: t, contenu: c });
-    } catch (e) { setErrorMsg(toNiceError(e)); } finally { setLoading(false); }
+      const data = await res.json() as { message?: string; error?: string };
+      if (!res.ok) throw new Error(data.error || "Erreur serveur");
+      const assistantMsg: Message = { role: "assistant", content: data.message ?? "", id: (Date.now() + 1).toString() };
+      setMessages([...newMessages, assistantMsg]);
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur inconnue");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  async function onCopy() {
-    const text = selectedHistory ? selectedHistory.contenu : contenu;
-    try { await navigator.clipboard.writeText(text); setCopied(true); } catch (e) { setErrorMsg(toNiceError(e)); }
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input); }
   }
 
-  async function onDownloadPdf() {
-    const displayContenu = selectedHistory ? selectedHistory.contenu : contenu;
-    const displayTitre = selectedHistory ? selectedHistory.titre : titre;
-    if (!displayContenu.trim()) return;
-    try {
-      const { default: jsPDF } = await import("jspdf");
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight(), margin = 14, contentW = pageW - margin * 2;
-      doc.setFillColor(255, 59, 48); doc.rect(0, 0, pageW / 2, 18, "F");
-      doc.setFillColor(10, 132, 255); doc.rect(pageW / 2, 0, pageW / 2, 18, "F");
-      doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.text("✦ Klasbook", margin, 12);
-      doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.text(new Date().toLocaleDateString("fr-BE"), pageW - margin, 12, { align: "right" });
-      doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold"); doc.setFontSize(14);
-      const titleLines = doc.splitTextToSize(displayTitre || "Document", contentW) as string[];
-      doc.text(titleLines, margin, 28);
-      let y = 28 + titleLines.length * 7 + 4;
-      doc.setFontSize(9); doc.setFillColor(239, 246, 255); doc.setDrawColor(186, 230, 253);
-      doc.roundedRect(margin, y, 56, 6, 2, 2, "FD"); doc.setTextColor(14, 116, 144);
-      doc.text(`${mode} • ${niveau} • ${langue.toUpperCase()}`, margin + 2, y + 4.2);
-      y += 11; doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.4); doc.line(margin, y, pageW - margin, y); y += 7;
-      doc.setTextColor(30, 41, 59);
-      for (const raw of displayContenu.split("\n")) {
-        const line = raw.trim();
-        if (!line) { y += 3; continue; }
-        if (y > pageH - 14) { doc.addPage(); y = 18; }
-        if (/^[A-ZÉÀÈÙÂÊÎÔÛÄËÏÖÜ][A-ZÉÀÈÙÂÊÎÔÛÄËÏÖÜ\s:–-]{4,}$/.test(line)) {
-          doc.setFillColor(239, 246, 255); doc.rect(margin, y - 3.5, contentW, 7, "F");
-          doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(10, 132, 255); doc.text(line, margin + 2, y + 1);
-          doc.setTextColor(30, 41, 59); y += 9; continue;
-        }
-        doc.setFont("helvetica", "normal"); doc.setFontSize(10);
-        const w = doc.splitTextToSize(line, contentW) as string[]; doc.text(w, margin, y); y += w.length * 5 + 1;
-      }
-      const total = (doc.internal as { getNumberOfPages?: () => number }).getNumberOfPages?.() ?? 1;
-      for (let p = 1; p <= total; p++) {
-        doc.setPage(p); doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3); doc.line(margin, pageH - 10, pageW - margin, pageH - 10);
-        doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(148, 163, 184);
-        doc.text("Klasbook – LAB Marie Curie", margin, pageH - 5); doc.text(`Page ${p} / ${total}`, pageW - margin, pageH - 5, { align: "right" });
-      }
-      const safe = (displayTitre || "export").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 80);
-      doc.save(`${safe}.pdf`);
-    } catch (e) { setErrorMsg(toNiceError(e)); }
-  }
-
-  const currentTypes = mode === "exercice" ? EXERCICE_TYPES : mode === "evaluation" ? EVALUATION_TYPES : ACTIVITE_TYPES;
-  const displayContenu = selectedHistory ? selectedHistory.contenu : contenu;
-  const displayTitre = selectedHistory ? selectedHistory.titre : titre;
-  const hasDisplay = displayContenu.trim().length > 0;
-  const themesSuggeres = THEMES_PAR_NIVEAU[niveau];
-  const currentSubType = currentTypes.find(t => t.id === subType);
+  const currentSkill = SKILLS.find(s => s.id === activeSkill)!;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 20, minHeight: "calc(100vh - 140px)" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 80px)", maxHeight: 920, gap: 0 }}>
 
-      {/* ── PANNEAU GAUCHE ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* HEADER */}
+      <div style={{ borderRadius: 18, padding: "14px 20px", background: GRADIENT, color: "#fff", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em" }}>🏛️ Inspecteur FWB</div>
+          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 1 }}>Référentiel Langues Modernes · Néerlandais 1S & 2S · Tandem Brio · Claude Sonnet</div>
+        </div>
+        {messages.length > 0 && (
+          <button onClick={() => { setMessages([]); setError(null); setInput(""); }} style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.4)", color: "#fff", borderRadius: 10, padding: "5px 12px", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+            Nouvelle conversation
+          </button>
+        )}
+      </div>
 
-        {/* Mode */}
-        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #E5E7EB", padding: 14 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", marginBottom: 8, letterSpacing: "0.08em", textTransform: "uppercase" }}>Mode</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {MODES.map(m => (
-              <button key={m.id} onClick={() => setMode(m.id)} style={{ padding: "9px 12px", borderRadius: 10, border: mode === m.id ? "2px solid #0A84FF" : "1.5px solid #E5E7EB", background: mode === m.id ? "#EFF6FF" : "#FFF", cursor: "pointer", textAlign: "left" }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: mode === m.id ? "#0A63BF" : "#111827" }}>{m.emoji} {m.label}</div>
-                <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>{m.desc}</div>
+      {/* SKILLS TABS — 2 rangées sur mobile */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6, marginBottom: 10 }}>
+        {SKILLS.map(skill => (
+          <button key={skill.id} onClick={() => setActiveSkill(skill.id)} style={{
+            padding: "8px 4px", borderRadius: 12,
+            border: activeSkill === skill.id ? `2px solid ${skill.color}` : "1.5px solid #e2e8f0",
+            background: activeSkill === skill.id ? `${skill.color}18` : "#fff",
+            color: activeSkill === skill.id ? skill.color : "#64748b",
+            fontWeight: activeSkill === skill.id ? 800 : 600, fontSize: 11,
+            cursor: "pointer", transition: "all 0.15s", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 16, marginBottom: 2 }}>{skill.emoji}</div>
+            <div style={{ lineHeight: 1.2 }}>{skill.label}</div>
+          </button>
+        ))}
+      </div>
+
+      {/* SUGGESTIONS */}
+      {messages.length === 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", marginBottom: 6 }}>
+            {currentSkill.emoji} {currentSkill.description.toUpperCase()}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {SUGGESTIONS[activeSkill].map((s, i) => (
+              <button key={i} onClick={() => setInput(s.prompt)} style={{
+                padding: "7px 12px", borderRadius: 99,
+                border: `1.5px solid ${currentSkill.color}40`,
+                background: `${currentSkill.color}0a`,
+                color: currentSkill.color,
+                fontWeight: 600, fontSize: 12, cursor: "pointer",
+              }}>
+                {s.label}
               </button>
             ))}
           </div>
         </div>
+      )}
 
-        {/* Type d'exercice */}
-        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #E5E7EB", padding: 14 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", marginBottom: 8, letterSpacing: "0.08em", textTransform: "uppercase" }}>Type</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {currentTypes.map(t => (
-              <button key={t.id} onClick={() => setSubType(t.id)}
-                title={t.desc}
-                style={{ padding: "5px 9px", borderRadius: 20, fontSize: 12, cursor: "pointer", border: subType === t.id ? "2px solid #0A84FF" : "1.5px solid #E5E7EB", background: subType === t.id ? "#EFF6FF" : "#FFF", color: subType === t.id ? "#0A63BF" : "#374151", fontWeight: subType === t.id ? 700 : 500 }}>
-                {t.emoji} {t.label}
-              </button>
-            ))}
-          </div>
-          {currentSubType && (
-            <div style={{ marginTop: 8, padding: "6px 10px", background: "#F0FDF4", borderRadius: 8, fontSize: 12, color: "#166534", fontWeight: 500 }}>
-              💡 {currentSubType.desc}
-            </div>
-          )}
-        </div>
-
-        {/* Niveau + Langue */}
-        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #E5E7EB", padding: 14, display: "grid", gap: 10 }}>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", marginBottom: 6, letterSpacing: "0.08em", textTransform: "uppercase" }}>Niveau</div>
-            <div style={{ display: "flex", gap: 4 }}>
-              {NIVEAUX.map(n => (
-                <button key={n} onClick={() => setNiveau(n)} style={{ flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13, border: niveau === n ? "2px solid #0A84FF" : "1.5px solid #E5E7EB", background: niveau === n ? "#EFF6FF" : "#FFF", color: niveau === n ? "#0A63BF" : "#374151" }}>{n}</button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", marginBottom: 6, letterSpacing: "0.08em", textTransform: "uppercase" }}>Langue</div>
-            <div style={{ display: "flex", gap: 4 }}>
-              {(["nl", "en"] as Langue[]).map(l => (
-                <button key={l} onClick={() => setLangue(l)} style={{ flex: 1, padding: "7px 0", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 13, border: langue === l ? "2px solid #0A84FF" : "1.5px solid #E5E7EB", background: langue === l ? "#EFF6FF" : "#FFF", color: langue === l ? "#0A63BF" : "#374151" }}>
-                  {l === "nl" ? "🇳🇱 NL" : "🇬🇧 EN"}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Thème + suggestions */}
-        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #E5E7EB", padding: 14, display: "grid", gap: 8 }}>
-          <div>
-            <label style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", display: "block", marginBottom: 5, letterSpacing: "0.08em", textTransform: "uppercase" }}>Thème *</label>
-            <input type="text" value={theme} onChange={e => setTheme(e.target.value)}
-              placeholder="Ex: les transports, verbes modaux…"
-              style={{ width: "100%", padding: "9px 11px", borderRadius: 9, border: "1.5px solid #E5E7EB", fontSize: 13, boxSizing: "border-box", outline: "none" }} />
-          </div>
-          {/* Suggestions rapides */}
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, letterSpacing: "0.08em", textTransform: "uppercase" }}>Suggestions {niveau}</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-              {themesSuggeres.slice(0, 8).map(t => (
-                <button key={t} onClick={() => setTheme(t)}
-                  style={{ padding: "3px 8px", borderRadius: 20, fontSize: 11, cursor: "pointer", border: theme === t ? "1.5px solid #0A84FF" : "1px solid #E5E7EB", background: theme === t ? "#EFF6FF" : "#F9FAFB", color: theme === t ? "#0A63BF" : "#6B7280", fontWeight: 500 }}>
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", display: "block", marginBottom: 5, letterSpacing: "0.08em", textTransform: "uppercase" }}>Contexte / RIT (optionnel)</label>
-            <textarea value={contexte} onChange={e => setContexte(e.target.value)} rows={2}
-              placeholder="Ex: chapitre 3 Tandem Brio RIT 4, objectif B1…"
-              style={{ width: "100%", padding: "9px 11px", borderRadius: 9, border: "1.5px solid #E5E7EB", fontSize: 12, resize: "none", fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} />
-          </div>
-        </div>
-
-        <button onClick={() => void onGenerate()} disabled={loading}
-          style={{ padding: "12px", borderRadius: 12, border: "none", background: loading ? "#9CA3AF" : GRADIENT, color: "#fff", fontWeight: 800, fontSize: 15, cursor: loading ? "wait" : "pointer" }}>
-          {loading ? "⏳ Génération…" : "✨ Générer"}
-        </button>
-
-        {errorMsg && (
-          <div style={{ borderRadius: 10, border: "1px solid #FCA5A5", background: "#FEF2F2", color: "#991B1B", padding: "10px 14px", fontSize: 13, fontWeight: 600 }}>
-            ⚠️ {errorMsg}
+      {/* MESSAGES */}
+      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, paddingRight: 2 }}>
+        {messages.length === 0 && !loading && (
+          <div style={{ textAlign: "center", padding: "28px 20px", color: "#94a3b8" }}>
+            <div style={{ fontSize: 42, marginBottom: 10 }}>{currentSkill.emoji}</div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#475569" }}>{currentSkill.label}</div>
+            <div style={{ fontSize: 13, marginTop: 4 }}>{currentSkill.description}</div>
           </div>
         )}
-
-        {/* Historique */}
-        {history.length > 0 && (
-          <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #E5E7EB", overflow: "hidden" }}>
-            <button onClick={() => setShowHistory(v => !v)}
-              style={{ width: "100%", padding: "11px 14px", background: "none", border: "none", cursor: "pointer", display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: "#111827" }}>
-              <span>🕒 Historique ({history.length})</span>
-              <span style={{ fontSize: 10, color: "#9CA3AF" }}>{showHistory ? "▲" : "▼"}</span>
-            </button>
-            {showHistory && (
-              <div style={{ borderTop: "1px solid #F3F4F6", maxHeight: 200, overflowY: "auto" }}>
-                {history.map(h => (
-                  <button key={h.id} onClick={() => { setSelectedHistory(h); setShowHistory(false); }}
-                    style={{ width: "100%", padding: "8px 14px", background: selectedHistory?.id === h.id ? "#EFF6FF" : "none", border: "none", borderBottom: "1px solid #F3F4F6", cursor: "pointer", textAlign: "left" }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.titre}</div>
-                    <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 1 }}>
-                      {MODES.find(m => m.id === h.mode)?.emoji} {EXERCICE_TYPES.find(t => t.id === h.subType)?.label ?? h.subType} · {new Date(h.createdAt).toLocaleDateString("fr-BE")}
-                    </div>
-                  </button>
-                ))}
+        {messages.map((msg) => (
+          <div key={msg.id} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+            <div style={{
+              maxWidth: "88%",
+              borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+              padding: "11px 15px",
+              background: msg.role === "user" ? GRADIENT : "#fff",
+              color: msg.role === "user" ? "#fff" : "#1e293b",
+              border: msg.role === "assistant" ? "1px solid rgba(15,23,42,0.08)" : "none",
+              boxShadow: "0 2px 8px rgba(15,23,42,0.07)",
+            }}>
+              {msg.role === "assistant" ? <MarkdownText text={msg.content} /> : (
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6, fontSize: 14 }}>{msg.content}</div>
+              )}
+            </div>
+          </div>
+        ))}
+        {loading && (
+          <div style={{ display: "flex", justifyContent: "flex-start" }}>
+            <div style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.08)", borderRadius: "18px 18px 18px 4px", padding: "12px 16px", boxShadow: "0 2px 8px rgba(15,23,42,0.07)" }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {[0, 1, 2].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#94a3b8", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
+                <span style={{ fontSize: 12, color: "#64748b", marginLeft: 6 }}>L'Inspecteur FWB analyse le référentiel…</span>
               </div>
-            )}
+            </div>
           </div>
         )}
+        {error && <div style={{ borderRadius: 10, border: "1px solid #fca5a5", background: "#fef2f2", color: "#991b1b", padding: "10px 14px", fontSize: 13 }}>⚠️ {error}</div>}
+        <div ref={bottomRef} />
       </div>
 
-      {/* ── PANNEAU DROIT ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ background: "#fff", borderRadius: 14, border: "1px solid #E5E7EB", flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 520 }}>
-
-          {hasDisplay ? (
-            <>
-              <div style={{ padding: "14px 18px", background: "#F8FAFC", borderBottom: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: "#111827" }}>📄 {displayTitre}</div>
-                  {selectedHistory && <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 2 }}>Depuis l'historique</div>}
-                </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {selectedHistory && <button onClick={() => setSelectedHistory(null)} style={{ fontSize: 11, color: "#9CA3AF", background: "none", border: "1px solid #E5E7EB", borderRadius: 6, padding: "3px 8px", cursor: "pointer" }}>✕ Fermer</button>}
-                </div>
-              </div>
-              <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1 }}>
-                <RenderContenu contenu={displayContenu} />
-              </div>
-            </>
-          ) : loading ? (
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#6B7280", gap: 12 }}>
-              <div style={{ fontSize: 40 }}>🤖</div>
-              <div style={{ fontWeight: 600, fontSize: 16 }}>L'IA génère votre contenu…</div>
-              <div style={{ fontSize: 13, color: "#9CA3AF" }}>10 à 25 secondes selon le type</div>
-              <div style={{ fontSize: 12, color: "#CBD5E1", marginTop: 4 }}>Type : {currentSubType?.emoji} {currentSubType?.label} · {niveau} · {langue.toUpperCase()}</div>
-            </div>
-          ) : (
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#9CA3AF", gap: 8 }}>
-              <div style={{ fontSize: 48 }}>✨</div>
-              <div style={{ fontWeight: 600, fontSize: 15, color: "#374151" }}>Prêt à générer</div>
-              <div style={{ fontSize: 13 }}>Choisis un type, un thème, puis clique sur Générer</div>
-              {theme && <div style={{ marginTop: 8, padding: "6px 14px", background: "#EFF6FF", borderRadius: 20, fontSize: 13, color: "#0A63BF", fontWeight: 600 }}>🎯 {theme}</div>}
-            </div>
-          )}
+      {/* INPUT */}
+      <div style={{ marginTop: 10, background: "#fff", borderRadius: 16, border: `1.5px solid ${currentSkill.color}40`, padding: "10px 14px", boxShadow: "0 4px 12px rgba(15,23,42,0.06)" }}>
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={e => { setInput(e.target.value); autoResize(); }}
+          onKeyDown={handleKeyDown}
+          placeholder={PLACEHOLDERS[activeSkill]}
+          rows={2}
+          style={{ width: "100%", border: "none", outline: "none", resize: "none", fontSize: 14, lineHeight: 1.6, color: "#1e293b", background: "transparent", fontFamily: "system-ui, sans-serif", boxSizing: "border-box" }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+          <span style={{ fontSize: 11, color: "#94a3b8" }}>Entrée pour envoyer · Maj+Entrée pour saut de ligne</span>
+          <button
+            onClick={() => void sendMessage(input)} disabled={!input.trim() || loading}
+            style={{ padding: "7px 16px", borderRadius: 10, border: "none", background: !input.trim() || loading ? "#e2e8f0" : GRADIENT, color: !input.trim() || loading ? "#94a3b8" : "#fff", fontWeight: 700, fontSize: 13, cursor: !input.trim() || loading ? "not-allowed" : "pointer" }}
+          >
+            {loading ? "⏳" : "Envoyer →"}
+          </button>
         </div>
-
-        {hasDisplay && (
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => void onCopy()} style={{ padding: "9px 14px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-              {copied ? "✅ Copié !" : "📋 Copier"}
-            </button>
-            <button onClick={() => void onDownloadPdf()} style={{ padding: "9px 14px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-              📄 PDF
-            </button>
-            <button onClick={() => { setContenu(""); setTitre(""); setSelectedHistory(null); }}
-              style={{ padding: "9px 14px", borderRadius: 10, border: "1.5px solid #E5E7EB", background: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-              🔄 Nouveau
-            </button>
-            <div style={{ marginLeft: "auto", padding: "9px 14px", borderRadius: 10, background: "#F9FAFB", fontSize: 12, color: "#9CA3AF" }}>
-              {displayContenu.split("\n").length} lignes · {displayContenu.length} caractères
-            </div>
-          </div>
-        )}
       </div>
+
+      <style>{`@keyframes pulse { 0%,100%{transform:scale(1);opacity:.5} 50%{transform:scale(1.3);opacity:1} }`}</style>
     </div>
   );
 }

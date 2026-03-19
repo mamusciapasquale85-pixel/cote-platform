@@ -1,86 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-export const runtime = "nodejs";
-
-type ApiStatut = "Proposee" | "En cours" | "Terminee";
-
-const ALLOWED_STATUSES: ApiStatut[] = ["Proposee", "En cours", "Terminee"];
-
-function toErrorMessage(error: unknown): string {
-  if (!error) return "Erreur inconnue";
-  if (typeof error === "string") return error;
-  if (typeof error === "object" && error !== null) {
-    if ("message" in error && typeof error.message === "string" && error.message) return error.message;
-    if ("error_description" in error && typeof error.error_description === "string" && error.error_description) {
-      return error.error_description;
-    }
-  }
-  try {
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
-}
-
-function normalizeText(input: string): string {
-  return input
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function toApiStatut(value: string | null | undefined): ApiStatut | null {
-  if (!value) return null;
-  const normalized = normalizeText(value).replace(/\s+/g, " ");
-  if (normalized === "proposee" || normalized === "propose") return "Proposee";
-  if (normalized === "en cours" || normalized === "encours") return "En cours";
-  if (normalized === "terminee" || normalized === "termine") return "Terminee";
-  return null;
-}
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createSupabaseServerClient();
+    const { id } = await params;
 
-    const { data: userData, error: userErr } = await supabase.auth.getUser();
-    if (userErr) throw userErr;
-    if (!userData.user) {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll(); },
+          setAll() {},
+        },
+      }
+    );
+
+    const { data: { user }, error: userErr } = await supabase.auth.getUser();
+    if (userErr || !user) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    const { id } = await params;
-    const remediationId = id?.trim();
+    const body = await req.json() as { statut?: string };
+    const statut = body.statut;
 
-    if (!remediationId) {
-      return NextResponse.json({ error: "Identifiant de remédiation manquant" }, { status: 400 });
-    }
-
-    const body = (await req.json()) as { statut?: string };
-    const statut = toApiStatut(body.statut);
-
-    if (!statut || !ALLOWED_STATUSES.includes(statut)) {
-      return NextResponse.json({ error: "Statut invalide" }, { status: 400 });
+    if (!statut || !["Proposee", "En cours", "Terminee"].includes(statut)) {
+      return NextResponse.json({ error: "Statut invalide." }, { status: 400 });
     }
 
     const { data, error } = await supabase
       .from("remediations")
       .update({ statut })
-      .eq("id", remediationId)
-      .select("id,statut")
-      .maybeSingle();
+      .eq("id", id)
+      .select("id, statut")
+      .single();
 
     if (error) throw error;
-    if (!data) {
-      return NextResponse.json({ error: "Remédiation introuvable" }, { status: 404 });
-    }
 
     return NextResponse.json({ item: data });
-  } catch (error: unknown) {
-    return NextResponse.json({ error: toErrorMessage(error) }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

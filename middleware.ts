@@ -1,15 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PROTECTED_PREFIXES = ["/teacher", "/parent", "/admin"];
+const PROTECTED_PREFIXES = ["/teacher", "/parent", "/admin", "/onboarding"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1) Toujours mettre à jour la session (cookies Supabase)
   const response = await updateSession(request);
 
-  // 2) Protéger certaines routes
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (isProtected) {
@@ -19,7 +17,7 @@ export async function middleware(request: NextRequest) {
 
     if (!hasAuthCookie) {
       const url = request.nextUrl.clone();
-      url.pathname = "/login"; // doit exister => src/app/login/page.tsx
+      url.pathname = "/login";
       return NextResponse.redirect(url);
     }
   }
