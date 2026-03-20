@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klasbook — Battlecard Concurrentiel</title>
+    <style>
+        :root {
+            --bg-primary: #0a0d14;
+            --bg-elevated: #0f131c;
+            --bg-surface: #161b28;
+            --bg-hover: #1e2536;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255,255,255,0.7);
+            --text-muted: rgba(255,255,255,0.45);
+            --accent: #FF3B30;
+            --accent2: #0A84FF;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: rgba(255,255,255,0.08);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%);
+            padding: 28px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .header-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; }
+        .header-sub { font-size: 0.85rem; opacity: 0.85; margin-top: 4px; }
+        .header-badge {
+            background: rgba(255,255,255,0.18);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 6px 16px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        /* Nav */
+        .nav {
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            padding: 0 40px;
+            gap: 4px;
+            overflow-x: auto;
+        }
+        .nav-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 16px 20px;
+            font-size: 0.88rem;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .nav-btn:hover { color: var(--text-primary); }
+        .nav-btn.active {
+            color: var(--text-primary);
+            border-bottom-color: #FF3B30;
+        }
+
+        /* Content */
+        .content { padding: 40px; max-width: 1200px; margin: 0 auto; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Section title */
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .section-sub {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 28px;
+        }
+
+        /* Comparison Matrix */
+        .matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-surface);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            margin-bottom: 40px;
+        }
+        .matrix-table th {
+            padding: 14px 18px;
+            text-align: center;
+            font-size: 0.82rem;
+            font-weight: 700;
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+        }
+        .matrix-table th:first-child { text-align: left; min-width: 200px; }
+        .matrix-table th.you {
+            color: #FF3B30;
+            background: rgba(255,59,48,0.06);
+        }
+        .matrix-table td {
+            padding: 13px 18px;
+            text-align: center;
+            font-size: 0.88rem;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .matrix-table td:first-child {
+            text-align: left;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        .matrix-table tr:last-child td { border-bottom: none; }
+        .matrix-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .you-col { background: rgba(255,59,48,0.04); }
+
+        /* Icons */
+        .icon-win { color: #10b981; font-size: 1.1rem; }
+        .icon-lose { color: #ef4444; font-size: 1.1rem; }
+        .icon-partial { color: #f59e0b; font-size: 1.1rem; }
+
+        /* Win/Loss cards */
+        .win-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .win-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .win-card h4 {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+        .win-card.win { border-top: 3px solid #10b981; }
+        .win-card.win h4 { color: #10b981; }
+        .win-card.lose { border-top: 3px solid #ef4444; }
+        .win-card.lose h4 { color: #ef4444; }
+        .win-card ul { list-style: none; }
+        .win-card ul li {
+            padding: 5px 0;
+            font-size: 0.87rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        .win-card ul li::before { content: '→'; color: var(--text-muted); flex-shrink: 0; margin-top: 1px; }
+
+        /* Competitor card */
+        .comp-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            margin-bottom: 28px;
+        }
+        .comp-logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 900;
+            flex-shrink: 0;
+        }
+        .comp-name { font-size: 1.4rem; font-weight: 800; }
+        .comp-tagline { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
+        .comp-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .badge {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 3px 10px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* Grid 2-col */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        /* Card */
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card h4 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--text-muted);
+        }
+        .card.green { border-left: 3px solid #10b981; }
+        .card.green h4 { color: #10b981; }
+        .card.red { border-left: 3px solid #ef4444; }
+        .card.red h4 { color: #ef4444; }
+        .card.blue { border-left: 3px solid #0A84FF; }
+        .card.blue h4 { color: #0A84FF; }
+        .card.orange { border-left: 3px solid #f59e0b; }
+        .card.orange h4 { color: #f59e0b; }
+
+        .card ul { list-style: none; }
+        .card ul li {
+            padding: 5px 0;
+            font-size: 0.87rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            display: flex;
+            gap: 8px;
+        }
+        .card ul li:last-child { border-bottom: none; }
+        .card p { font-size: 0.87rem; color: var(--text-secondary); line-height: 1.6; }
+
+        /* Talk track */
+        .talk-track {
+            background: var(--bg-elevated);
+            border: 1px solid rgba(10,132,255,0.25);
+            border-left: 3px solid #0A84FF;
+            border-radius: 10px;
+            padding: 18px 20px;
+            margin-bottom: 16px;
+        }
+        .talk-track-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #0A84FF;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .talk-track-text {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.65;
+            font-style: italic;
+        }
+
+        /* Landmine */
+        .landmine {
+            background: rgba(245,158,11,0.06);
+            border: 1px solid rgba(245,158,11,0.2);
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-bottom: 10px;
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .landmine-icon { color: #f59e0b; font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+
+        /* Pricing bar */
+        .pricing-block {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+        .pricing-price {
+            font-size: 1.6rem;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        .pricing-label { font-size: 0.78rem; color: var(--text-muted); }
+        .pricing-note { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            margin: 32px 0;
+        }
+
+        h3.section { font-size: 1rem; font-weight: 700; margin-bottom: 14px; color: var(--text-primary); }
+
+        /* Klasbook card special */
+        .klasbook-hero {
+            background: linear-gradient(135deg, rgba(255,59,48,0.1) 0%, rgba(10,132,255,0.1) 100%);
+            border: 1px solid rgba(255,59,48,0.2);
+            border-radius: 16px;
+            padding: 32px;
+            margin-bottom: 28px;
+        }
+        .klasbook-hero h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #FF3B30, #0A84FF);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+        .klasbook-hero p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.65; }
+
+        .pillar-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-top: 20px;
+        }
+        .pillar {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            text-align: center;
+        }
+        .pillar-emoji { font-size: 1.6rem; margin-bottom: 8px; }
+        .pillar-title { font-size: 0.88rem; font-weight: 700; margin-bottom: 4px; }
+        .pillar-desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; }
+
+        /* Revenue roadmap */
+        .roadmap-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-top: 12px;
+        }
+        .roadmap-step {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px 24px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .step-num {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FF3B30, #0A84FF);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        .step-info { flex: 1; }
+        .step-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 700; }
+        .step-title { font-size: 1rem; font-weight: 700; margin: 4px 0; }
+        .step-desc { font-size: 0.85rem; color: var(--text-secondary); }
+        .step-revenue {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .step-revenue-num { font-size: 1.3rem; font-weight: 800; color: #10b981; }
+        .step-revenue-label { font-size: 0.72rem; color: var(--text-muted); }
+
+        @media (max-width: 768px) {
+            .content { padding: 20px; }
+            .header { padding: 20px; }
+            .grid-2, .grid-3, .win-grid, .pillar-grid { grid-template-columns: 1fr; }
+            .pricing-block { flex-direction: column; gap: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <div class="header-title">⚡ Klasbook — Battlecard Concurrentiel</div>
+        <div class="header-sub">Marché : Fédération Wallonie-Bruxelles · Mis à jour mars 2026</div>
+    </div>
+    <div class="header-badge">🇧🇪 FWB · Enseignement obligatoire</div>
+</div>
+
+<div class="nav">
+    <button class="nav-btn active" onclick="showTab('matrix')">📊 Comparaison</button>
+    <button class="nav-btn" onclick="showTab('klasbook')">⚡ Klasbook</button>
+    <button class="nav-btn" onclick="showTab('smartschool')">🔵 Smartschool</button>
+    <button class="nav-btn" onclick="showTab('pronote')">🟣 Pronote</button>
+    <button class="nav-btn" onclick="showTab('classdojo')">🟢 ClassDojo</button>
+    <button class="nav-btn" onclick="showTab('additio')">🟡 Additio</button>
+    <button class="nav-btn" onclick="showTab('cabanga')">🔷 Cabanga</button>
+    <button class="nav-btn" onclick="showTab('monetisation')">💶 Monétisation</button>
+</div>
+
+<div class="content">
+
+    <!-- ========== MATRICE ========== -->
+    <div id="matrix" class="tab-content active">
+        <div class="section-title">Matrice de comparaison</div>
+        <div class="section-sub">Klasbook vs. les solutions présentes en Belgique francophone · ✅ Oui · ⚠️ Partiel · ❌ Non</div>
+
+        <table class="matrix-table">
+            <thead>
+                <tr>
+                    <th>Fonctionnalité</th>
+                    <th class="you">⚡ Klasbook</th>
+                    <th>🔵 Smartschool</th>
+                    <th>🟣 Pronote</th>
+                    <th>🟢 ClassDojo</th>
+                    <th>🟡 Additio</th>
+                    <th>🔷 Cabanga</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>🤖 Remédiation automatique par IA</td>
+                    <td class="you-col"><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                </tr>
+                <tr>
+                    <td>🔍 Détection automatique des lacunes</td>
+                    <td class="you-col"><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                </tr>
+                <tr>
+                    <td>🔄 Workflow automatisé lacune → exercice → suivi</td>
+                    <td class="you-col"><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                </tr>
+                <tr>
+                    <td>📋 Évaluations formatives</td>
+                    <td class="you-col"><span class="icon-win">✅</span></td>
+                    <td><span class="icon-partial">⚠️</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-partial">⚠️</span></td>
+                </tr>
+                <tr>
+                    <td>📊 Rubrics & grilles d'évaluation</td>
+                    <td class="you-col"><span class="icon-win">✅</span></td>
+                    <td><span class="icon-partial">⚠️</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-partial">⚠️</span></td>
+                </tr>
+                <tr>
+                    <td>📈 Suivi progression par compétence</td>
+                    <td class="you-col"><span class="icon-win">✅</span></td>
+                    <td><span class="icon-partial">⚠️</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-partial">⚠️</span></td>
+                    <td><span class="icon-partial">⚠️</span></td>
+                </tr>
+                <tr>
+                    <td>🇧🇪 Conçu pour la FWB (programme, référentiels)</td>
+                    <td class="you-col"><span class="icon-win">✅</span></td>
+                    <td><span class="icon-partial">⚠️</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                </tr>
+                <tr>
+                    <td>👤 Achat individuel (pas besoin direction)</td>
+                    <td class="you-col"><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                </tr>
+                <tr>
+                    <td>💶 Prix mensuel pour 1 enseignant</td>
+                    <td class="you-col"><span style="color:#10b981; font-weight:700;">15-30€</span></td>
+                    <td><span style="color:#f59e0b; font-size:0.8rem;">Institution</span></td>
+                    <td><span style="color:#f59e0b; font-size:0.8rem;">Institution</span></td>
+                    <td><span style="color:#10b981; font-weight:700;">Gratuit</span></td>
+                    <td><span style="color:#10b981; font-weight:700;">~4-8€</span></td>
+                    <td><span style="color:#f59e0b; font-size:0.8rem;">Institution</span></td>
+                </tr>
+                <tr>
+                    <td>🎓 Conçu par un enseignant (praticien)</td>
+                    <td class="you-col"><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                </tr>
+                <tr>
+                    <td>💬 Communication parents</td>
+                    <td class="you-col"><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                </tr>
+                <tr>
+                    <td>🗓️ Bulletins & journal de classe</td>
+                    <td class="you-col"><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                </tr>
+                <tr>
+                    <td>📑 Plan Individuel d'Accompagnement (PIA)</td>
+                    <td class="you-col"><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-partial">⚠️</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-lose">❌</span></td>
+                    <td><span class="icon-win">✅</span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="win-grid">
+            <div class="win-card win">
+                <h4>✅ Quand Klasbook gagne</h4>
+                <ul>
+                    <li>L'enseignant veut agir sur les lacunes, pas juste les mesurer</li>
+                    <li>Contexte FWB — référentiels et programme locaux</li>
+                    <li>L'enseignant achète seul (sans budget direction)</li>
+                    <li>Besoin de remédiation différenciée par élève</li>
+                    <li>Enseignant déjà dépassé par la charge administrative</li>
+                    <li>Profil early adopter, ouvert à l'IA pédagogique</li>
+                </ul>
+            </div>
+            <div class="win-card lose">
+                <h4>⚠️ Quand c'est plus difficile</h4>
+                <ul>
+                    <li>L'école impose une solution (Smartschool, Pronote)</li>
+                    <li>L'enseignant veut aussi gérer absences/parents</li>
+                    <li>Budget serré — ClassDojo est gratuit</li>
+                    <li>L'enseignant veut uniquement un carnet de notes simple</li>
+                    <li>Établissement qui achète pour toute l'école (B2B institution)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-title" style="margin-bottom: 6px;">Position stratégique unique</div>
+        <div class="section-sub">Klasbook occupe un créneau que personne d'autre ne couvre en Belgique francophone</div>
+
+        <div class="grid-3">
+            <div class="card blue">
+                <h4>🚀 L'angle IA</h4>
+                <p>Aucun concurrent belge ne génère automatiquement des exercices de remédiation ciblés par IA. C'est votre moat technologique.</p>
+            </div>
+            <div class="card green">
+                <h4>🎯 L'angle praticien</h4>
+                <p>Conçu par un prof de néerlandais FWB en activité. Vous savez ce dont les enseignants ont réellement besoin, pas les commerciaux.</p>
+            </div>
+            <div class="card orange">
+                <h4>💡 L'angle bottom-up</h4>
+                <p>15-30€/mois par enseignant = un prof peut souscrire seul, sans demander à sa direction. Friction zéro à l'adoption.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== KLASBOOK ========== -->
+    <div id="klasbook" class="tab-content">
+        <div class="klasbook-hero">
+            <h2>⚡ Klasbook (Cotefacile)</h2>
+            <p>Le seul outil en Belgique francophone qui détecte automatiquement les lacunes de chaque élève, génère des exercices de remédiation ciblés par IA, et suit leur progression jusqu'à la réussite. Conçu par un professeur de néerlandais de l'Athénée Marie Curie (Bruxelles), pour les enseignants FWB.</p>
+            <div class="pillar-grid">
+                <div class="pillar">
+                    <div class="pillar-emoji">🔍</div>
+                    <div class="pillar-title">Détecte</div>
+                    <div class="pillar-desc">Les lacunes élève par élève via les évaluations formatives</div>
+                </div>
+                <div class="pillar">
+                    <div class="pillar-emoji">🤖</div>
+                    <div class="pillar-title">Génère</div>
+                    <div class="pillar-desc">Des exercices de remédiation ciblés par compétence via IA</div>
+                </div>
+                <div class="pillar">
+                    <div class="pillar-emoji">📈</div>
+                    <div class="pillar-title">Suit</div>
+                    <div class="pillar-desc">La progression jusqu'à la réussite de la sommative</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card green">
+                <h4>✅ Vos forces</h4>
+                <ul>
+                    <li>Seul outil FWB avec remédiation IA automatique</li>
+                    <li>Workflow complet : formative → lacune → remédiation → suivi</li>
+                    <li>Conçu par un enseignant en activité (crédibilité)</li>
+                    <li>Achat individuel sans validation direction</li>
+                    <li>Interface claire, pensée pour l'enseignant pas l'admin</li>
+                    <li>Prix accessible (15-30€/mois)</li>
+                    <li>Référentiels FWB intégrés nativement</li>
+                </ul>
+            </div>
+            <div class="card orange">
+                <h4>⚠️ Points à travailler</h4>
+                <ul>
+                    <li>Produit jeune — pas encore de témoignages clients</li>
+                    <li>Pas de communication parents (volontairement hors scope)</li>
+                    <li>Solo founder — besoin de rassurer sur la pérennité</li>
+                    <li>Notoriété à construire dans le milieu enseignant FWB</li>
+                    <li>Manque de marketing contenu (blog, réseaux)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">🎯 Proof points à développer</h3>
+        <div class="grid-3">
+            <div class="card blue">
+                <h4>💬 Témoignage cible</h4>
+                <p>"Depuis que j'utilise Klasbook, je sais exactement quel élève a besoin de quoi, sans passer des heures à analyser mes corrections."</p>
+            </div>
+            <div class="card blue">
+                <h4>📊 Métrique cible</h4>
+                <p>Réduction de 70% du temps de préparation des remédiations. À mesurer avec vos 5 premiers bêta-testeurs.</p>
+            </div>
+            <div class="card blue">
+                <h4>🏫 Social proof</h4>
+                <p>Utilisation réelle à l'Athénée Marie Curie (Bruxelles) — c'est votre référence numéro 1 pour valider le produit.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== SMARTSCHOOL ========== -->
+    <div id="smartschool" class="tab-content">
+        <div class="comp-header">
+            <div class="comp-logo" style="background: linear-gradient(135deg, #003DA5, #0056D2);">SS</div>
+            <div>
+                <div class="comp-name">Smartschool</div>
+                <div class="comp-tagline">La plateforme numérique de référence des écoles belges K12</div>
+                <div class="comp-meta">
+                    <span class="badge">🇧🇪 Belgique (Flandre)</span>
+                    <span class="badge">20+ ans d'expérience</span>
+                    <span class="badge">Leader K12 belge</span>
+                    <span class="badge">Vente B2B institution</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pricing-block">
+            <div>
+                <div class="pricing-price" style="color: #f59e0b;">Institution</div>
+                <div class="pricing-label">Licence par école / direction</div>
+            </div>
+            <div class="pricing-note">Smartschool se vend aux écoles, pas aux enseignants. L'enseignant n'a pas son mot à dire — c'est la direction qui décide et paie. Budget souvent de plusieurs milliers d'euros/an.</div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card green">
+                <h4>✅ Leurs forces</h4>
+                <ul>
+                    <li>Marque ultra-connue en Belgique</li>
+                    <li>Intégré aux infrastructures IT des écoles</li>
+                    <li>Communication complète (profs, parents, élèves)</li>
+                    <li>Messagerie, agenda, notes, présences, cahier de classe</li>
+                    <li>20 ans de confiance institutionnelle</li>
+                    <li>Intégration Office 365 / Google G Suite</li>
+                </ul>
+            </div>
+            <div class="card red">
+                <h4>❌ Leurs faiblesses critiques</h4>
+                <ul>
+                    <li><strong>Zéro remédiation automatique</strong> — l'enseignant est livré à lui-même</li>
+                    <li>Pas de détection de lacunes par IA</li>
+                    <li>Outil institutionnel, pas outil enseignant</li>
+                    <li>Interface lourde et complexe à utiliser</li>
+                    <li>Pas adapté aux référentiels pédagogiques FWB</li>
+                    <li>L'enseignant ne peut pas l'adopter seul</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">🗣️ Talk tracks</h3>
+
+        <div class="talk-track">
+            <div class="talk-track-label">Si l'école a déjà Smartschool</div>
+            <div class="talk-track-text">"Smartschool, c'est excellent pour la communication de votre école. Klasbook, c'est votre outil personnel de pilotage pédagogique. Les deux sont complémentaires — Smartschool gère l'école, Klasbook gère vos élèves. Et vous l'activez demain, sans demander à votre direction."</div>
+        </div>
+
+        <div class="talk-track">
+            <div class="talk-track-label">Si le prof compare les deux</div>
+            <div class="talk-track-text">"Smartschool, ça répond à une question : comment mon école communique-t-elle ? Klasbook répond à une autre : comment mes élèves progressent-ils ? Ce ne sont pas les mêmes outils. Ce n'est pas la même décision."</div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">💣 Questions-landmines</h3>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Avec Smartschool, comment saviez-vous exactement quels exercices donner à Lucas, qui a raté la compétence sur les verbes séparables, plutôt qu'à Emma, qui a réussi ?"</div>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Est-ce que Smartschool vous proposait des exercices de remédiation différenciés, ou vous deviez les créer vous-même ?"</div>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Combien de temps passiez-vous chaque semaine à analyser vos résultats et préparer vos remédiations ?"</div>
+    </div>
+
+    <!-- ========== PRONOTE ========== -->
+    <div id="pronote" class="tab-content">
+        <div class="comp-header">
+            <div class="comp-logo" style="background: linear-gradient(135deg, #6B21A8, #9333EA);">PR</div>
+            <div>
+                <div class="comp-name">Pronote</div>
+                <div class="comp-tagline">Le logiciel de vie scolaire dominant en France, présent en Belgique</div>
+                <div class="comp-meta">
+                    <span class="badge">🇫🇷 Index Éducation (France)</span>
+                    <span class="badge">25+ ans</span>
+                    <span class="badge">Leader France</span>
+                    <span class="badge">Institutionnel B2B</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pricing-block">
+            <div>
+                <div class="pricing-price" style="color: #f59e0b;">Institutionnel</div>
+                <div class="pricing-label">Licence annuelle par établissement</div>
+            </div>
+            <div class="pricing-note">Pronote s'achète au niveau de l'établissement ou du réseau d'écoles, pas par l'enseignant individuel. En Belgique, l'adoption est moins répandue qu'en France car Smartschool domine. Prix variable selon la taille de l'école.</div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card green">
+                <h4>✅ Leurs forces</h4>
+                <ul>
+                    <li>Très complet : notes, absences, bulletins, EDT, CDT</li>
+                    <li>Gestion administrative totale de l'établissement</li>
+                    <li>Suivi pluriannuel des élèves</li>
+                    <li>Cahier de textes, questionnaires, exercices</li>
+                    <li>Très mature et stable (25+ ans de développement)</li>
+                    <li>Connu des enseignants formés en France</li>
+                </ul>
+            </div>
+            <div class="card red">
+                <h4>❌ Leurs faiblesses critiques</h4>
+                <ul>
+                    <li><strong>Aucune remédiation automatique</strong> — zéro IA pédagogique</li>
+                    <li>Interface complexe et peu intuitive</li>
+                    <li>Pas adapté au système FWB (programme, référentiels)</li>
+                    <li>Décision d'achat 100% institutionnelle</li>
+                    <li>Logiciel très lourd, formation nécessaire</li>
+                    <li>Pas conçu pour la pédagogie active, seulement l'administratif</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">🗣️ Talk tracks</h3>
+
+        <div class="talk-track">
+            <div class="talk-track-label">Si le prof vient de France avec Pronote</div>
+            <div class="talk-track-text">"Pronote fait exactement ce pour quoi il a été conçu : gérer l'administration de votre école. Mais il ne vous aide pas pédagogiquement. Quand un élève rate sa formative, Pronote enregistre la note — Klasbook déclenche automatiquement une remédiation ciblée. Ce sont deux niveaux différents d'outil."</div>
+        </div>
+
+        <div class="talk-track">
+            <div class="talk-track-label">Si l'établissement cherche à remplacer Pronote</div>
+            <div class="talk-track-text">"Klasbook n'est pas un logiciel de gestion scolaire — c'est un outil de pilotage pédagogique pour l'enseignant. Pour remplacer Pronote sur l'administratif, regardez Smartschool ou Scolares. Pour aller au-delà et automatiser vos remédiations, c'est Klasbook."</div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">💣 Questions-landmines</h3>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Dans Pronote, après avoir saisi les résultats de votre formative, que se passait-il ensuite pour les élèves en difficulté ?"</div>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Est-ce que Pronote vous proposait des exercices différenciés selon les lacunes de chaque élève, ou vous deviez les chercher vous-même ?"</div>
+        <div class="landmine"><span class="landmine-icon">💣</span>"En tant qu'enseignant FWB, est-ce que Pronote intégrait les référentiels de compétences de la Fédération ?"</div>
+    </div>
+
+    <!-- ========== CLASSDOJO ========== -->
+    <div id="classdojo" class="tab-content">
+        <div class="comp-header">
+            <div class="comp-logo" style="background: linear-gradient(135deg, #16a34a, #22c55e);">CD</div>
+            <div>
+                <div class="comp-name">ClassDojo</div>
+                <div class="comp-tagline">App de communication parents-enseignants, très répandue mais superficielle</div>
+                <div class="comp-meta">
+                    <span class="badge">🇺🇸 USA (San Francisco)</span>
+                    <span class="badge">Gratuit (freemium)</span>
+                    <span class="badge">50M+ utilisateurs</span>
+                    <span class="badge">Communication only</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pricing-block">
+            <div>
+                <div class="pricing-price" style="color: #10b981;">Gratuit</div>
+                <div class="pricing-label">+ ClassDojo Plus ~15€/mois</div>
+            </div>
+            <div class="pricing-note">Le cœur de ClassDojo est entièrement gratuit pour les enseignants. ClassDojo Plus ajoute des fonctionnalités pour les parents (récompenses à la maison, etc.). C'est un outil de communication, pas un outil pédagogique.</div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card green">
+                <h4>✅ Leurs forces</h4>
+                <ul>
+                    <li>Entièrement gratuit — barrière à l'entrée zéro</li>
+                    <li>Très simple à utiliser</li>
+                    <li>Communication parents multilingue (35+ langues)</li>
+                    <li>Points, portfolios élèves, partage de photos</li>
+                    <li>Très répandu (aussi bien en primaire)</li>
+                    <li>App mobile excellente</li>
+                </ul>
+            </div>
+            <div class="card red">
+                <h4>❌ Leurs faiblesses critiques</h4>
+                <ul>
+                    <li><strong>Zéro fonctionnalité académique</strong> — pas de notes, pas d'évaluations</li>
+                    <li>Aucun suivi des apprentissages</li>
+                    <li>Aucune remédiation, ni manuel ni automatique</li>
+                    <li>Pas adapté à l'enseignement secondaire</li>
+                    <li>Pas conçu pour la FWB</li>
+                    <li>Données stockées aux USA (questions RGPD)</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">🗣️ Talk tracks</h3>
+
+        <div class="talk-track">
+            <div class="talk-track-label">Si le prof utilise ClassDojo et cherche plus</div>
+            <div class="talk-track-text">"ClassDojo est parfait pour parler aux parents. Klasbook est un outil différent : c'est votre pilote pédagogique. Continuez ClassDojo pour la communication — ajoutez Klasbook pour savoir précisément où en sont vos élèves et leur proposer des exercices adaptés automatiquement."</div>
+        </div>
+
+        <div class="talk-track">
+            <div class="talk-track-label">Si le prof hésite à cause du prix (ClassDojo = gratuit)</div>
+            <div class="talk-track-text">"ClassDojo fait une chose bien : communiquer avec les parents. Mais combien de temps passez-vous chaque semaine à préparer des remédiations que ClassDojo ne vous aidera jamais à automatiser ? Klasbook vous rend ce temps. 20€/mois, c'est 4 heures de travail en moins par mois — à votre taux horaire, c'est rentable dès la première semaine."</div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">💣 Questions-landmines</h3>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Dans ClassDojo, comment saviez-vous quelles compétences vos élèves n'avaient pas acquises après une évaluation ?"</div>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Est-ce que ClassDojo vous proposait des exercices à donner à l'élève qui a raté un objectif spécifique ?"</div>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Vos données élèves sont stockées sur des serveurs américains avec ClassDojo — est-ce que votre école a vérifié la conformité RGPD ?"</div>
+    </div>
+
+    <!-- ========== ADDITIO ========== -->
+    <div id="additio" class="tab-content">
+        <div class="comp-header">
+            <div class="comp-logo" style="background: linear-gradient(135deg, #b45309, #d97706);">AD</div>
+            <div>
+                <div class="comp-name">Additio App</div>
+                <div class="comp-tagline">Le carnet de notes digital pour enseignants individuels — populaire mais limité</div>
+                <div class="comp-meta">
+                    <span class="badge">🇪🇸 Espagne</span>
+                    <span class="badge">500k+ enseignants</span>
+                    <span class="badge">110+ pays</span>
+                    <span class="badge">B2C enseignant</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pricing-block">
+            <div>
+                <div class="pricing-price" style="color: #10b981;">~4-8€</div>
+                <div class="pricing-label">par mois / enseignant</div>
+            </div>
+            <div class="pricing-note">Additio propose un plan Starter gratuit pour découvrir, puis un plan Teachers payant pour accéder à toutes les fonctionnalités. C'est le concurrent direct sur le segment "enseignant individuel". Moins cher que Klasbook, mais sans aucune IA ni automatisation.</div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card green">
+                <h4>✅ Leurs forces</h4>
+                <ul>
+                    <li>Populaire auprès des profs individuels (500k+ utilisateurs)</li>
+                    <li>Rubrics, compétences, objectifs — bien pensé</li>
+                    <li>Prix bas (starter gratuit)</li>
+                    <li>Disponible sur tous les appareils</li>
+                    <li>Interface relativement simple</li>
+                    <li>Plans pour les écoles aussi (Additio for Schools)</li>
+                </ul>
+            </div>
+            <div class="card red">
+                <h4>❌ Leurs faiblesses critiques</h4>
+                <ul>
+                    <li><strong>Saisie 100% manuelle</strong> — pas d'automatisation</li>
+                    <li>Aucune remédiation automatique, ni IA</li>
+                    <li>Pas de détection de lacunes</li>
+                    <li>Outil passif : enregistre, n'agit pas</li>
+                    <li>Pas adapté aux référentiels FWB spécifiquement</li>
+                    <li>Entreprise espagnole — peu de support local FWB</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">🗣️ Talk tracks</h3>
+
+        <div class="talk-track">
+            <div class="talk-track-label">Additio vs Klasbook — positionnement</div>
+            <div class="talk-track-text">"Additio enregistre vos évaluations. Klasbook les analyse et agit. Avec Additio, vous savez que Lucas a eu 4/10 — et vous devez décider vous-même quoi faire. Avec Klasbook, le système détecte la lacune et génère automatiquement un exercice ciblé pour Lucas. C'est la différence entre un carnet de notes digital et un assistant pédagogique."</div>
+        </div>
+
+        <div class="talk-track">
+            <div class="talk-track-label">Si le prof hésite à cause du prix (Additio moins cher)</div>
+            <div class="talk-track-text">"Additio est effectivement moins cher. Mais la question n'est pas le coût, c'est la valeur. Si Klasbook vous économise 3-4 heures de préparation de remédiations par semaine, la différence de prix est récupérée en quelques heures. Et vos élèves progressent mieux."</div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">💣 Questions-landmines</h3>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Avec Additio, une fois que vous aviez saisi vos résultats, combien de temps passiez-vous à préparer les exercices de remédiation pour chaque élève en difficulté ?"</div>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Est-ce qu'Additio vous proposait des exercices différenciés selon la compétence non acquise, ou vous deviez les créer vous-même ?"</div>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Comment saviez-vous si votre remédiation avait fonctionné — est-ce qu'Additio suivait la progression jusqu'à la sommative ?"</div>
+    </div>
+
+    <!-- ========== CABANGA ========== -->
+    <div id="cabanga" class="tab-content">
+        <div class="comp-header">
+            <div class="comp-logo" style="background: linear-gradient(135deg, #0369a1, #0ea5e9);">CA</div>
+            <div>
+                <div class="comp-name">Cabanga / Scolares</div>
+                <div class="comp-tagline">La plateforme de gestion de vie scolaire 100% FWB — institutionnelle et administrative</div>
+                <div class="comp-meta">
+                    <span class="badge">🇧🇪 100% FWB</span>
+                    <span class="badge">Fusion Infodidac + Cabanga (2023)</span>
+                    <span class="badge">~20 écoles FWB</span>
+                    <span class="badge">B2B institution</span>
+                    <span class="badge">PWA multi-appareils</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: rgba(3,105,161,0.08); border: 1px solid rgba(14,165,233,0.2); border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: #0ea5e9; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">⚠️ Concurrent indirect — pas direct</div>
+            <div style="font-size: 0.88rem; color: var(--text-secondary);">Cabanga/Scolares est un outil de <strong style="color: var(--text-primary);">gestion administrative de l'école</strong>, pas un outil pédagogique pour l'enseignant. Les deux outils peuvent coexister dans la même école sans se concurrencer.</div>
+        </div>
+
+        <div class="pricing-block">
+            <div>
+                <div class="pricing-price" style="color: #f59e0b;">Institution</div>
+                <div class="pricing-label">Licence par école / réseau</div>
+            </div>
+            <div class="pricing-note">Cabanga se vend aux établissements scolaires, pas aux enseignants individuels. L'enseignant utilise l'outil parce que son école l'a adopté — il ne peut pas s'y abonner seul. Prix non publié, négocié directement avec les écoles.</div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card green">
+                <h4>✅ Leurs forces</h4>
+                <ul>
+                    <li>100% FWB — conçu pour le contexte belge francophone</li>
+                    <li>Bulletins numériques complets</li>
+                    <li>Journal de classe digital</li>
+                    <li>Gestion des absences et justificatifs</li>
+                    <li>Plans Individuels d'Accompagnement (PIA)</li>
+                    <li>Communication parents (email + SMS)</li>
+                    <li>Réunions parents-profs intégrées</li>
+                    <li>PWA — fonctionne sur tous les appareils</li>
+                    <li>Soutenu par DigitalWallonia</li>
+                </ul>
+            </div>
+            <div class="card red">
+                <h4>❌ Leurs faiblesses critiques</h4>
+                <ul>
+                    <li><strong>Zéro remédiation automatique</strong> — l'IA pédagogique est absente</li>
+                    <li>Pas de détection de lacunes par compétence</li>
+                    <li>Outil 100% administratif, pas pédagogique</li>
+                    <li>L'enseignant ne peut pas l'acheter seul</li>
+                    <li>Adoption lente — seulement ~20 écoles</li>
+                    <li>Ne génère pas d'exercices différenciés</li>
+                    <li>Ne suit pas la progression vers la sommative</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">🤝 Angle complémentarité (opportunité clé)</h3>
+
+        <div class="card blue" style="margin-bottom: 16px;">
+            <h4>💡 Stratégie recommandée</h4>
+            <p>Dans les ~20 écoles qui utilisent Cabanga, les enseignants sont équipés pour l'administratif mais pas pour la remédiation pédagogique. C'est un marché captif : ces profs ont déjà l'habitude des outils numériques. Positionner Klasbook comme le <strong>complément pédagogique de Cabanga</strong> = porte d'entrée idéale.</p>
+        </div>
+
+        <div class="talk-track">
+            <div class="talk-track-label">Dans une école qui utilise Cabanga</div>
+            <div class="talk-track-text">"Votre école a Cabanga pour les bulletins, les absences et la communication avec les parents — c'est parfait pour l'administratif. Klasbook fait ce que Cabanga ne fait pas : après chaque évaluation, il détecte les lacunes de chaque élève et génère automatiquement des exercices de remédiation ciblés. Ce sont deux outils qui se complètent, pas deux outils qui se remplacent."</div>
+        </div>
+
+        <div class="talk-track">
+            <div class="talk-track-label">Si le coordinateur pédagogique a déjà Cabanga</div>
+            <div class="talk-track-text">"Cabanga vous donne une vue sur la vie administrative de l'école. Klasbook vous donne une vue sur la progression pédagogique de chaque élève, compétence par compétence. Ensemble, vous avez enfin une image complète — l'admin ET la pédagogie."</div>
+        </div>
+
+        <div class="divider"></div>
+        <h3 class="section">💣 Questions-landmines</h3>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Dans Cabanga, quand un élève rate une compétence à la formative, qu'est-ce qui se passe automatiquement pour lui ensuite ?"</div>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Est-ce que Cabanga vous propose des exercices de remédiation adaptés à chaque lacune identifiée, ou vous devez les préparer vous-même ?"</div>
+        <div class="landmine"><span class="landmine-icon">💣</span>"Comment savez-vous, avant la sommative, quels élèves ont comblé leurs lacunes depuis la formative ?"</div>
+
+        <div class="divider"></div>
+        <h3 class="section">🎯 Comment aborder les écoles Cabanga</h3>
+        <div class="grid-3">
+            <div class="card blue">
+                <h4>🏫 Cible dans l'école</h4>
+                <p>Ne pas aller vers la direction (qui a déjà Cabanga et n'a pas envie d'un nouvel outil). Aller directement vers les <strong>enseignants individuels</strong> qui peuvent s'abonner seuls à Klasbook. La décision ne passe pas par la direction.</p>
+            </div>
+            <div class="card green">
+                <h4>💬 Message à utiliser</h4>
+                <p>"Votre école a Cabanga — super. Klasbook, c'est votre outil personnel en plus, que vous activez vous-même. 19€/mois, sans avoir besoin d'en parler à votre direction."</p>
+            </div>
+            <div class="card orange">
+                <h4>📈 Opportunité long terme</h4>
+                <p>Proposer à Scolares/Cabanga une <strong>intégration partenaire</strong> : Klasbook comme module pédagogique dans leur écosystème. Un deal B2B avec Scolares = accès immédiat à toutes leurs écoles.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== MONÉTISATION ========== -->
+    <div id="monetisation" class="tab-content">
+        <div class="section-title">💶 Roadmap vers un 2ème salaire</div>
+        <div class="section-sub">Plan réaliste en 3 phases pour générer 1500-2000€/mois net avec Klasbook</div>
+
+        <div class="roadmap-steps">
+            <div class="roadmap-step">
+                <div class="step-num">1</div>
+                <div class="step-info">
+                    <div class="step-label">Phase 1 · Mois 1-3</div>
+                    <div class="step-title">Validation avec 5-10 collègues bêta</div>
+                    <div class="step-desc">Donner l'accès gratuitement à 5-10 collègues de confiance à Marie Curie ou dans votre réseau. Objectif : collecter des témoignages, valider le produit, identifier les frictions. Demander un retour honnête en échange de l'accès gratuit.</div>
+                </div>
+                <div class="step-revenue">
+                    <div class="step-revenue-num">0€</div>
+                    <div class="step-revenue-label">mais validation</div>
+                </div>
+            </div>
+
+            <div class="roadmap-step">
+                <div class="step-num">2</div>
+                <div class="step-info">
+                    <div class="step-label">Phase 2 · Mois 3-6</div>
+                    <div class="step-title">Early Adopters à tarif réduit</div>
+                    <div class="step-desc">Lancer une offre Early Adopter à 9€/mois (au lieu de 20€) pour les 50 premiers. Communiquer via : groupe Facebook "Profs en FWB", LinkedIn enseignants, bouche-à-oreille réseau, coordinateurs pédagogiques. 1 email bien rédigé à votre réseau = 10-20 inscrits potentiels.</div>
+                </div>
+                <div class="step-revenue">
+                    <div class="step-revenue-num">~300€</div>
+                    <div class="step-revenue-label">mois (30 profs × 9€)</div>
+                </div>
+            </div>
+
+            <div class="roadmap-step">
+                <div class="step-num">3</div>
+                <div class="step-info">
+                    <div class="step-label">Phase 3 · Mois 6-12</div>
+                    <div class="step-title">Croissance organique + contenu</div>
+                    <div class="step-desc">Augmenter le prix à 19€/mois. Créer 2-3 posts par semaine sur LinkedIn sur la remédiation, les lacunes, l'IA en classe. Démarchage des coordinateurs pédagogiques FWB (1 coordinateur = 10-20 profs dans son réseau). Partenariat avec les IESP / Hautes Écoles de formation initiale.</div>
+                </div>
+                <div class="step-revenue">
+                    <div class="step-revenue-num">~1900€</div>
+                    <div class="step-revenue-label">mois (100 profs × 19€)</div>
+                </div>
+            </div>
+
+            <div class="roadmap-step">
+                <div class="step-num">4</div>
+                <div class="step-info">
+                    <div class="step-label">Phase 4 · Mois 12-18</div>
+                    <div class="step-title">Plan École (B2B) + Belgique entière</div>
+                    <div class="step-desc">Lancer un plan "École" à 199€/mois pour 10 profs. Contacter les PouvOrs Organisateurs, les coordinateurs numériques désignés par la FWB, et ouvrir aux Communautés néerlandophone et germanophone. Un seul contrat école = 10 licences = 1 an de revenus sécurisé.</div>
+                </div>
+                <div class="step-revenue">
+                    <div class="step-revenue-num">3500€+</div>
+                    <div class="step-revenue-label">mois (objectif)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-title" style="margin-bottom: 6px;">🎯 Canaux d'acquisition prioritaires</div>
+        <div class="section-sub">Par ordre d'effort vs impact pour un solo founder</div>
+
+        <div class="grid-3">
+            <div class="card green">
+                <h4>🔥 Impact fort / Effort faible</h4>
+                <ul>
+                    <li>Bouche-à-oreille collègues (réseau direct)</li>
+                    <li>Posts LinkedIn (1 bonne histoire = 5-10 leads)</li>
+                    <li>Groupes Facebook profs FWB</li>
+                    <li>Email à votre réseau enseignant personnel</li>
+                </ul>
+            </div>
+            <div class="card blue">
+                <h4>📈 Impact fort / Effort moyen</h4>
+                <ul>
+                    <li>Coordinateurs pédagogiques (1 → 20 profs)</li>
+                    <li>Blog/contenu SEO sur la remédiation</li>
+                    <li>Partenariat avec fédérations enseignants</li>
+                    <li>Conférences pédagogiques FWB</li>
+                </ul>
+            </div>
+            <div class="card orange">
+                <h4>⏳ Impact long terme</h4>
+                <ul>
+                    <li>Partenariat Hautes Écoles (formation initiale)</li>
+                    <li>Démarchage systèmes éducatifs</li>
+                    <li>Contenu YouTube (tutos Klasbook)</li>
+                    <li>Presse éducative francophone</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-title" style="margin-bottom: 6px;">💡 Structurer les offres</div>
+        <div class="section-sub">Recommandation pricing pour maximiser la conversion</div>
+
+        <div class="grid-3">
+            <div class="card" style="border-top: 3px solid var(--border);">
+                <h4 style="color: var(--text-muted);">STARTER</h4>
+                <div style="font-size:1.5rem; font-weight:800; margin: 8px 0; color: #10b981;">Gratuit</div>
+                <ul>
+                    <li>1 classe, 5 élèves max</li>
+                    <li>Évaluations formatives</li>
+                    <li>3 remédiations/mois</li>
+                    <li>Pour tester sans risque</li>
+                </ul>
+            </div>
+            <div class="card" style="border-top: 3px solid #FF3B30; background: rgba(255,59,48,0.05);">
+                <h4 style="color: #FF3B30;">PRO ⭐ Recommandé</h4>
+                <div style="font-size:1.5rem; font-weight:800; margin: 8px 0;">19€/mois</div>
+                <ul>
+                    <li>Classes illimitées</li>
+                    <li>Remédiations IA illimitées</li>
+                    <li>Suivi progression complet</li>
+                    <li>Support prioritaire</li>
+                </ul>
+            </div>
+            <div class="card" style="border-top: 3px solid #0A84FF;">
+                <h4 style="color: #0A84FF;">ÉCOLE</h4>
+                <div style="font-size:1.5rem; font-weight:800; margin: 8px 0;">199€/mois</div>
+                <ul>
+                    <li>10 comptes enseignants</li>
+                    <li>Dashboard direction</li>
+                    <li>Onboarding dédié</li>
+                    <li>Facturation centralisée</li>
+                </ul>
+            </div>
+        </div>
+
+        <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); border-radius: 12px; padding: 20px; margin-top: 8px;">
+            <div style="font-size: 0.85rem; color: #10b981; font-weight: 700; margin-bottom: 8px;">🎯 Objectif 2ème salaire : 100 profs Pro × 19€ = 1900€/mois net</div>
+            <div style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6;">En Belgique francophone, il y a environ <strong style="color: var(--text-primary);">40 000 enseignants</strong> dans l'enseignement obligatoire FWB. Capturer 0,25% de ce marché (100 enseignants) = votre 2ème salaire. C'est une cible très réaliste avec un produit différencié comme Klasbook.</div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function showTab(id) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        event.currentTarget.classList.add('active');
+    }
+</script>
+
+</body>
+</html>

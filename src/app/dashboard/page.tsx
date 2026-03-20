@@ -22,7 +22,6 @@ type DashboardData = {
   evals_recentes: Eval[];
 };
 
-/* ── styles ── */
 const card: React.CSSProperties = {
   borderRadius: 16, background: "#fff",
   border: "1px solid rgba(15,23,42,0.08)",
@@ -48,7 +47,6 @@ function StatutBadge({ statut }: { statut: string }) {
   return <span style={{ ...badge, ...(styles[statut] ?? styles["En cours"]) }}>{labels[statut] ?? statut}</span>;
 }
 
-// Mini jauge circulaire
 function MiniGauge({ pct, color, label }: { pct: number; color: string; label: string }) {
   const r = 28, cx = 34, cy = 34, circ = 2 * Math.PI * r;
   const arc = (pct / 100) * circ;
@@ -89,7 +87,6 @@ export default function DashboardPage() {
 
   if (loading) return (
     <div style={{ display: "grid", gap: 16 }}>
-      {/* Skeleton stats */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
         {[...Array(6)].map((_, i) => (
           <div key={i} style={{ ...card, height: 100, background: "rgba(15,23,42,0.04)", border: "none", boxShadow: "none" }} />
@@ -111,7 +108,7 @@ export default function DashboardPage() {
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gap: 18, padding: "0 4px 40px" }}>
 
-      {/* ── BANNIÈRE ACCUEIL ── */}
+      {/* BANNIÈRE */}
       <div style={{
         borderRadius: 18, overflow: "hidden", position: "relative",
         background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
@@ -122,11 +119,10 @@ export default function DashboardPage() {
         <div style={{ marginTop: 6, opacity: 0.88, fontSize: 15 }}>
           Voici un aperçu de ta classe au {new Date().toLocaleDateString("fr-BE", { weekday: "long", day: "numeric", month: "long" })}.
         </div>
-        {/* Décos */}
         <div style={{ position: "absolute", right: 24, top: 16, opacity: 0.12, fontSize: 80, userSelect: "none" }}>📊</div>
       </div>
 
-      {/* ── STATS CARDS ── */}
+      {/* STATS */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))", gap: 12 }}>
         {[
           { emoji: "👥", value: stats.nb_eleves, label: "Élèves", color: "#0A84FF", bg: "rgba(10,132,255,0.07)", border: "rgba(10,132,255,0.18)" },
@@ -144,10 +140,8 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* ── LIGNE : jauges + élèves en difficulté ── */}
+      {/* JAUGES + ÉLÈVES EN DIFFICULTÉ */}
       <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 14 }}>
-
-        {/* Jauges */}
         <div style={{ ...card, display: "flex", flexDirection: "column", gap: 20, alignItems: "center", justifyContent: "center", minWidth: 140 }}>
           <MiniGauge
             pct={stats.taux_remediation}
@@ -161,7 +155,6 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Élèves en difficulté */}
         <div style={card}>
           <div style={sectionTitle}>
             🚨 Élèves en difficulté
@@ -193,9 +186,7 @@ export default function DashboardPage() {
                       }}>
                         {e.prenom[0]}{e.nom[0]}
                       </div>
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: 14 }}>{e.prenom} {e.nom}</div>
-                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 14 }}>{e.prenom} {e.nom}</div>
                     </div>
                     <span style={{ ...badge, background: "rgba(255,59,48,0.12)", border: "1px solid rgba(255,59,48,0.3)", color: "#991B1B" }}>
                       {e.nb_ni} NI
@@ -208,10 +199,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── LIGNE : remédiations + évaluations ── */}
+      {/* REMÉDIATIONS + ÉVALUATIONS */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-
-        {/* Remédiations actives */}
         <div style={card}>
           <div style={{ ...sectionTitle, justifyContent: "space-between" }}>
             <span>🔧 Remédiations en cours</span>
@@ -224,8 +213,7 @@ export default function DashboardPage() {
               {rem_recentes.map((r) => (
                 <Link key={r.id} href={`/eleves/${r.eleve_id}`} style={{ textDecoration: "none", color: "inherit" }}>
                   <div style={{
-                    border: "1px solid rgba(15,23,42,0.08)", borderRadius: 12, padding: "10px 12px",
-                    cursor: "pointer",
+                    border: "1px solid rgba(15,23,42,0.08)", borderRadius: 12, padding: "10px 12px", cursor: "pointer",
                   }}
                     onMouseEnter={(el) => (el.currentTarget.style.background = "rgba(15,23,42,0.02)")}
                     onMouseLeave={(el) => (el.currentTarget.style.background = "transparent")}
@@ -244,7 +232,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Évaluations récentes */}
         <div style={card}>
           <div style={{ ...sectionTitle, justifyContent: "space-between" }}>
             <span>📝 Évaluations récentes</span>
@@ -257,8 +244,7 @@ export default function DashboardPage() {
               {evals_recentes.map((e) => (
                 <Link key={e.id} href="/evaluations" style={{ textDecoration: "none", color: "inherit" }}>
                   <div style={{
-                    border: "1px solid rgba(15,23,42,0.08)", borderRadius: 12, padding: "10px 12px",
-                    cursor: "pointer",
+                    border: "1px solid rgba(15,23,42,0.08)", borderRadius: 12, padding: "10px 12px", cursor: "pointer",
                   }}
                     onMouseEnter={(el) => (el.currentTarget.style.background = "rgba(15,23,42,0.02)")}
                     onMouseLeave={(el) => (el.currentTarget.style.background = "transparent")}
@@ -275,16 +261,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── ACCÈS RAPIDES ── */}
+      {/* ── ACCÈS RAPIDES (avec Import en bas) ── */}
       <div style={card}>
         <div style={sectionTitle}>⚡ Accès rapides</div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           {[
-            { href: "/teacher", label: "📋 Classes & cotation", color: "#0A84FF" },
-            { href: "/evaluations", label: "📝 Évaluations", color: "#FF9F0A" },
-            { href: "/remediations", label: "🔧 Remédiations", color: "#636AFF" },
-            { href: "/generateur", label: "✨ Générateur IA", color: "#FF3B30" },
-            { href: "/agenda", label: "📅 Agenda", color: "#30D158" },
+            { href: "/teacher",        label: "📋 Classes & cotation", color: "#0A84FF" },
+            { href: "/evaluations",    label: "📝 Évaluations",        color: "#FF9F0A" },
+            { href: "/remediations",   label: "🔧 Remédiations",       color: "#636AFF" },
+            { href: "/generateur",     label: "✨ Générateur IA",      color: "#FF3B30" },
+            { href: "/agenda",         label: "📅 Agenda",             color: "#30D158" },
+            { href: "/outils",         label: "🎲 Outils de classe",   color: "#FF9500" },
+            { href: "/import",         label: "📥 Import",             color: "#64748b" },
           ].map(({ href, label, color }) => (
             <Link key={href} href={href} style={{
               padding: "10px 16px", borderRadius: 12, fontWeight: 800, fontSize: 13,

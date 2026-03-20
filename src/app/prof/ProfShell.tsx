@@ -1,28 +1,61 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 
-const NAV_ITEMS = [
-  { label: "Accueil", icon: "🏠", href: "/dashboard" },
-  { label: "Planification", icon: "N", href: "/planification" },
-  { label: "Classes", icon: "👥", href: "/classe" },
-  { label: "Évaluations", icon: "📝", href: "/evaluations" },
-  { label: "Créer une éval.", icon: "📄", href: "/creer-evaluation" },
-  { label: "Historique", icon: "📚", href: "/historique" },
-  { label: "Remédiations", icon: "🩺", href: "/remediations" },
-  { label: "Agenda", icon: "📅", href: "/agenda" },
+type NavChild = { label: string; icon: string; href: string };
+type NavItem = {
+  label: string;
+  icon: string;
+  href: string;
+  children?: NavChild[];
+};
+
+const NAV_ITEMS: NavItem[] = [
+  {
+    label: "Accueil", icon: "🏠", href: "/dashboard",
+    children: [
+      { label: "Tableau de bord", icon: "🏠", href: "/dashboard" },
+      { label: "Import",          icon: "⬆️", href: "/import" },
+    ],
+  },
+  { label: "Agenda",        icon: "📅", href: "/agenda" },
+  { label: "Classes",       icon: "👥", href: "/classe" },
+  {
+    label: "Évaluations", icon: "📝", href: "/evaluations",
+    children: [
+      { label: "Mes évaluations",  icon: "📝", href: "/evaluations" },
+      { label: "Créer une éval.",  icon: "📄", href: "/creer-evaluation" },
+    ],
+  },
+  { label: "Remédiations",  icon: "🩺", href: "/remediations" },
+  { label: "Historique",    icon: "📚", href: "/historique" },
   { label: "Générateur IA", icon: "✨", href: "/generateur" },
-  { label: "Outils", icon: "🎲", href: "/outils" },
-  { label: "Import", icon: "⬆️", href: "/import" },
+  { label: "Outils",        icon: "🎲", href: "/outils" },
 ];
+
+const ALL_HREFS = NAV_ITEMS.flatMap(item =>
+  item.children ? item.children.map(c => ({ ...c })) : [item]
+);
 
 export default function ProfShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -34,7 +67,16 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
     router.push("/login");
   }
 
-  const currentPage = NAV_ITEMS.find(
+  function isActive(href: string) {
+    return pathname === href || (href !== "/" && pathname?.startsWith(href));
+  }
+
+  function isGroupActive(item: NavItem) {
+    if (isActive(item.href)) return true;
+    return item.children?.some(c => isActive(c.href)) ?? false;
+  }
+
+  const currentPage = ALL_HREFS.find(
     i => pathname === i.href || (i.href !== "/" && pathname?.startsWith(i.href))
   );
 
@@ -67,9 +109,87 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
           </a>
 
           {/* NAV LINKS */}
-          <nav style={{ display: "flex", alignItems: "center", gap: 2, flex: 1, flexWrap: "nowrap", overflow: "auto" }}>
+          <nav ref={dropdownRef} style={{ display: "flex", alignItems: "center", gap: 2, flex: 1, flexWrap: "nowrap", overflow: "auto" }}>
             {NAV_ITEMS.map(item => {
-              const active = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
+              const active = isGroupActive(item);
+
+              if (item.children) {
+                const isOpen = openDropdown === item.href;
+                return (
+                  <div key={item.href} style={{ position: "relative" }}>
+                    <button
+                      onClick={() => setOpenDropdown(isOpen ? null : item.href)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 6,
+                        padding: "6px 10px", borderRadius: 8,
+                        border: "none", background: active ? "rgba(15,23,42,0.07)" : "transparent",
+                        cursor: "pointer", fontSize: "0.82rem",
+                        fontWeight: active ? 700 : 500,
+                        color: active ? "#0f172a" : "#64748b",
+                        transition: "all 0.15s",
+                        whiteSpace: "nowrap", flexShrink: 0,
+                        position: "relative",
+                      }}
+                    >
+                      <span style={{ fontSize: 13 }}>{item.icon}</span>
+                      {item.label}
+                      <span style={{
+                        fontSize: 9, marginLeft: 2, opacity: 0.6,
+                        transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                        transition: "transform 0.15s", display: "inline-block",
+                      }}>▼</span>
+                      {active && (
+                        <span style={{
+                          position: "absolute", bottom: -13, left: "50%", transform: "translateX(-50%)",
+                          width: 28, height: 2, borderRadius: 2,
+                          background: "linear-gradient(90deg, #FF3B30, #0A84FF)",
+                        }} />
+                      )}
+                    </button>
+
+                    {isOpen && (
+                      <div style={{
+                        position: "absolute", top: "calc(100% + 14px)", left: 0, zIndex: 300,
+                        background: "#fff", borderRadius: 12,
+                        border: "1px solid rgba(15,23,42,0.1)",
+                        boxShadow: "0 8px 32px rgba(15,23,42,0.14)",
+                        padding: 6, minWidth: 200,
+                      }}>
+                        {item.children.map(child => {
+                          const childActive = isActive(child.href);
+                          return (
+                            <a
+                              key={child.href}
+                              href={child.href}
+                              onClick={() => setOpenDropdown(null)}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 8,
+                                padding: "9px 12px", borderRadius: 8,
+                                textDecoration: "none",
+                                fontSize: "0.85rem",
+                                fontWeight: childActive ? 700 : 500,
+                                color: childActive ? "#0f172a" : "#475569",
+                                background: childActive ? "rgba(10,132,255,0.08)" : "transparent",
+                                transition: "background 0.12s",
+                              }}
+                            >
+                              <span style={{ fontSize: 14 }}>{child.icon}</span>
+                              {child.label}
+                              {childActive && (
+                                <span style={{
+                                  marginLeft: "auto", width: 6, height: 6, borderRadius: "50%",
+                                  background: "#0A84FF", flexShrink: 0,
+                                }} />
+                              )}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <a key={item.href} href={item.href} style={{
                   display: "flex", alignItems: "center", gap: 6,
@@ -80,8 +200,7 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
                   background: active ? "rgba(15,23,42,0.07)" : "transparent",
                   transition: "all 0.15s",
                   position: "relative",
-                  whiteSpace: "nowrap",
-                  flexShrink: 0,
+                  whiteSpace: "nowrap", flexShrink: 0,
                 }}>
                   <span style={{ fontSize: 13 }}>{item.icon}</span>
                   {item.label}
@@ -145,7 +264,6 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      {/* Click outside to close menu */}
       {menuOpen && (
         <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 150 }} />
       )}

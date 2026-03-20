@@ -1,5 +1,5 @@
 import ProfShell from "@/app/prof/ProfShell";
 
-export default function ImportLayout({ children }: { children: React.ReactNode }) {
+export default function OutilsLayout({ children }: { children: React.ReactNode }) {
   return <ProfShell>{children}</ProfShell>;
 }

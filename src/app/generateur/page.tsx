@@ -1,72 +1,134 @@
 "use client";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 
 type Message = { role: "user" | "assistant"; content: string; id: string };
-type Skill = "chat" | "analyse" | "grille" | "diff" | "planning" | "tandem";
 
 const GRADIENT = "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)";
 
-const SKILLS: { id: Skill; label: string; emoji: string; color: string; description: string }[] = [
-  { id: "chat",     label: "Chat libre",      emoji: "💬", color: "#0A84FF", description: "Questions sur le référentiel FWB" },
-  { id: "analyse",  label: "Analyser copie",  emoji: "📝", color: "#FF3B30", description: "Évaluer une production selon FWB" },
-  { id: "grille",   label: "Créer grille",    emoji: "📊", color: "#FF9500", description: "Grille critériée conforme FWB" },
-  { id: "diff",     label: "Différenciation", emoji: "🎯", color: "#34C759", description: "3 niveaux d'un même exercice" },
-  { id: "planning", label: "Planification",   emoji: "📅", color: "#AF52DE", description: "Plan annuel conforme FWB" },
-  { id: "tandem",   label: "Tandem Brio",     emoji: "📗", color: "#00C7BE", description: "Lier le manuel aux attendus FWB" },
-];
+// ─── CONFIG PAR MATIÈRE ────────────────────────────────────────────────────
 
-const SUGGESTIONS: Record<Skill, { label: string; prompt: string }[]> = {
-  chat: [
-    { label: "Attendus 1S néerlandais", prompt: "Quels sont exactement les attendus grammaticaux néerlandais pour la 1re secondaire selon le référentiel FWB ?" },
-    { label: "Attendus 2S néerlandais", prompt: "Quels sont les savoirs grammaticaux néerlandais de la 2e secondaire selon le référentiel FWB ?" },
-    { label: "Différence A2.2 vs B1.1", prompt: "Quelle est la différence concrète entre le niveau A2.2 (1S) et B1.1 (2S) en termes d'exigences et de tolérance aux erreurs ?" },
-    { label: "5 compétences FWB", prompt: "Explique-moi les 5 compétences du référentiel FWB (EOSI, EOEI, CA, CL, EE) avec des exemples concrets pour la 1re secondaire." },
-    { label: "Tolérance aux erreurs", prompt: "Quelles erreurs sont tolérées en 1re secondaire selon le référentiel FWB pour les productions orales et écrites ?" },
-    { label: "Critères inspection", prompt: "Quels sont les points de vigilance lors d'une visite d'inspection pour un cours de néerlandais en 1re secondaire FWB ?" },
-  ],
-  analyse: [
-    { label: "Production écrite 1S", prompt: "Analyse cette production écrite d'un élève de 1re secondaire (niveau A2.2, compétence EE) :\n\n[Colle la production ici]" },
-    { label: "Production orale 1S", prompt: "Voici la retranscription d'une production orale d'élève de 1re secondaire (EOSI, A2.2). Analyse selon le référentiel FWB :\n\n[Colle la retranscription ici]" },
-    { label: "Production écrite 2S", prompt: "Analyse cette production écrite d'un élève de 2e secondaire (niveau B1.1, compétence EE) :\n\n[Colle la production ici]" },
-    { label: "Réponses compréhension", prompt: "Voici les réponses d'un élève de 1re secondaire à un exercice de compréhension à la lecture. Évalue selon le référentiel FWB :\nTexte : [texte néerlandais]\nRéponses : [réponses élève]" },
-  ],
-  grille: [
-    { label: "Grille EE 1S", prompt: "Crée une grille d'évaluation critériée complète et conforme FWB pour l'expression écrite (EE) en 1re secondaire (niveau A2.2)." },
-    { label: "Grille EOSI 1S", prompt: "Crée une grille pour l'expression orale sans interaction (EOSI) en 1re secondaire (niveau A2.2), conforme référentiel FWB." },
-    { label: "Grille CA 2S", prompt: "Crée une grille pour la compréhension à l'audition (CA) en 2e secondaire (niveau B1.1), conforme référentiel FWB." },
-    { label: "Grille EOEI 2S", prompt: "Crée une grille pour l'expression orale en interaction (EOEI) en 2e secondaire (niveau B1.1), conforme référentiel FWB." },
-    { label: "Grille CL 1S", prompt: "Crée une grille pour la compréhension à la lecture (CL) en 1re secondaire (niveau A2.2), avec les critères FWB exacts." },
-  ],
-  diff: [
-    { label: "Différencier texte à trous 1S", prompt: "Crée 3 niveaux de différenciation pour un texte à trous sur les auxiliaires de mode (moeten, kunnen, mogen, willen), 1re secondaire." },
-    { label: "Différencier dialogue 1S", prompt: "Crée 3 niveaux de différenciation pour un dialogue à compléter sur le thème des loisirs, 1re secondaire niveau A2.2." },
-    { label: "Différencier production écrite 2S", prompt: "Crée 3 niveaux pour une tâche d'expression écrite sur la vie quotidienne, 2e secondaire niveau B1.1." },
-    { label: "Différencier compréhension 2S", prompt: "Crée 3 niveaux pour un exercice de compréhension à la lecture sur les relations avec les autres, 2e secondaire." },
-  ],
-  planning: [
-    { label: "Plan annuel 1re secondaire", prompt: "Génère une planification annuelle complète et conforme au référentiel FWB pour la 1re secondaire (néerlandais, niveau A2.2), avec 4 périodes de 9 semaines et 4 heures/semaine." },
-    { label: "Plan annuel 2e secondaire", prompt: "Génère une planification annuelle complète et conforme au référentiel FWB pour la 2e secondaire (néerlandais, niveau B1.1), avec 4 périodes et 4 heures/semaine." },
-    { label: "Répartition des compétences", prompt: "Comment répartir les 5 compétences (EOSI, EOEI, CA, CL, EE) sur l'année en 1re secondaire pour être conforme au référentiel FWB et assurer un équilibre ?" },
-    { label: "Séquence sur les champs thématiques", prompt: "Dans quel ordre aborder les 12 champs thématiques en 1re secondaire selon le référentiel FWB pour assurer la progression spiralaire ?" },
-    { label: "Progression grammaticale 1S", prompt: "Quelle progression grammaticale respecter sur l'année en 1re secondaire pour couvrir tous les savoirs FWB de manière cohérente ?" },
-  ],
-  tandem: [
-    { label: "Tandem Brio — Chapitre 1", prompt: "Fais le lien entre le chapitre 1 de Tandem Brio et les attendus du référentiel FWB pour la 1re secondaire. Quels attendus sont couverts et lesquels manquent ?" },
-    { label: "Tandem Brio — Unité vocabulaire", prompt: "Dans Tandem Brio, l'unité sur la famille et les présentations — quels champs thématiques FWB couvre-t-elle et quelles compétences sont travaillées ?" },
-    { label: "Tandem Brio — Grammaire OTT", prompt: "Le chapitre de Tandem Brio sur l'OTT (présent) — est-il conforme aux attendus FWB de 1re secondaire ? Que faut-il ajouter ou adapter ?" },
-    { label: "Tandem Brio — Tâche finale", prompt: "Comment adapter la tâche finale d'une unité de Tandem Brio pour la rendre conforme aux attendus FWB (compétence EE ou EOSI) en 1re secondaire ?" },
-    { label: "Manque Tandem Brio vs FWB", prompt: "Quels points du référentiel FWB néerlandais 1re secondaire ne sont PAS couverts par Tandem Brio et nécessitent des activités supplémentaires ?" },
-  ],
+type SkillId = "chat" | "exercices" | "grille" | "analyse" | "planning" | "cours";
+
+type SkillConfig = {
+  id: SkillId;
+  label: string;
+  emoji: string;
+  color: string;
+  description: string;
+  placeholder: string;
+  suggestions: { label: string; prompt: string }[];
 };
 
-const PLACEHOLDERS: Record<Skill, string> = {
-  chat: "Question sur le référentiel FWB, les attendus, les niveaux CECRL…",
-  analyse: "Colle la production de l'élève (précise la classe 1S/2S et la compétence)…",
-  grille: "Précise la compétence (EOSI/EOEI/CA/CL/EE), la classe (1S/2S) et le champ thématique…",
-  diff: "Décris l'exercice à différencier (type, thème, classe)…",
-  planning: "Précise la classe (1S/2S), le nombre d'heures/semaine, et toute contrainte spécifique…",
-  tandem: "Mentionne un chapitre, une unité ou un point de grammaire de Tandem Brio…",
-};
+function getSkills(matiere: string): SkillConfig[] {
+  const m = matiere.toLowerCase();
+  const isLang = /néerlandais|anglais|français langue|nl|en/.test(m);
+  const isMath = /math/.test(m);
+  const isSci = /science|bio|chimie|physique/.test(m);
+  const isHist = /histoire/.test(m);
+  const isGeo = /géo/.test(m);
+  const isFr = /français/.test(m) && !isLang;
+
+  const niveaux = "1re secondaire (niveau A2.2) ou 2e secondaire (niveau B1.1)";
+  const niveauxGen = "1re ou 2e secondaire (Tronc Commun FWB)";
+
+  const chatSuggestions: { label: string; prompt: string }[] = isLang ? [
+    { label: "Attendus 1S", prompt: `Quels sont exactement les attendus pour ${matiere} en 1re secondaire selon le référentiel FWB ?` },
+    { label: "Attendus 2S", prompt: `Quels sont les attendus pour ${matiere} en 2e secondaire selon le référentiel FWB ?` },
+    { label: "5 compétences FWB", prompt: `Explique les compétences du référentiel FWB pour ${matiere} en 1re secondaire avec des exemples concrets.` },
+    { label: "Tolérance aux erreurs", prompt: `Quelles erreurs sont tolérées en 1re secondaire pour ${matiere} selon le référentiel FWB ?` },
+    { label: "Critères inspection", prompt: `Quels sont les points de vigilance lors d'une inspection pour ${matiere} en 1re secondaire ?` },
+  ] : isMath ? [
+    { label: "Attendus 1S Géométrie", prompt: "Quels sont les attendus FWB en géométrie pour la 1re secondaire ?" },
+    { label: "Attendus 1S Nombres", prompt: "Quels sont les attendus FWB pour le champ Nombres/Algèbre en 1re secondaire ?" },
+    { label: "Attendus 2S Statistiques", prompt: "Quels sont les attendus FWB en statistiques pour la 2e secondaire ?" },
+    { label: "Progression spiralaire", prompt: "Comment organiser la progression spiralaire en maths sur les 2 premières années du Tronc Commun ?" },
+    { label: "Critères inspection maths", prompt: "Quels sont les points de vigilance lors d'une inspection en mathématiques (Tronc Commun FWB) ?" },
+  ] : isSci ? [
+    { label: "Attendus 1S Sciences", prompt: "Quels sont les attendus FWB en sciences pour la 1re secondaire (biologie, chimie, physique) ?" },
+    { label: "Démarche scientifique", prompt: "Comment intégrer la démarche scientifique conforme FWB dans mes cours de sciences ?" },
+    { label: "Protocole expérimental", prompt: "Comment évaluer un protocole expérimental selon les critères FWB en sciences ?" },
+    { label: "Critères inspection sciences", prompt: "Quels sont les points de vigilance lors d'une inspection en sciences au Tronc Commun ?" },
+  ] : isHist ? [
+    { label: "Attendus 1S Histoire", prompt: "Quels sont les attendus FWB en histoire pour la 1re secondaire ?" },
+    { label: "Démarche critique", prompt: "Comment développer la démarche critique en histoire selon le référentiel FWB ?" },
+    { label: "Fait religieux", prompt: "Comment aborder le fait religieux en histoire selon les exigences FWB ?" },
+    { label: "Critères inspection histoire", prompt: "Quels sont les points de vigilance lors d'une inspection en histoire-géographie ?" },
+  ] : isGeo ? [
+    { label: "Attendus 1S Géographie", prompt: "Quels sont les attendus FWB en géographie pour la 1re secondaire ?" },
+    { label: "Analyse spatiale", prompt: "Comment enseigner l'analyse spatiale conforme aux attendus FWB ?" },
+    { label: "Repères spatiaux", prompt: "Quels repères spatiaux sont exigés en 1re et 2e secondaire selon le référentiel FWB ?" },
+    { label: "Critères inspection géo", prompt: "Quels sont les points de vigilance lors d'une inspection en géographie ?" },
+  ] : [
+    { label: `Attendus 1S ${matiere}`, prompt: `Quels sont les attendus FWB pour ${matiere} en 1re secondaire ?` },
+    { label: `Attendus 2S ${matiere}`, prompt: `Quels sont les attendus FWB pour ${matiere} en 2e secondaire ?` },
+    { label: "Progression spiralaire", prompt: `Comment organiser une progression spiralaire en ${matiere} sur le Tronc Commun FWB ?` },
+    { label: "Critères inspection", prompt: `Quels sont les points de vigilance lors d'une inspection en ${matiere} ?` },
+  ];
+
+  const exercicesSuggestions: { label: string; prompt: string }[] = isLang ? [
+    { label: "Texte à trous 1S", prompt: `Crée un exercice de texte à trous adapté au niveau A2.2 en ${matiere} sur le thème de la famille et des présentations.` },
+    { label: "QCM compréhension 2S", prompt: `Crée un QCM de compréhension à la lecture en ${matiere} niveau B1.1 sur le thème des loisirs (10 questions).` },
+    { label: "Dialogue à compléter 1S", prompt: `Crée un dialogue à compléter en ${matiere} pour la 1re secondaire (A2.2) sur le thème des achats.` },
+    { label: "Exercice grammaire 1S", prompt: `Crée un exercice de grammaire en ${matiere} pour la 1re secondaire sur les auxiliaires de mode.` },
+    { label: "Production écrite 2S", prompt: `Crée une consigne de production écrite en ${matiere} niveau B1.1 sur la vie quotidienne (150-180 mots).` },
+    { label: "Exercice vocabulaire 1S", prompt: `Crée un exercice de vocabulaire en ${matiere} niveau A2.2 sur le thème de l'école et des fournitures.` },
+  ] : isMath ? [
+    { label: "Exercice géométrie 1S", prompt: "Crée un exercice de géométrie (triangles, angles) pour la 1re secondaire conforme aux attendus FWB." },
+    { label: "Exercice fractions 1S", prompt: "Crée un exercice sur les fractions pour la 1re secondaire conforme aux attendus FWB (5 questions progressives)." },
+    { label: "Problème contextuel 2S", prompt: "Crée un problème contextuel en algèbre pour la 2e secondaire, conforme aux attendus FWB." },
+    { label: "Exercice statistiques 2S", prompt: "Crée un exercice de statistiques descriptives pour la 2e secondaire (lecture de graphiques, moyenne, médiane)." },
+  ] : isSci ? [
+    { label: "Exercice observation 1S", prompt: "Crée un exercice d'observation scientifique (biologie cellulaire) pour la 1re secondaire conforme FWB." },
+    { label: "Exercice chimie 2S", prompt: "Crée un exercice sur les réactions chimiques pour la 2e secondaire conforme aux attendus FWB." },
+    { label: "QCM physique 2S", prompt: "Crée un QCM sur les forces et l'énergie pour la 2e secondaire conforme aux attendus FWB (8 questions)." },
+  ] : [
+    { label: `Exercice 1S ${matiere}`, prompt: `Crée un exercice pour la 1re secondaire en ${matiere} conforme aux attendus FWB.` },
+    { label: `Exercice 2S ${matiere}`, prompt: `Crée un exercice pour la 2e secondaire en ${matiere} conforme aux attendus FWB.` },
+    { label: "Exercice différencié", prompt: `Crée un exercice en ${matiere} avec 3 niveaux de différenciation (remédiation, standard, enrichissement).` },
+  ];
+
+  const grilleSuggestions: { label: string; prompt: string }[] = isLang ? [
+    { label: "Grille EE 1S", prompt: `Crée une grille d'évaluation critériée complète conforme FWB pour l'expression écrite (EE) en ${matiere} — 1re secondaire (A2.2).` },
+    { label: "Grille EOSI 1S", prompt: `Crée une grille pour l'expression orale sans interaction (EOSI) en ${matiere} — 1re secondaire (A2.2), conforme FWB.` },
+    { label: "Grille CA 2S", prompt: `Crée une grille pour la compréhension à l'audition (CA) en ${matiere} — 2e secondaire (B1.1), conforme FWB.` },
+    { label: "Grille EOEI 2S", prompt: `Crée une grille pour l'expression orale en interaction (EOEI) en ${matiere} — 2e secondaire (B1.1), conforme FWB.` },
+  ] : [
+    { label: `Grille évaluation 1S`, prompt: `Crée une grille d'évaluation critériée complète et conforme FWB pour ${matiere} en 1re secondaire.` },
+    { label: `Grille évaluation 2S`, prompt: `Crée une grille d'évaluation critériée pour ${matiere} en 2e secondaire, conforme référentiel FWB.` },
+    { label: "Grille production écrite", prompt: `Crée une grille pour évaluer une production écrite en ${matiere} avec les critères FWB exacts.` },
+  ];
+
+  const analyseSuggestions: { label: string; prompt: string }[] = [
+    { label: "Analyser production 1S", prompt: `Analyse cette production d'un élève de 1re secondaire en ${matiere} selon le référentiel FWB :\n\n[Colle la production ici]` },
+    { label: "Analyser production 2S", prompt: `Analyse cette production d'un élève de 2e secondaire en ${matiere} selon le référentiel FWB :\n\n[Colle la production ici]` },
+    { label: "Corriger copie avec feedback", prompt: `Corrige cette copie d'élève en ${matiere} et rédige un feedback constructif conforme FWB :\n\n[Colle la copie ici]` },
+  ];
+
+  const planningSuggestions: { label: string; prompt: string }[] = [
+    { label: `Plan annuel 1S ${matiere}`, prompt: `Génère une planification annuelle complète et conforme au référentiel FWB pour ${matiere} en 1re secondaire, 4 heures/semaine, 4 périodes de 9 semaines.` },
+    { label: `Plan annuel 2S ${matiere}`, prompt: `Génère une planification annuelle pour ${matiere} en 2e secondaire, conforme référentiel FWB, 4 heures/semaine.` },
+    { label: "Répartition des compétences", prompt: `Comment répartir les compétences de ${matiere} sur l'année en 1re secondaire pour être conforme au référentiel FWB ?` },
+    { label: "Séquence didactique", prompt: `Crée une séquence didactique complète (3-4 semaines) pour ${matiere} en 1re secondaire sur un thème central du référentiel FWB.` },
+  ];
+
+  const coursSuggestions = [
+    { label: "Exercices depuis mon cours", prompt: `Voici un extrait de mon cours de ${matiere} :\n\n[Colle ton cours ici]\n\nGénère 5 exercices variés adaptés à ce contenu pour la 1re secondaire, conformes aux attendus FWB.` },
+    { label: "Questions de compréhension", prompt: `Voici un texte/cours de ${matiere} :\n\n[Colle le contenu ici]\n\nCrée 8 questions de compréhension progressives (TB → NI) pour la 1re secondaire.` },
+    { label: "Exercice différencié depuis cours", prompt: `Voici un extrait de cours de ${matiere} :\n\n[Colle le contenu ici]\n\nCrée un exercice différencié en 3 niveaux (remédiation, standard, enrichissement) basé sur ce contenu.` },
+    { label: "Résumé + exercices", prompt: `Voici un chapitre de ${matiere} :\n\n[Colle le chapitre]\n\nProduis : 1) un résumé structuré pour les élèves, 2) une fiche de révision, 3) 5 exercices d'application.` },
+  ];
+
+  return [
+    { id: "chat",      label: "Questions FWB",   emoji: "💬", color: "#0A84FF", description: `Questions sur le référentiel ${matiere}`, placeholder: `Question sur le référentiel FWB, les attendus, les niveaux…`, suggestions: chatSuggestions },
+    { id: "exercices", label: "Exercices",        emoji: "✏️", color: "#FF9500", description: "Générer des exercices conformes FWB",   placeholder: `Type d'exercice, thème, niveau (1S/2S)…`,              suggestions: exercicesSuggestions },
+    { id: "cours",     label: "Depuis mon cours", emoji: "📄", color: "#AF52DE", description: "Exercices à partir d'un cours uploadé", placeholder: `Colle ton cours ou extrait de chapitre ici, puis décris ce que tu veux générer…`, suggestions: coursSuggestions },
+    { id: "grille",    label: "Grille",           emoji: "📊", color: "#FF3B30", description: "Grilles d'évaluation critériées FWB",   placeholder: `Compétence, niveau (1S/2S), type d'évaluation…`,        suggestions: grilleSuggestions },
+    { id: "analyse",   label: "Analyser copie",   emoji: "🔍", color: "#34C759", description: "Analyser une production élève",        placeholder: `Colle la production de l'élève (précise 1S/2S)…`,       suggestions: analyseSuggestions },
+    { id: "planning",  label: "Planification",    emoji: "📅", color: "#00C7BE", description: "Planification annuelle conforme FWB",  placeholder: `Classe (1S/2S), nb heures/semaine, contraintes…`,       suggestions: planningSuggestions },
+  ] as SkillConfig[];
+}
+
+// ─── COMPOSANT MARKDOWN ────────────────────────────────────────────────────
 
 function MarkdownText({ text }: { text: string }) {
   const lines = text.split("\n");
@@ -82,7 +144,6 @@ function MarkdownText({ text }: { text: string }) {
         if (/^(✅|🟢)/.test(t)) return <div key={i} style={{ padding: "4px 10px", background: "rgba(34,197,94,0.08)", borderLeft: "3px solid #22c55e", borderRadius: "0 8px 8px 0", marginBottom: 4, color: "#166534", fontWeight: 600 }}>{t}</div>;
         if (/^(❌|🔴)/.test(t)) return <div key={i} style={{ padding: "4px 10px", background: "rgba(220,38,38,0.08)", borderLeft: "3px solid #ef4444", borderRadius: "0 8px 8px 0", marginBottom: 4, color: "#991b1b", fontWeight: 600 }}>{t}</div>;
         if (/^(⚠️|🟡)/.test(t)) return <div key={i} style={{ padding: "4px 10px", background: "rgba(234,179,8,0.08)", borderLeft: "3px solid #eab308", borderRadius: "0 8px 8px 0", marginBottom: 4, color: "#854d0e", fontWeight: 600 }}>{t}</div>;
-        if (/^\*\*(.+)\*\*$/.test(t)) return <div key={i} style={{ fontWeight: 800, color: "#0F172A", marginTop: 8, marginBottom: 2 }}>{t.replace(/\*\*/g, "")}</div>;
         if (/^\|/.test(t)) {
           if (/^\|[-| ]+\|$/.test(t)) return null;
           const cells = t.split("|").slice(1, -1).map(c => c.trim());
@@ -104,14 +165,28 @@ function MarkdownText({ text }: { text: string }) {
   );
 }
 
-export default function InspecteurFWBPage() {
+// ─── PAGE PRINCIPALE ───────────────────────────────────────────────────────
+
+export default function GenerateurPage() {
+  const [matiere, setMatiere] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeSkill, setActiveSkill] = useState<Skill>("chat");
+  const [activeSkill, setActiveSkill] = useState<SkillId>("chat");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Charger la matière du prof
+  useEffect(() => {
+    fetch("/api/profil/matiere")
+      .then(r => r.json())
+      .then((d: { matiere?: string }) => setMatiere(d.matiere ?? "votre matière"))
+      .catch(() => setMatiere("votre matière"));
+  }, []);
+
+  const skills = getSkills(matiere ?? "");
+  const currentSkill = skills.find(s => s.id === activeSkill) ?? skills[0];
 
   function autoResize() {
     const ta = textareaRef.current;
@@ -135,10 +210,14 @@ export default function InspecteurFWBPage() {
       const res = await fetch("/api/inspecteur-fwb", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages.map(m => ({ role: m.role, content: m.content })) }),
+        body: JSON.stringify({
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+          matiere: matiere ?? "",
+          skill: activeSkill,
+        }),
       });
       const data = await res.json() as { message?: string; error?: string };
-      if (!res.ok) throw new Error(data.error || "Erreur serveur");
+      if (!res.ok) throw new Error(data.error ?? "Erreur serveur");
       const assistantMsg: Message = { role: "assistant", content: data.message ?? "", id: (Date.now() + 1).toString() };
       setMessages([...newMessages, assistantMsg]);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -153,27 +232,38 @@ export default function InspecteurFWBPage() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input); }
   }
 
-  const currentSkill = SKILLS.find(s => s.id === activeSkill)!;
+  if (!matiere) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, color: "#94a3b8", fontSize: 14 }}>
+      ⏳ Chargement…
+    </div>
+  );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 80px)", maxHeight: 920, gap: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 80px)", maxHeight: 920 }}>
 
       {/* HEADER */}
       <div style={{ borderRadius: 18, padding: "14px 20px", background: GRADIENT, color: "#fff", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em" }}>🏛️ Inspecteur FWB</div>
-          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 1 }}>Référentiel Langues Modernes · Néerlandais 1S & 2S · Tandem Brio · Claude Sonnet</div>
+          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: "-0.02em" }}>✨ Assistant pédagogique IA</div>
+          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 1 }}>
+            Référentiel FWB · <strong>{matiere}</strong> · 1re & 2e secondaire · Claude Sonnet
+          </div>
         </div>
-        {messages.length > 0 && (
-          <button onClick={() => { setMessages([]); setError(null); setInput(""); }} style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.4)", color: "#fff", borderRadius: 10, padding: "5px 12px", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
-            Nouvelle conversation
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {messages.length > 0 && (
+            <button onClick={() => { setMessages([]); setError(null); setInput(""); }} style={{ background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.4)", color: "#fff", borderRadius: 10, padding: "5px 12px", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+              Nouvelle conv.
+            </button>
+          )}
+          <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "5px 12px", fontSize: 12, fontWeight: 700 }}>
+            {matiere}
+          </div>
+        </div>
       </div>
 
-      {/* SKILLS TABS — 2 rangées sur mobile */}
+      {/* SKILLS — 3 colonnes × 2 rangées */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6, marginBottom: 10 }}>
-        {SKILLS.map(skill => (
+        {skills.map(skill => (
           <button key={skill.id} onClick={() => setActiveSkill(skill.id)} style={{
             padding: "8px 4px", borderRadius: 12,
             border: activeSkill === skill.id ? `2px solid ${skill.color}` : "1.5px solid #e2e8f0",
@@ -195,7 +285,7 @@ export default function InspecteurFWBPage() {
             {currentSkill.emoji} {currentSkill.description.toUpperCase()}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {SUGGESTIONS[activeSkill].map((s, i) => (
+            {currentSkill.suggestions.map((s, i) => (
               <button key={i} onClick={() => setInput(s.prompt)} style={{
                 padding: "7px 12px", borderRadius: 99,
                 border: `1.5px solid ${currentSkill.color}40`,
@@ -217,6 +307,11 @@ export default function InspecteurFWBPage() {
             <div style={{ fontSize: 42, marginBottom: 10 }}>{currentSkill.emoji}</div>
             <div style={{ fontWeight: 700, fontSize: 15, color: "#475569" }}>{currentSkill.label}</div>
             <div style={{ fontSize: 13, marginTop: 4 }}>{currentSkill.description}</div>
+            {activeSkill === "cours" && (
+              <div style={{ marginTop: 12, padding: "10px 16px", borderRadius: 12, background: "#f8fafc", border: "1px solid #e2e8f0", fontSize: 12, color: "#64748b", maxWidth: 400, margin: "12px auto 0" }}>
+                💡 Colle un extrait de cours, une fiche, ou un chapitre et demande-moi de créer des exercices, un résumé, ou des questions.
+              </div>
+            )}
           </div>
         )}
         {messages.map((msg) => (
@@ -230,9 +325,10 @@ export default function InspecteurFWBPage() {
               border: msg.role === "assistant" ? "1px solid rgba(15,23,42,0.08)" : "none",
               boxShadow: "0 2px 8px rgba(15,23,42,0.07)",
             }}>
-              {msg.role === "assistant" ? <MarkdownText text={msg.content} /> : (
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6, fontSize: 14 }}>{msg.content}</div>
-              )}
+              {msg.role === "assistant"
+                ? <MarkdownText text={msg.content} />
+                : <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6, fontSize: 14 }}>{msg.content}</div>
+              }
             </div>
           </div>
         ))}
@@ -240,13 +336,21 @@ export default function InspecteurFWBPage() {
           <div style={{ display: "flex", justifyContent: "flex-start" }}>
             <div style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.08)", borderRadius: "18px 18px 18px 4px", padding: "12px 16px", boxShadow: "0 2px 8px rgba(15,23,42,0.07)" }}>
               <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                {[0, 1, 2].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#94a3b8", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
-                <span style={{ fontSize: 12, color: "#64748b", marginLeft: 6 }}>L'Inspecteur FWB analyse le référentiel…</span>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#94a3b8", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+                ))}
+                <span style={{ fontSize: 12, color: "#64748b", marginLeft: 6 }}>
+                  Génération en cours pour {matiere}…
+                </span>
               </div>
             </div>
           </div>
         )}
-        {error && <div style={{ borderRadius: 10, border: "1px solid #fca5a5", background: "#fef2f2", color: "#991b1b", padding: "10px 14px", fontSize: 13 }}>⚠️ {error}</div>}
+        {error && (
+          <div style={{ borderRadius: 10, border: "1px solid #fca5a5", background: "#fef2f2", color: "#991b1b", padding: "10px 14px", fontSize: 13 }}>
+            ⚠️ {error}
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 
@@ -257,7 +361,7 @@ export default function InspecteurFWBPage() {
           value={input}
           onChange={e => { setInput(e.target.value); autoResize(); }}
           onKeyDown={handleKeyDown}
-          placeholder={PLACEHOLDERS[activeSkill]}
+          placeholder={currentSkill.placeholder}
           rows={2}
           style={{ width: "100%", border: "none", outline: "none", resize: "none", fontSize: 14, lineHeight: 1.6, color: "#1e293b", background: "transparent", fontFamily: "system-ui, sans-serif", boxSizing: "border-box" }}
         />
