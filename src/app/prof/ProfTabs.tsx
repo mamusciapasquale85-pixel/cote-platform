@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 type Tab = {
-  key: "agenda" | "classes" | "evaluations" | "apprentissages" | "import";
+  key: "agenda" | "classes" | "evaluations" | "apprentissages" | "competences" | "bulletins" | "import";
   label: string;
   href: string;
 };
@@ -14,6 +14,8 @@ const TABS: Tab[] = [
   { key: "classes", label: "Classes / Élèves", href: "/teacher" },
   { key: "evaluations", label: "Évaluations", href: "/evaluations" },
   { key: "apprentissages", label: "Apprentissages", href: "/apprentissages" },
+  { key: "competences", label: "🎓 Compétences", href: "/competences" },
+  { key: "bulletins", label: "📋 Bulletins", href: "/bulletins" },
   { key: "import", label: "Import", href: "/import" },
 ];
 
