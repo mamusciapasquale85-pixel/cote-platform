@@ -12,6 +12,7 @@ import {
   type ClassGroup,
   type LessonScheduleRow,
   type AgendaStudent,
+  type AttendanceRecord,
   type ParsedScheduleCsvRow,
   type ScheduleImportSummary,
   SLOTS,
@@ -21,6 +22,8 @@ import {
   listLessonScheduleWeek,
   listStudentsForClass,
   upsertLessonScheduleCell,
+  listAttendanceForClassDate,
+  upsertAttendanceForClassDate,
   parseScheduleCsv,
   importTeacherScheduleCsv,
 } from "./agenda";
@@ -197,6 +200,9 @@ export default function AgendaPage() {
   const [modalClassGroupId, setModalClassGroupId] = useState<UUID | "">("");
   const [lessonTitle, setLessonTitle] = useState("");
   const [lessonDetails, setLessonDetails] = useState("");
+  const [modalTag, setModalTag] = useState<"eval" | "devoir" | null>(null);
+  const [absentSet, setAbsentSet] = useState<Set<UUID>>(new Set());
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
   const [quickNote, setQuickNote] = useState("");
   const quickNoteRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -377,6 +383,7 @@ export default function AgendaPage() {
     hadExistingLesson: boolean;
     lessonTitle?: string | null;
     details?: string | null;
+    tag?: "eval" | "devoir" | null;
   }) {
     setModal({
       open: true,
@@ -388,6 +395,8 @@ export default function AgendaPage() {
     setModalClassGroupId(params.classGroupId ?? "");
     setLessonTitle(params.lessonTitle ?? "");
     setLessonDetails(params.details ?? "");
+    setModalTag(params.tag ?? null);
+    setAbsentSet(new Set());
     setModalStudents([]);
     setModalError(null);
     setModalInfo(null);
@@ -395,6 +404,15 @@ export default function AgendaPage() {
 
     try {
       await loadStudents(params.classGroupId ?? "");
+      // Charger les absences existantes pour cette classe + date
+      if (ctx && params.classGroupId) {
+        const records = await listAttendanceForClassDate({
+          ctx,
+          classGroupId: params.classGroupId,
+          date: params.date,
+        });
+        setAbsentSet(new Set(records.filter(r => r.status === "absent").map(r => r.student_id)));
+      }
     } catch (e: unknown) {
       setModalError(toNiceError(e));
     } finally {
@@ -437,6 +455,7 @@ export default function AgendaPage() {
         className,
         lessonTitle: cleanedTitle || null,
         details: cleanedDetails || null,
+        tag: modalTag,
       });
 
       await loadGrid(ctx, weekDays[0], weekDays[4]);
@@ -454,8 +473,40 @@ export default function AgendaPage() {
     setModalClassGroupId("");
     setLessonTitle("");
     setLessonDetails("");
+    setModalTag(null);
+    setAbsentSet(new Set());
     setModalError(null);
     setModalInfo(null);
+  }
+
+  function toggleAbsent(studentId: UUID) {
+    setAbsentSet(prev => {
+      const next = new Set(prev);
+      if (next.has(studentId)) next.delete(studentId);
+      else next.add(studentId);
+      return next;
+    });
+  }
+
+  async function onSaveAttendance() {
+    if (!ctx || !modal || !modalClassGroupId || modalStudents.length === 0) return;
+    setAttendanceSaving(true);
+    try {
+      await upsertAttendanceForClassDate({
+        ctx,
+        classGroupId: modalClassGroupId,
+        date: modal.date,
+        rows: modalStudents.map(s => ({
+          studentId: s.id,
+          absent: absentSet.has(s.id),
+        })),
+      });
+      setModalInfo("Absences enregistrées ✅");
+    } catch (e: unknown) {
+      setModalError(toNiceError(e));
+    } finally {
+      setAttendanceSaving(false);
+    }
   }
 
   return (
@@ -526,6 +577,7 @@ export default function AgendaPage() {
                             hadExistingLesson: !!row,
                             lessonTitle: row?.lesson_title ?? null,
                             details: row?.details ?? null,
+                            tag: rowTag,
                           })
                         }
                       >
@@ -774,6 +826,56 @@ export default function AgendaPage() {
                     <input style={input} value={lessonTitle} onChange={(e) => setLessonTitle(e.target.value)} placeholder="Titre court" />
                   </div>
 
+                  {/* ── Tags : Éval / Devoir ── */}
+                  <div>
+                    <label style={{ fontWeight: 700, display: "block", marginBottom: 8 }}>Marquer ce créneau</label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {(["eval", "devoir"] as const).map((tag) => {
+                        const isActive = modalTag === tag;
+                        const isEval = tag === "eval";
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => setModalTag(isActive ? null : tag)}
+                            style={{
+                              padding: "8px 18px",
+                              borderRadius: 999,
+                              border: isActive
+                                ? `2px solid ${isEval ? "#dc2626" : "#f59e0b"}`
+                                : "1.5px solid #e2e8f0",
+                              background: isActive
+                                ? isEval ? "#fef2f2" : "#fffbeb"
+                                : "#f8fafc",
+                              color: isActive
+                                ? isEval ? "#dc2626" : "#d97706"
+                                : "#64748b",
+                              fontWeight: 800,
+                              fontSize: 13,
+                              cursor: "pointer",
+                              transition: "all 0.15s",
+                            }}
+                          >
+                            {isEval ? "🔴 Évaluation" : "📝 Devoir"}
+                          </button>
+                        );
+                      })}
+                      {modalTag && (
+                        <button
+                          type="button"
+                          onClick={() => setModalTag(null)}
+                          style={{
+                            padding: "8px 12px", borderRadius: 999, border: "1px solid #e2e8f0",
+                            background: "#f8fafc", color: "#94a3b8", fontSize: 12,
+                            fontWeight: 600, cursor: "pointer",
+                          }}
+                        >
+                          ✕ Retirer
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div>
                     <label style={{ fontWeight: 700 }}>Détails / commentaires</label>
                     <textarea
@@ -793,7 +895,30 @@ export default function AgendaPage() {
                 </div>
 
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>Élèves de la classe</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 10 }}>
+                    <div style={{ fontSize: 18, fontWeight: 900 }}>Élèves de la classe</div>
+                    {modalStudents.length > 0 && (
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: absentSet.size > 0 ? "#dc2626" : "#6b7280" }}>
+                          {absentSet.size} absent{absentSet.size !== 1 ? "s" : ""}
+                        </span>
+                        <button
+                          style={{
+                            ...btn,
+                            padding: "6px 14px",
+                            fontSize: 12,
+                            background: attendanceSaving ? "#e5e7eb" : "#fef2f2",
+                            borderColor: "#fecaca",
+                            color: "#dc2626",
+                          }}
+                          onClick={() => void onSaveAttendance()}
+                          disabled={attendanceSaving || !ctx}
+                        >
+                          {attendanceSaving ? "Sauvegarde..." : "Sauvegarder absences"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   {!modalClassGroupId ? (
                     <div style={{ opacity: 0.8 }}>Sélectionne une classe pour afficher les élèves.</div>
                   ) : modalStudents.length === 0 ? (
@@ -803,26 +928,52 @@ export default function AgendaPage() {
                       <table style={{ width: "100%", borderCollapse: "collapse" }}>
                         <thead>
                           <tr>
+                            <th style={{ textAlign: "center", padding: 8, borderBottom: "1px solid var(--border)", width: 50 }}>Absent</th>
                             <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid var(--border)" }}>Élève</th>
                             <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid var(--border)" }}>Fiche</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {modalStudents.map((student) => (
-                            <tr key={student.id}>
-                              <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)", fontWeight: 700 }}>
-                                {student.last_name} {student.first_name}
-                              </td>
-                              <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)", textAlign: "right" }}>
-                                <button
-                                  style={{ ...btn, padding: "6px 10px" }}
-                                  onClick={() => router.push(`/eleves/${student.id}`)}
-                                >
-                                  Ouvrir
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {modalStudents.map((student) => {
+                            const isAbsent = absentSet.has(student.id);
+                            return (
+                              <tr
+                                key={student.id}
+                                style={{
+                                  background: isAbsent ? "rgba(220,38,38,0.04)" : undefined,
+                                  cursor: "pointer",
+                                }}
+                                onClick={() => toggleAbsent(student.id)}
+                              >
+                                <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)", textAlign: "center" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isAbsent}
+                                    onChange={() => toggleAbsent(student.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ width: 18, height: 18, cursor: "pointer", accentColor: "#dc2626" }}
+                                  />
+                                </td>
+                                <td style={{
+                                  padding: 8,
+                                  borderBottom: "1px solid rgba(15,23,42,0.06)",
+                                  fontWeight: 700,
+                                  textDecoration: isAbsent ? "line-through" : "none",
+                                  color: isAbsent ? "#9ca3af" : "inherit",
+                                }}>
+                                  {student.last_name} {student.first_name}
+                                </td>
+                                <td style={{ padding: 8, borderBottom: "1px solid rgba(15,23,42,0.06)", textAlign: "right" }}>
+                                  <button
+                                    style={{ ...btn, padding: "6px 10px" }}
+                                    onClick={(e) => { e.stopPropagation(); router.push(`/eleves/${student.id}`); }}
+                                  >
+                                    Ouvrir
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

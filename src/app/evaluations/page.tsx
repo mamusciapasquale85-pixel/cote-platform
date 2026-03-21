@@ -21,12 +21,96 @@ function pad2(n: number) { return n < 10 ? `0${n}` : `${n}`; }
 function toISODate(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 
 type Tab = "toutes" | "formative" | "summative" | "archived";
-
 const TAB_CONFIG: { id: Tab; label: string; emoji: string }[] = [
-  { id: "toutes", label: "Toutes", emoji: "📋" },
+  { id: "toutes",    label: "Toutes",     emoji: "📋" },
   { id: "formative", label: "Formatives", emoji: "📊" },
   { id: "summative", label: "Sommatives", emoji: "🎓" },
-  { id: "archived", label: "Archivées", emoji: "🗄" },
+  { id: "archived",  label: "Archivées",  emoji: "🗄" },
+];
+
+const NIVEAUX = ["1S (A2.2)", "2S (B1.1)", "3S (B1.2)", "4S (B2.1)", "A1", "A2", "B1", "B2", "Autre"];
+
+// ── Matières & types d'exercices (identique à creer-evaluation) ─────────────
+type SubjectDef = {
+  id: string;
+  label: string;
+  emoji: string;
+  color: string;
+  types: { id: string; label: string }[];
+  niveaux: string[];
+};
+
+const SUBJECTS: SubjectDef[] = [
+  {
+    id: "nl", label: "Néerlandais", emoji: "🇳🇱", color: "#FF9500",
+    niveaux: ["A1", "A2", "B1", "B2"],
+    types: [
+      { id: "lacunes", label: "Texte à trous" }, { id: "qcm", label: "QCM" },
+      { id: "conjugaison", label: "Conjugaison" }, { id: "dialogue", label: "Dialogue à compléter" },
+      { id: "traduction", label: "Traduction" }, { id: "vocabulaire_images", label: "Vocabulaire" },
+      { id: "associer", label: "Association" }, { id: "lecture", label: "Compréhension écrite" },
+      { id: "remise_ordre", label: "Remise en ordre" }, { id: "flashcards", label: "Flashcards" },
+      { id: "mots_meles", label: "Mots mêlés" }, { id: "kahoot_csv", label: "Questions Kahoot" },
+    ],
+  },
+  {
+    id: "francais", label: "Français", emoji: "📖", color: "#AF52DE",
+    niveaux: ["1S", "2S", "3S", "4S", "5S", "6S"],
+    types: [
+      { id: "lecture_fr", label: "Compréhension à la lecture" }, { id: "expression_ecrite", label: "Expression écrite" },
+      { id: "grammaire_fr", label: "Grammaire française" }, { id: "orthographe", label: "Orthographe / Dictée" },
+      { id: "analyse_texte", label: "Analyse de texte littéraire" },
+    ],
+  },
+  {
+    id: "mathematiques", label: "Mathématiques", emoji: "📐", color: "#0A84FF",
+    niveaux: ["1S", "2S", "3S", "4S", "5S", "6S"],
+    types: [
+      { id: "calcul", label: "Exercices de calcul" }, { id: "probleme", label: "Résolution de problèmes" },
+      { id: "geometrie", label: "Géométrie" }, { id: "algebre", label: "Algèbre / Équations" },
+      { id: "statistiques", label: "Statistiques" },
+    ],
+  },
+  {
+    id: "sciences", label: "Sciences", emoji: "🔬", color: "#34C759",
+    niveaux: ["1S", "2S", "3S", "4S", "5S", "6S"],
+    types: [
+      { id: "qcm_sc", label: "QCM Sciences" }, { id: "observation", label: "Observation / Expérience" },
+      { id: "schemas_sc", label: "Schémas légendés" }, { id: "protocole", label: "Protocole expérimental" },
+    ],
+  },
+  {
+    id: "histoire", label: "Histoire", emoji: "🏛️", color: "#FF3B30",
+    niveaux: ["1S", "2S", "3S", "4S", "5S", "6S"],
+    types: [
+      { id: "analyse_source", label: "Analyse de source" }, { id: "chronologie", label: "Chronologie" },
+      { id: "qcm_hist", label: "QCM Histoire" }, { id: "synthese_hist", label: "Synthèse historique" },
+    ],
+  },
+  {
+    id: "geographie", label: "Géographie", emoji: "🗺️", color: "#00C7BE",
+    niveaux: ["1S", "2S", "3S", "4S", "5S", "6S"],
+    types: [
+      { id: "analyse_carte", label: "Analyse de carte" }, { id: "paysage", label: "Analyse de paysage / photo" },
+      { id: "qcm_geo", label: "QCM Géographie" }, { id: "croquis", label: "Croquis / Schéma géo" },
+    ],
+  },
+  {
+    id: "en", label: "Anglais", emoji: "🇬🇧", color: "#5856D6",
+    niveaux: ["A1", "A2", "B1", "B2"],
+    types: [
+      { id: "lacunes", label: "Texte à trous" }, { id: "qcm", label: "QCM" },
+      { id: "conjugaison", label: "Conjugaison" }, { id: "dialogue", label: "Dialogue à compléter" },
+      { id: "traduction", label: "Traduction" }, { id: "lecture", label: "Compréhension écrite" },
+      { id: "flashcards", label: "Flashcards" },
+    ],
+  },
+];
+
+type CotationType = "points" | "nisbttb";
+const COTATION_OPTIONS: { id: CotationType; label: string; desc: string }[] = [
+  { id: "points", label: "/ Points", desc: "Note chiffrée (ex: /20)" },
+  { id: "nisbttb", label: "NI / I / S / B / TB", desc: "Évaluation par compétences" },
 ];
 
 // ── Modal Créer ──────────────────────────────────────────────────────────────
@@ -38,14 +122,26 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
   const [type, setType] = useState<AssessmentType>("summative");
   const [date, setDate] = useState(toISODate(new Date()));
   const [maxPoints, setMaxPoints] = useState("20");
+  const [cotation, setCotation] = useState<CotationType>("points");
   const [status, setStatus] = useState<ContentStatus>("draft");
   const [parentVisible, setParentVisible] = useState(false);
   const [instructions, setInstructions] = useState("");
   const [classId, setClassId] = useState<UUID | "">(classes[0]?.id ?? "");
   const [courseId, setCourseId] = useState<UUID | "">(courses[0]?.id ?? "");
   const [apprentissageId, setApprentissageId] = useState<UUID | "">("");
+  const [selectedSubject, setSelectedSubject] = useState<SubjectDef>(SUBJECTS[0]);
+  const [typeExercice, setTypeExercice] = useState(SUBJECTS[0].types[0].id);
+  const [niveau, setNiveau] = useState(SUBJECTS[0].niveaux[0]);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [genResult, setGenResult] = useState<string | null>(null);
+
+  function handleSubjectChange(subj: SubjectDef) {
+    setSelectedSubject(subj);
+    setTypeExercice(subj.types[0].id);
+    setNiveau(subj.niveaux[0]);
+  }
 
   const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 9, border: "1px solid #E5E7EB", fontSize: 14, width: "100%", boxSizing: "border-box" };
   const sel: React.CSSProperties = { ...inp, cursor: "pointer", background: "#FFF" };
@@ -55,24 +151,144 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
     if (!classId || !courseId) return setErr("Classe et cours obligatoires.");
     setSaving(true); setErr(null);
     try {
-      await createAssessment({ ctx, title: title.trim(), type, date, max_points: Number(maxPoints) || 20, weight: null, status, parent_visible: parentVisible, instructions: instructions.trim() || null, class_group_id: classId, course_id: courseId, apprentissage_id: apprentissageId || null });
+      await createAssessment({
+        ctx, title: title.trim(), type, date,
+        max_points: cotation === "points" ? (Number(maxPoints) || 20) : null, weight: null, status,
+        parent_visible: parentVisible, instructions: instructions.trim() || null,
+        class_group_id: classId, course_id: courseId, apprentissage_id: apprentissageId || null,
+      });
       onCreated(); onClose();
     } catch (e) { setErr(toNiceError(e)); } finally { setSaving(false); }
   }
 
+  async function onGenerer() {
+    if (!title.trim()) return setErr("Donne un titre à l'évaluation d'abord.");
+    setGenerating(true); setErr(null); setGenResult(null);
+    try {
+      const theme = instructions.trim() ? `${title.trim()} — ${instructions.trim()}` : title.trim();
+      const res = await fetch("/api/generer-exercice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: selectedSubject.id,
+          langue: selectedSubject.id,
+          type_exercice: typeExercice,
+          niveau,
+          theme,
+          classe: classId ? classes.find(c => c.id === classId)?.name ?? "" : "",
+        }),
+      });
+      const data = await res.json() as { exercice?: string; titre?: string; id?: string | null; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Erreur");
+      setGenResult(data.exercice ?? "");
+    } catch (e) { setErr(toNiceError(e)); } finally { setGenerating(false); }
+  }
+
+  async function onDownloadPDF() {
+    if (!genResult) return;
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const PAGE_W = 210, ML = 15, MR = 15, CONTENT_W = PAGE_W - ML - MR;
+    let y = 0;
+
+    // ── Barre couleur en haut
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, PAGE_W, 8, "F");
+    doc.setFillColor(10, 132, 255);
+    doc.rect(0, 0, 60, 8, "F");
+    y = 16;
+
+    // ── En-tête Klasbook
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.text("KLASBOOK", ML, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`${selectedSubject.emoji} ${selectedSubject.label}`, ML + 40, y);
+    y += 7;
+
+    // ── Ligne séparatrice
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.4);
+    doc.line(ML, y, PAGE_W - MR, y);
+    y += 5;
+
+    // ── Grille d'infos (2 colonnes)
+    const COL2 = ML + CONTENT_W / 2;
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    const className = classId ? classes.find(c => c.id === classId)?.name ?? "—" : "—";
+    const cotationLabel = cotation === "points" ? `       / ${maxPoints}` : "NI  /  I  /  S  /  B  /  TB";
+
+    const infoRows: [string, string, string, string][] = [
+      ["Matière :", selectedSubject.label, "Type :", type === "summative" ? "Sommative" : type === "formative" ? "Formative" : "Évaluation"],
+      ["Classe :", className, "Date :", formatDateFR(date)],
+      ["Nom / Prénom :", "_ _ _ _ _ _ _ _ _ _ _ _ _ _ _", cotation === "points" ? "Points :" : "Niveau :", cotationLabel],
+    ];
+    for (const [label1, val1, label2, val2] of infoRows) {
+      doc.setFont("helvetica", "bold");
+      doc.text(label1, ML, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(val1, ML + 28, y);
+      doc.setFont("helvetica", "bold");
+      doc.text(label2, COL2, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(val2, COL2 + 22, y);
+      y += 6;
+    }
+    y += 4;
+
+    // ── Titre de l'évaluation
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(10, 132, 255);
+    doc.text(title.trim(), ML, y);
+    y += 8;
+
+    // ── Contenu IA
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    const lines = doc.splitTextToSize(genResult, CONTENT_W);
+    for (const line of lines) {
+      if (y > 280) { doc.addPage(); y = 15; }
+      doc.text(line, ML, y);
+      y += 5;
+    }
+
+    // ── Pied de page
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Klasbook — ${selectedSubject.label} — ${formatDateFR(date)}`, ML, 290);
+      doc.text(`${i} / ${pageCount}`, PAGE_W - MR - 10, 290);
+    }
+
+    doc.save(`eval-${selectedSubject.id}-${date}.pdf`);
+  }
+
+  const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" };
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(15,23,42,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
-      <div style={{ width: "min(660px,96vw)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(15,23,42,.28)", overflow: "hidden" }} onClick={e => e.stopPropagation()}>
-        <div style={{ background: "linear-gradient(135deg,#FF3B30,#0A84FF)", padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ width: "min(760px,96vw)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(15,23,42,.28)", overflow: "hidden", maxHeight: "92vh", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ background: "linear-gradient(135deg,#FF3B30,#0A84FF)", padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <div style={{ color: "#fff", fontSize: 17, fontWeight: 900 }}>✏️ Nouvelle évaluation</div>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(255,255,255,.35)", background: "rgba(255,255,255,.15)", color: "#fff", fontSize: 16, cursor: "pointer", fontWeight: 700 }}>×</button>
         </div>
-        <div style={{ padding: 22, display: "grid", gap: 12 }}>
+
+        <div style={{ padding: 22, display: "grid", gap: 12, overflowY: "auto" }}>
           {err && <div style={{ padding: "9px 14px", borderRadius: 9, background: "rgba(220,38,38,.08)", border: "1px solid rgba(220,38,38,.25)", color: "#991B1B", fontSize: 13 }}>{err}</div>}
 
           {/* Type pills */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 7, textTransform: "uppercase", letterSpacing: ".05em" }}>Type</div>
+            <div style={lbl}>Type d&apos;évaluation</div>
             <div style={{ display: "flex", gap: 8 }}>
               {(["summative", "formative", "diag", "oral"] as const).map(t => (
                 <button key={t} onClick={() => setType(t as AssessmentType)}
@@ -85,21 +301,63 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
             </div>
           </div>
 
+          {/* Titre */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" }}>Titre *</div>
-            <input style={{ ...inp, height: 44 }} placeholder="Ex: Évaluation vocabulaire — De familie" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+            <div style={lbl}>Titre / Thème *</div>
+            <input style={{ ...inp, height: 44 }} placeholder="Ex: Vocabulaire — De familie" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
           </div>
 
+          {/* Matière (dropdown) + Niveau + Type exercice */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div>
+              <div style={lbl}>Matière *</div>
+              <select style={sel} value={selectedSubject.id}
+                onChange={e => { const s = SUBJECTS.find(s => s.id === e.target.value); if (s) handleSubjectChange(s); }}>
+                {SUBJECTS.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={lbl}>Niveau</div>
+              <select style={sel} value={niveau} onChange={e => setNiveau(e.target.value)}>
+                {selectedSubject.niveaux.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={lbl}>Type d&apos;exercice</div>
+              <select style={sel} value={typeExercice} onChange={e => setTypeExercice(e.target.value)}>
+                {selectedSubject.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Cotation */}
+          <div>
+            <div style={lbl}>Système de cotation</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {COTATION_OPTIONS.map(opt => (
+                <button key={opt.id} onClick={() => setCotation(opt.id)}
+                  style={{ flex: 1, padding: "8px 10px", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                    border: cotation === opt.id ? "2px solid #0A84FF" : "1.5px solid #E5E7EB",
+                    background: cotation === opt.id ? "#EFF6FF" : "#FFF", color: cotation === opt.id ? "#0A63BF" : "#374151",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                  <span>{opt.label}</span>
+                  <span style={{ fontSize: 10, fontWeight: 500, color: "#9CA3AF" }}>{opt.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Classe + Cours */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" }}>Classe *</div>
+              <div style={lbl}>Classe *</div>
               <select style={sel} value={classId} onChange={e => setClassId(e.target.value as UUID)}>
                 <option value="">Choisir…</option>
                 {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" }}>Cours *</div>
+              <div style={lbl}>Cours *</div>
               <select style={sel} value={courseId} onChange={e => setCourseId(e.target.value as UUID)}>
                 <option value="">Choisir…</option>
                 {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -107,17 +365,20 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          {/* Date + Points/Cotation + Statut */}
+          <div style={{ display: "grid", gridTemplateColumns: cotation === "points" ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" }}>Date</div>
+              <div style={lbl}>Date</div>
               <input type="date" style={inp} value={date} onChange={e => setDate(e.target.value)} />
             </div>
+            {cotation === "points" && (
+              <div>
+                <div style={lbl}>Points max</div>
+                <input style={inp} value={maxPoints} onChange={e => setMaxPoints(e.target.value)} inputMode="numeric" placeholder="20" />
+              </div>
+            )}
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" }}>Points max</div>
-              <input style={inp} value={maxPoints} onChange={e => setMaxPoints(e.target.value)} inputMode="numeric" placeholder="20" />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" }}>Statut</div>
+              <div style={lbl}>Statut</div>
               <select style={sel} value={status} onChange={e => setStatus(e.target.value as ContentStatus)}>
                 <option value="draft">Brouillon</option>
                 <option value="published">Publiée</option>
@@ -126,9 +387,10 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
             </div>
           </div>
 
+          {/* Apprentissage + Parents */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" }}>Apprentissage</div>
+              <div style={lbl}>Apprentissage</div>
               <select style={sel} value={apprentissageId} onChange={e => setApprentissageId(e.target.value as UUID | "")}>
                 <option value="">Aucun</option>
                 {apprentissages.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -142,17 +404,48 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
             </div>
           </div>
 
+          {/* Instructions */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" }}>Instructions (optionnel)</div>
-            <textarea style={{ ...inp, height: 68, resize: "vertical", paddingTop: 9 }} placeholder="Consignes, matériel requis…" value={instructions} onChange={e => setInstructions(e.target.value)} />
+            <div style={lbl}>Instructions / Consignes (optionnel)</div>
+            <textarea style={{ ...inp, height: 68, resize: "vertical", paddingTop: 9 }} placeholder="Ex: Vocabulaire de la famille, mots de liaison, present simple…" value={instructions} onChange={e => setInstructions(e.target.value)} />
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, paddingTop: 4 }}>
-            <button onClick={onClose} style={{ height: 38, padding: "0 14px", borderRadius: 9, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Annuler</button>
-            <button onClick={onSubmit} disabled={saving}
-              style={{ height: 42, padding: "0 20px", borderRadius: 9, border: "none", background: saving ? "#9CA3AF" : "linear-gradient(135deg,#FF3B30,#0A84FF)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: saving ? "not-allowed" : "pointer" }}>
-              {saving ? "Enregistrement…" : "✓ Créer l'évaluation"}
-            </button>
+          {/* Résultat IA */}
+          {genResult && (
+            <div style={{ borderRadius: 12, border: "1px solid #BBF7D0", background: "#F0FDF4", padding: "12px 14px", fontSize: 13, color: "#166534", maxHeight: 200, overflowY: "auto", whiteSpace: "pre-wrap" }}>
+              {genResult}
+            </div>
+          )}
+
+          {/* Boutons */}
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, paddingTop: 4, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={onGenerer} disabled={generating || !title.trim()}
+                style={{ height: 42, padding: "0 16px", borderRadius: 9, border: "none",
+                  background: generating || !title.trim() ? "#E5E7EB" : "linear-gradient(135deg,#AF52DE,#0A84FF)",
+                  color: generating || !title.trim() ? "#9CA3AF" : "#fff",
+                  fontWeight: 700, fontSize: 13, cursor: generating || !title.trim() ? "not-allowed" : "pointer",
+                  display: "flex", alignItems: "center", gap: 6 }}>
+                {generating ? "⏳ Génération…" : "✨ Générer avec IA"}
+              </button>
+              {genResult && (
+                <button onClick={onDownloadPDF}
+                  style={{ height: 42, padding: "0 16px", borderRadius: 9, border: "1px solid #BBF7D0",
+                    background: "#F0FDF4", color: "#166534", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 6 }}>
+                  📄 Télécharger PDF Klasbook
+                </button>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={onClose} style={{ height: 38, padding: "0 14px", borderRadius: 9, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Annuler</button>
+              <button onClick={onSubmit} disabled={saving}
+                style={{ height: 42, padding: "0 20px", borderRadius: 9, border: "none",
+                  background: saving ? "#9CA3AF" : "linear-gradient(135deg,#FF3B30,#0A84FF)",
+                  color: "#fff", fontWeight: 700, fontSize: 14, cursor: saving ? "not-allowed" : "pointer" }}>
+                {saving ? "Enregistrement…" : "✓ Créer l'évaluation"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -201,9 +494,9 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
     const res = await fetch(`/api/evaluations/upload?assessmentId=${a.id}&path=${encodeURIComponent(a.fichier_path)}`, { method: "DELETE" });
     if (res.ok) { onRefresh(); }
   }
+
   const isPublished = a.status === "published";
   const isArchived = a.status === "archived";
-
   const typeColor = isFormative
     ? { bg: "#EFF6FF", text: "#1D4ED8", border: "#BFDBFE" }
     : { bg: "#F5F3FF", text: "#6D28D9", border: "#DDD6FE" };
@@ -217,13 +510,9 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
       opacity: isArchived ? 0.7 : 1,
     }}>
       <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-
-        {/* Icône type */}
         <div style={{ width: 42, height: 42, borderRadius: 12, background: typeColor.bg, border: `1px solid ${typeColor.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
           {isFormative ? "📊" : "🎓"}
         </div>
-
-        {/* Contenu principal */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: typeColor.bg, color: typeColor.text, border: `1px solid ${typeColor.border}` }}>
@@ -234,9 +523,7 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
             {isArchived && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#F3F4F6", color: "#6B7280", border: "1px solid #E5E7EB" }}>Archivée</span>}
             {a.parent_visible && <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>👪 Parents</span>}
           </div>
-
           <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", marginBottom: 5 }}>{a.title}</div>
-
           <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, color: "#6B7280", fontWeight: 500 }}>
             {a.date && <span>📅 {formatDateFR(a.date)}</span>}
             {a.max_points && <span>🎯 {a.max_points} pts</span>}
@@ -244,14 +531,11 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
               <span>📖 {apprentissageNameById.get(a.apprentissage_id)}</span>
             )}
           </div>
-
           {a.instructions && (
             <div style={{ marginTop: 7, fontSize: 12, color: "#6B7280", background: "#F9FAFB", borderRadius: 8, padding: "5px 9px", fontStyle: "italic" }}>
               {a.instructions}
             </div>
           )}
-
-          {/* Zone fichier */}
           <div style={{ marginTop: 10 }}>
             <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg" style={{ display: "none" }}
               onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
@@ -272,8 +556,6 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
             {uploadMsg && <div style={{ fontSize: 11, marginTop: 4, color: uploadMsg.startsWith("✅") ? "#166534" : "#B91C1C" }}>{uploadMsg}</div>}
           </div>
         </div>
-
-        {/* Actions */}
         <div style={{ display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
           {!isArchived && (
             <button onClick={() => onToggleStatus(a)}
@@ -339,7 +621,6 @@ export default function EvaluationsPage() {
   const [resTargetId, setResTargetId] = useState<UUID | "">("");
 
   const apprentissageNameById = useMemo(() => new Map(apprentissages.map(a => [a.id, a.name])), [apprentissages]);
-
   const stats = useMemo(() => ({
     total: rows.length,
     formatives: rows.filter(r => r.type === "formative" && r.status !== "archived").length,
@@ -374,7 +655,6 @@ export default function EvaluationsPage() {
   }
 
   useEffect(() => { boot(); }, []);
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
@@ -383,9 +663,7 @@ export default function EvaluationsPage() {
     if (qAssessment) setFilterAssessmentId(qAssessment as UUID);
     if (qClass) setFilterClassId(qClass as UUID);
   }, []);
-
   useEffect(() => { if (ctx) refresh(ctx); }, [ctx, filterClassId, filterCourseId, filterAssessmentId]);
-
   useEffect(() => {
     if (!filterAssessmentId) return;
     const el = document.getElementById(`card-${filterAssessmentId}`);
@@ -442,8 +720,6 @@ export default function EvaluationsPage() {
 
   return (
     <div style={{ maxWidth: 960, margin: "0 auto", display: "grid", gap: 16, padding: "0 4px 32px" }}>
-
-      {/* Toasts */}
       {errorMsg && (
         <div style={{ padding: "11px 16px", borderRadius: 11, background: "rgba(220,38,38,.08)", border: "1px solid rgba(220,38,38,.25)", color: "#991B1B", fontWeight: 700, display: "flex", justifyContent: "space-between" }}>
           {errorMsg} <button style={{ background: "none", border: "none", cursor: "pointer", color: "#991B1B", fontWeight: 900 }} onClick={() => setErrorMsg(null)}>×</button>
@@ -455,14 +731,13 @@ export default function EvaluationsPage() {
         </div>
       )}
 
-      {/* ── Stats ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
         {[
-          { label: "Total", value: stats.total, color: "#111827", bg: "#F9FAFB" },
+          { label: "Total",      value: stats.total,      color: "#111827", bg: "#F9FAFB" },
           { label: "Formatives", value: stats.formatives, color: "#1D4ED8", bg: "#EFF6FF" },
           { label: "Sommatives", value: stats.sommatives, color: "#6D28D9", bg: "#F5F3FF" },
-          { label: "Publiées", value: stats.publiees, color: "#166534", bg: "#F0FDF4" },
-          { label: "Archivées", value: stats.archivees, color: "#6B7280", bg: "#F3F4F6" },
+          { label: "Publiées",   value: stats.publiees,   color: "#166534", bg: "#F0FDF4" },
+          { label: "Archivées",  value: stats.archivees,  color: "#6B7280", bg: "#F3F4F6" },
         ].map(s => (
           <div key={s.label} style={{ borderRadius: 12, padding: "12px 14px", background: s.bg, border: "1px solid #E5E7EB" }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 4 }}>{s.label}</div>
@@ -471,20 +746,17 @@ export default function EvaluationsPage() {
         ))}
       </div>
 
-      {/* ── Tabs + Filtres ── */}
       <div style={{ background: "#FFF", borderRadius: 14, border: "1px solid #E5E7EB", overflow: "hidden" }}>
-        {/* Tabs */}
         <div style={{ display: "flex", borderBottom: "1px solid #E5E7EB" }}>
           {TAB_CONFIG.map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              style={{ flex: 1, padding: "12px 8px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: activeTab === tab.id ? 800 : 500, color: activeTab === tab.id ? "#111827" : "#9CA3AF",
+              style={{ flex: 1, padding: "12px 8px", background: "none", border: "none", cursor: "pointer", fontSize: 13,
+                fontWeight: activeTab === tab.id ? 800 : 500, color: activeTab === tab.id ? "#111827" : "#9CA3AF",
                 borderBottom: activeTab === tab.id ? "2px solid #0A84FF" : "2px solid transparent", transition: "all .15s" }}>
               {tab.emoji} {tab.label}
             </button>
           ))}
         </div>
-
-        {/* Filtres */}
         <div style={{ padding: "12px 16px", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <select style={selStyle} value={filterClassId} onChange={e => setFilterClassId(e.target.value as UUID)}>
             <option value="">Toutes les classes</option>
@@ -502,7 +774,6 @@ export default function EvaluationsPage() {
           </button>
         </div>
 
-        {/* Import CSV */}
         {showImport && (
           <div style={{ margin: "0 16px 16px", padding: 16, background: "#F9FAFB", borderRadius: 12, border: "1px solid #E5E7EB", display: "grid", gap: 12 }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>📥 Import CSV — Évaluations</div>
@@ -516,7 +787,6 @@ export default function EvaluationsPage() {
               <span style={{ fontSize: 12, color: "#9CA3AF" }}>{csvFileName || "Aucun fichier"}</span>
             </div>
             {csvSummary && <div style={{ fontSize: 12, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "8px 12px", color: "#166534" }}>Créés : {csvSummary.created} · Existants : {csvSummary.alreadyExisting} · Erreurs : {csvSummary.errors.length}</div>}
-
             <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 12, fontWeight: 700, fontSize: 14 }}>📥 Import CSV — Résultats élèves</div>
             <input ref={resCsvRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => void onSelectResCsv(e.target.files?.[0] ?? null)} />
             <select style={{ ...selStyle, maxWidth: 380 }} value={resTargetId} onChange={e => setResTargetId(e.target.value as UUID)}>
@@ -535,7 +805,6 @@ export default function EvaluationsPage() {
         )}
       </div>
 
-      {/* ── Liste ── */}
       <div style={{ display: "grid", gap: 8 }}>
         {filteredRows.length === 0 ? (
           <div style={{ background: "#FFF", borderRadius: 14, border: "1px solid #E5E7EB", padding: "40px 24px", textAlign: "center", color: "#6B7280" }}>

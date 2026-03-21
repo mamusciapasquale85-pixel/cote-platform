@@ -308,6 +308,7 @@ export async function getTeacherContext(): Promise<TeacherContext> {
     .from(T.SCHOOL_MEMBERSHIPS)
     .select("school_id")
     .eq("user_id", user.id)
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
@@ -383,7 +384,6 @@ export async function listAssessments(params: {
   const applyCommonFilters = (q: any) => {
     let next = q
       .eq("school_id", ctx.schoolId)
-      .eq("teacher_user_id", ctx.teacherUserId)
       .order("date", { ascending: false });
 
     if (params.assessmentId) next = next.eq("id", params.assessmentId);
