@@ -128,6 +128,12 @@ export default function ElevePage() {
   const [showCommModal, setShowCommModal] = useState(false);
   const [commText, setCommText] = useState("");
 
+  // Invitation parent
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteMsg, setInviteMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   const averages = useMemo(() => {
     const valid = results.filter((r) => r.value != null && r.max_points != null && (r.max_points ?? 0) > 0);
     let sumValue = 0, sumMax = 0;
@@ -394,13 +400,111 @@ export default function ElevePage() {
       {/* ── COMMUNICATION PARENTS ── */}
       <div style={card}>
         <div style={sectionTitle}>💬 Communication parents</div>
-        <button style={btnPrimary} onClick={() => setShowCommModal(true)}>
-          ✉️ Envoyer un message
-        </button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button style={btnPrimary} onClick={() => setShowCommModal(true)}>
+            ✉️ Envoyer un message
+          </button>
+          <button
+            style={{ ...btnPrimary, background: "rgba(22,163,74,0.08)", borderColor: "rgba(22,163,74,0.25)", color: "#166534" }}
+            onClick={() => { setShowInviteModal(true); setInviteEmail(student?.parent_email ?? ""); setInviteMsg(null); }}
+          >
+            👨‍👩‍👧 Inviter un parent
+          </button>
+        </div>
         <div style={{ marginTop: 8, opacity: 0.65, fontSize: 12 }}>
-          Fonctionnalité à venir — la table messages sera branchée prochainement.
+          Invitez les parents à accéder au portail Klasbook pour suivre les résultats de leur enfant.
         </div>
       </div>
+
+      {/* ── MODAL INVITATION PARENT ── */}
+      {showInviteModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => setShowInviteModal(false)}
+        >
+          <div
+            style={{ width: "min(520px, 96vw)", background: "white", borderRadius: 18, padding: 28, boxShadow: "0 20px 60px rgba(15,23,42,0.3)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 6 }}>👨‍👩‍👧 Inviter un parent</div>
+            <div style={{ opacity: 0.65, fontSize: 13, marginBottom: 18 }}>
+              Le parent recevra un email avec un lien pour créer son compte et accéder au portail Klasbook.
+            </div>
+
+            {student && (
+              <div style={{ background: "rgba(15,23,42,0.04)", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13 }}>
+                <b>Élève :</b> {student.last_name} {student.first_name}
+              </div>
+            )}
+
+            <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 6 }}>
+              Email du parent
+            </label>
+            <input
+              type="email"
+              required
+              placeholder="parent@exemple.com"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              style={{
+                width: "100%", padding: "11px 14px", borderRadius: 12,
+                border: "1px solid rgba(15,23,42,0.2)", fontSize: 14,
+                boxSizing: "border-box", outline: "none", fontFamily: "inherit",
+              }}
+            />
+
+            {inviteMsg && (
+              <div style={{
+                marginTop: 12, borderRadius: 10, padding: "10px 14px", fontSize: 13, fontWeight: 600,
+                background: inviteMsg.ok ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)",
+                color: inviteMsg.ok ? "#166534" : "#991B1B",
+                border: `1px solid ${inviteMsg.ok ? "rgba(22,163,74,0.25)" : "rgba(220,38,38,0.25)"}`,
+              }}>
+                {inviteMsg.ok ? "✅ " : "⚠️ "}{inviteMsg.text}
+              </div>
+            )}
+
+            <div style={{ marginTop: 18, display: "flex", gap: 10 }}>
+              <button
+                style={{
+                  padding: "10px 20px", borderRadius: 10, border: "none",
+                  background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
+                  color: "white", fontWeight: 800, fontSize: 14,
+                  cursor: inviteLoading ? "not-allowed" : "pointer",
+                  opacity: inviteLoading ? 0.7 : 1,
+                }}
+                disabled={inviteLoading}
+                onClick={async () => {
+                  if (!inviteEmail.trim()) return;
+                  setInviteLoading(true);
+                  setInviteMsg(null);
+                  try {
+                    const res = await fetch("/api/inviter-parent", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        email: inviteEmail.trim(),
+                        student_id: studentId,
+                        student_name: student ? `${student.first_name} ${student.last_name}` : "",
+                      }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error ?? "Erreur");
+                    setInviteMsg({ ok: true, text: data.message });
+                  } catch (err: any) {
+                    setInviteMsg({ ok: false, text: err.message ?? "Erreur inconnue" });
+                  } finally {
+                    setInviteLoading(false);
+                  }
+                }}
+              >
+                {inviteLoading ? "Envoi…" : "📨 Envoyer l'invitation"}
+              </button>
+              <button style={btn} onClick={() => setShowInviteModal(false)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal communication */}
       {showCommModal && (
