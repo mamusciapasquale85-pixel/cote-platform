@@ -54,6 +54,17 @@ export default function LoginPage() {
 
   const GRAD = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
 
+  async function handleDemo() {
+    setMsg(""); setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: "demo@klasbook.be",
+      password: "KlasbookDemo2025!",
+    });
+    if (error) { setLoading(false); setMsgType("error"); setMsg("Démo temporairement indisponible."); return; }
+    setLoading(false);
+    window.location.href = "/dashboard";
+  }
+
   return (
     <main style={{ minHeight: "100vh", background: GRAD, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, sans-serif" }}>
       <div style={{ background: "white", borderRadius: 16, padding: 48, width: "100%", maxWidth: 420, boxShadow: "0 25px 50px rgba(0,0,0,0.2)" }}>
@@ -146,7 +157,37 @@ export default function LoginPage() {
           </div>
         )}
 
-        <p style={{ textAlign: "center", marginTop: 24, fontSize: "0.75rem", color: "#9ca3af" }}>
+        {/* ── Bouton démo ── */}
+        {mode === "login" && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
+              <span style={{ fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>ou</span>
+              <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
+            </div>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={handleDemo}
+              style={{
+                width: "100%", padding: 13,
+                background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
+                color: "white", border: "none", borderRadius: 8,
+                fontSize: "0.95rem", fontWeight: 700,
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.7 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+            >
+              🎮 Essayer la démo
+            </button>
+            <p style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: "#9ca3af" }}>
+              Accès instantané · Aucune inscription requise
+            </p>
+          </div>
+        )}
+
+        <p style={{ textAlign: "center", marginTop: 20, fontSize: "0.75rem", color: "#9ca3af" }}>
           LYCÉE ALTERNATIF BRUXELLOIS · LAB Marie Curie
         </p>
       </div>
