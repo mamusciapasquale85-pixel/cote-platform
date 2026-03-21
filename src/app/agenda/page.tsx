@@ -11,6 +11,7 @@ import {
   type TeacherContext,
   type ClassGroup,
   type LessonScheduleRow,
+  type AgendaAssessment,
   type AgendaStudent,
   type AttendanceRecord,
   type ParsedScheduleCsvRow,
@@ -20,6 +21,7 @@ import {
   getTeacherContext,
   listClassGroups,
   listLessonScheduleWeek,
+  listAssessmentsForAgenda,
   listStudentsForClass,
   upsertLessonScheduleCell,
   listAttendanceForClassDate,
@@ -182,6 +184,7 @@ export default function AgendaPage() {
 
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeekMonday(new Date()));
   const [slotsRows, setSlotsRows] = useState<LessonScheduleRow[]>([]);
+  const [weekAssessments, setWeekAssessments] = useState<AgendaAssessment[]>([]);
 
   const [importRows, setImportRows] = useState<ParsedScheduleCsvRow[]>([]);
   const [importFileName, setImportFileName] = useState("");
@@ -227,6 +230,19 @@ export default function AgendaPage() {
     return map;
   }, [slotsRows]);
 
+  // Map date|class_group_id → évaluations du jour
+  const assessmentsByDateClass = useMemo(() => {
+    const map = new Map<string, AgendaAssessment[]>();
+    for (const a of weekAssessments) {
+      if (!a.date || !a.class_group_id) continue;
+      const key = `${a.date}|${a.class_group_id}`;
+      const existing = map.get(key) ?? [];
+      existing.push(a);
+      map.set(key, existing);
+    }
+    return map;
+  }, [weekAssessments]);
+
   const ideaTags = useMemo(() => {
     const tags = new Set<string>();
     for (const row of slotsRows) {
@@ -261,12 +277,12 @@ export default function AgendaPage() {
   async function loadGrid(c: TeacherContext, fromIso: string, toIso: string) {
     try {
       setErrorMsg(null);
-      const rows = await listLessonScheduleWeek({
-        ctx: c,
-        dateFrom: fromIso,
-        dateTo: toIso,
-      });
+      const [rows, assessments] = await Promise.all([
+        listLessonScheduleWeek({ ctx: c, dateFrom: fromIso, dateTo: toIso }),
+        listAssessmentsForAgenda({ ctx: c, dateFrom: fromIso, dateTo: toIso }),
+      ]);
       setSlotsRows(rows);
+      setWeekAssessments(assessments);
     } catch (e: unknown) {
       setErrorMsg(toNiceError(e));
     }
@@ -557,6 +573,10 @@ export default function AgendaPage() {
                       : "";
 
                     const rowTag = normalizeTag(row?.tag);
+                    // Évaluations créées dans /evaluations pour ce jour + cette classe
+                    const cellAssessments = classId
+                      ? (assessmentsByDateClass.get(`${date}|${classId}`) ?? [])
+                      : [];
 
                     return (
                       <td
@@ -584,6 +604,7 @@ export default function AgendaPage() {
                         <div style={{ fontWeight: 900, fontSize: 13 }}>{className || ""}</div>
                         <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700 }}>{row?.lesson_title || ""}</div>
 
+                        {/* Badge tag manuel (agenda) */}
                         {rowTag && (
                           <button
                             style={{
@@ -608,6 +629,37 @@ export default function AgendaPage() {
                             {rowTag === "eval" ? "Éval" : "Devoir"}
                           </button>
                         )}
+
+                        {/* Badges évaluations depuis /evaluations */}
+                        {cellAssessments.map((a) => (
+                          <button
+                            key={a.id}
+                            style={{
+                              display: "block",
+                              marginTop: 4,
+                              border: "none",
+                              borderRadius: 999,
+                              padding: "2px 8px",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              color: "white",
+                              background: a.type === "summative" ? "#dc2626" : "#7c3aed",
+                              cursor: "pointer",
+                              maxWidth: "100%",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              textAlign: "left",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/evaluations?date=${date}&class_group_id=${classId}`);
+                            }}
+                            title={a.title}
+                          >
+                            📋 {a.type === "summative" ? "Éval" : "Form."} — {a.title}
+                          </button>
+                        ))}
                       </td>
                     );
                   })}
