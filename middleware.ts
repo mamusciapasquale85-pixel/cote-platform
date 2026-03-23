@@ -21,11 +21,6 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hostname = request.headers.get("host") ?? "";
 
-  // Redirect www → apex
-  if (hostname === "www.klasbook.be") {
-    return NextResponse.redirect(`https://klasbook.be${pathname}`, 308);
-  }
-
   const response = await updateSession(request);
 
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
