@@ -49,20 +49,26 @@ export default function OutilsPage() {
   useEffect(() => {
     if (!classeId) return;
     setEleve(null); setGroupes([]); setHisto([]);
+    // 2 requêtes séparées pour éviter le conflit RLS sur le join PostgREST
     supabase
       .from("student_enrollments")
-      .select("student_id, students(id, first_name, last_name), class_groups(id, name)")
+      .select("student_id")
       .eq("class_group_id", classeId)
-      .then(({ data }) => {
-        if (!data) return;
-        const mapped: Student[] = data
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((row: any) => ({
-            id: row.students?.id ?? row.student_id,
-            prenom: row.students?.first_name ?? "",
-            nom: row.students?.last_name ?? "",
-            classe: row.class_groups?.name ?? "",
-            classeId: classeId,
+      .then(async ({ data: enrolls }) => {
+        if (!enrolls || enrolls.length === 0) { setEleves([]); return; }
+        const ids = enrolls.map((e: { student_id: string }) => e.student_id);
+        const { data: studs } = await supabase
+          .from("students")
+          .select("id, first_name, last_name")
+          .in("id", ids);
+        if (!studs) { setEleves([]); return; }
+        const mapped: Student[] = studs
+          .map((s: { id: string; first_name: string; last_name: string }) => ({
+            id: s.id,
+            prenom: s.first_name ?? "",
+            nom: s.last_name ?? "",
+            classe: classes.find(c => c.id === classeId)?.name ?? "",
+            classeId,
           }))
           .filter(s => s.prenom || s.nom)
           .sort((a, b) => a.nom.localeCompare(b.nom));
