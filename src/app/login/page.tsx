@@ -54,15 +54,16 @@ export default function LoginPage() {
 
   const GRAD = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
 
-  async function handleDemo() {
+  async function handleDemo(target: "dashboard" | "direction" = "dashboard") {
     setMsg(""); setLoading(true);
+    const email = target === "direction" ? "direction@klasbook.be" : "demo@klasbook.be";
     const { error } = await supabase.auth.signInWithPassword({
-      email: "demo@klasbook.be",
+      email,
       password: "KlasbookDemo2025!",
     });
     if (error) { setLoading(false); setMsgType("error"); setMsg("Démo temporairement indisponible."); return; }
     setLoading(false);
-    window.location.href = "/dashboard";
+    window.location.href = `/${target}`;
   }
 
   return (
@@ -165,22 +166,40 @@ export default function LoginPage() {
               <span style={{ fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>ou</span>
               <div style={{ flex: 1, height: 1, background: "#e5e7eb" }} />
             </div>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={handleDemo}
-              style={{
-                width: "100%", padding: 13,
-                background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
-                color: "white", border: "none", borderRadius: 8,
-                fontSize: "0.95rem", fontWeight: 700,
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}
-            >
-              🎮 Essayer la démo
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleDemo("dashboard")}
+                style={{
+                  flex: 1, padding: 13,
+                  background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
+                  color: "white", border: "none", borderRadius: 8,
+                  fontSize: "0.9rem", fontWeight: 700,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.7 : 1,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                🎮 Démo Professeur
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => handleDemo("direction")}
+                style={{
+                  flex: 1, padding: 13,
+                  background: "linear-gradient(135deg, #0A84FF 0%, #5856D6 100%)",
+                  color: "white", border: "none", borderRadius: 8,
+                  fontSize: "0.9rem", fontWeight: 700,
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.7 : 1,
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                🏫 Démo Direction
+              </button>
+            </div>
             <p style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: "#9ca3af" }}>
               Accès instantané · Aucune inscription requise
             </p>
