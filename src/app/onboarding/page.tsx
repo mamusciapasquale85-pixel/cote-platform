@@ -3,7 +3,7 @@ import { useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 type Role = "teacher" | "admin" | "parent";
 
 const GRADE_OPTIONS = [
@@ -23,6 +23,24 @@ const GRADE_OPTIONS = [
 
 const GRADIENT = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
 
+const MATIERES_DISPONIBLES = [
+  { id: "nl",            label: "Néerlandais",   emoji: "🇳🇱" },
+  { id: "francais",      label: "Français",      emoji: "📖" },
+  { id: "mathematiques", label: "Mathématiques", emoji: "📐" },
+  { id: "sciences",      label: "Sciences",      emoji: "🔬" },
+  { id: "histoire",      label: "Histoire",      emoji: "🏛️" },
+  { id: "geographie",    label: "Géographie",    emoji: "🗺️" },
+  { id: "anglais",       label: "Anglais",       emoji: "🇬🇧" },
+  { id: "allemand",      label: "Allemand",      emoji: "🇩🇪" },
+  { id: "espagnol",      label: "Espagnol",      emoji: "🇪🇸" },
+  { id: "latin",         label: "Latin",         emoji: "⚱️" },
+  { id: "ed_physique",   label: "Éd. physique",  emoji: "⚽" },
+  { id: "arts",          label: "Arts / Musique",emoji: "🎨" },
+  { id: "religion",      label: "Religion / Morale",emoji: "✝️" },
+  { id: "informatique",  label: "Informatique",  emoji: "💻" },
+  { id: "autre",         label: "Autre",         emoji: "📚" },
+];
+
 const ROLES: { value: Role; label: string; description: string; icon: string }[] = [
   { value: "teacher", label: "Enseignant(e)", description: "Gérer mes classes et évaluations", icon: "📚" },
   { value: "admin", label: "Direction", description: "Accès complet à l'établissement", icon: "🏫" },
@@ -39,8 +57,12 @@ export default function OnboardingPage() {
   const [gradeLevel, setGradeLevel] = useState(7);
   const [childFirstName, setChildFirstName] = useState("");
   const [childLastName, setChildLastName] = useState("");
+  const [selectedMatieres, setSelectedMatieres] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Stocké après step 2 pour réutiliser dans step 5
+  const [savedSchoolId, setSavedSchoolId] = useState("");
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -65,7 +87,7 @@ export default function OnboardingPage() {
       });
 
       let school: { id: string } | null = null;
-      const { data: existing } = await supabase.from("schools").select("id").ilike("name", schoolName.trim()).single();
+      const { data: existing } = await supabase.from("schools").select("id").ilike("name", schoolName.trim()).limit(1).maybeSingle();
       if (existing) {
         school = existing;
       } else {
@@ -76,7 +98,7 @@ export default function OnboardingPage() {
 
       await supabase.from("school_memberships").insert({ school_id: school!.id, user_id: user.id, role });
 
-      const { data: year } = await supabase.from("academic_years").select("id").eq("school_id", school!.id).single();
+      const { data: year } = await supabase.from("academic_years").select("id").eq("school_id", school!.id).limit(1).maybeSingle();
       let yearId = year?.id;
       if (!yearId) {
         const { data: newYear } = await supabase.from("academic_years")
@@ -90,6 +112,50 @@ export default function OnboardingPage() {
           school_id: school!.id, academic_year_id: yearId,
           name: className.trim(), grade_level: gradeLevel, teacher_id: user.id,
         });
+      }
+
+      setSavedSchoolId(school!.id);
+
+      // Les profs vont à l'étape matières ; admins directement à la confirmation
+      setStep(role === "teacher" ? 5 : 4);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Une erreur est survenue.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleStep5(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Session expirée. Reconnectez-vous.");
+
+      const schoolId = savedSchoolId;
+
+      if (selectedMatieres.length > 0 && schoolId) {
+        // Créer les cours sélectionnés dans la table courses
+        const coursRows = selectedMatieres.map(id => {
+          const mat = MATIERES_DISPONIBLES.find(m => m.id === id);
+          return {
+            school_id: schoolId,
+            name: mat?.label ?? id,
+            subject_area: id,
+            grade_band: "secondaire",
+          };
+        });
+        await supabase.from("courses").insert(coursRows);
+
+        // Mettre à jour la matière principale dans school_memberships
+        const primaryLabel = MATIERES_DISPONIBLES.find(m => m.id === selectedMatieres[0])?.label ?? selectedMatieres[0];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from("school_memberships")
+          .update({ matiere: primaryLabel })
+          .eq("user_id", user.id)
+          .eq("school_id", schoolId);
       }
 
       setStep(4);
@@ -134,15 +200,21 @@ export default function OnboardingPage() {
     }
   }
 
+  function toggleMatiere(id: string) {
+    setSelectedMatieres(prev =>
+      prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]
+    );
+  }
+
   function goToApp() {
     if (role === "admin") router.push("/admin");
     else if (role === "parent") router.push("/parent");
-    else router.push("/teacher");
+    else router.push("/dashboard");
   }
 
   return (
     <main style={{ minHeight: "100vh", background: GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, sans-serif", padding: "24px" }}>
-      <div style={{ background: "white", borderRadius: "16px", padding: "48px", width: "100%", maxWidth: "480px", boxShadow: "0 25px 50px rgba(0,0,0,0.2)" }}>
+      <div style={{ background: "white", borderRadius: "16px", padding: "48px", width: "100%", maxWidth: "520px", boxShadow: "0 25px 50px rgba(0,0,0,0.2)" }}>
 
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
           <h1 style={{ fontSize: "2rem", fontWeight: "800", background: GRADIENT, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: 0 }}>
@@ -203,7 +275,7 @@ export default function OnboardingPage() {
             {error && <ErrorBox>{error}</ErrorBox>}
             <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
               <BackButton onClick={() => setStep(1)} />
-              <SubmitButton loading={loading} style={{ flex: 2 }}>{loading ? "Création..." : "Créer mon espace →"}</SubmitButton>
+              <SubmitButton loading={loading} style={{ flex: 2 }}>{loading ? "Création..." : "Continuer →"}</SubmitButton>
             </div>
           </form>
         )}
@@ -248,6 +320,55 @@ export default function OnboardingPage() {
           </div>
         )}
 
+        {/* Étape 5 : matières enseignées (teacher) */}
+        {step === 5 && (
+          <form onSubmit={handleStep5}>
+            <SectionTitle>Quelles matières enseignez-vous ?</SectionTitle>
+            <p style={{ fontSize: "0.85rem", color: "#6b7280", marginBottom: "16px", marginTop: "-8px" }}>
+              Sélectionnez une ou plusieurs matières. Cela personnalisera votre assistant IA et vos outils.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "20px" }}>
+              {MATIERES_DISPONIBLES.map(m => {
+                const selected = selectedMatieres.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggleMatiere(m.id)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: "8px",
+                      padding: "10px 12px", borderRadius: "10px", cursor: "pointer",
+                      border: selected ? "2px solid #667eea" : "2px solid #e5e7eb",
+                      background: selected ? "#f5f3ff" : "white",
+                      fontWeight: selected ? 700 : 500, fontSize: "0.875rem",
+                      color: selected ? "#5b21b6" : "#374151",
+                      textAlign: "left", transition: "all 0.12s",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.2rem" }}>{m.emoji}</span>
+                    <span style={{ flex: 1 }}>{m.label}</span>
+                    {selected && <span style={{ color: "#667eea", fontSize: "0.8rem" }}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedMatieres.length === 0 && (
+              <p style={{ fontSize: "0.8rem", color: "#f59e0b", marginBottom: "12px" }}>
+                💡 Sélectionnez au moins une matière pour personnaliser votre expérience.
+              </p>
+            )}
+            {error && <ErrorBox>{error}</ErrorBox>}
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button type="button" onClick={() => setStep(4)} style={{ flex: 1, padding: "14px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: "8px", fontSize: "0.95rem", fontWeight: "600", cursor: "pointer" }}>
+                Passer →
+              </button>
+              <SubmitButton loading={loading} style={{ flex: 2 }}>
+                {loading ? "Enregistrement..." : "Terminer la configuration →"}
+              </SubmitButton>
+            </div>
+          </form>
+        )}
+
         <p style={{ textAlign: "center", marginTop: "28px", fontSize: "0.75rem", color: "#9ca3af" }}>
           Klasbook · La gestion de classe simplifiée
         </p>
@@ -271,10 +392,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function ErrorBox({ children }: { children: React.ReactNode }) {
   return <div style={{ marginBottom: "16px", padding: "12px", borderRadius: "8px", background: "#fef2f2", color: "#dc2626", fontSize: "0.85rem" }}>{children}</div>;
-}
-
-function BackButton({ onClick }: { onClick: () => void }) {
-  return <button type="button" onClick={onClick} style={{ flex: 1, padding: "14px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: "8px", fontSize: "0.95rem", fontWeight: "600", cursor: "pointer" }}>← Retour</button>;
 }
 
 function SubmitButton({ children, loading, style }: { children: React.ReactNode; loading: boolean; style?: React.CSSProperties }) {

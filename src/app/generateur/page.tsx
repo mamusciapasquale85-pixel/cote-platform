@@ -169,6 +169,7 @@ function MarkdownText({ text }: { text: string }) {
 
 export default function GenerateurPage() {
   const [matiere, setMatiere] = useState<string | null>(null);
+  const [allCours, setAllCours] = useState<{ id: string; name: string }[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -177,11 +178,17 @@ export default function GenerateurPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Charger la matière du prof
+  // Charger les cours du prof
   useEffect(() => {
-    fetch("/api/profil/matiere")
+    fetch("/api/profil/cours")
       .then(r => r.json())
-      .then((d: { matiere?: string }) => setMatiere(d.matiere ?? "votre matière"))
+      .then((d: { cours?: { id: string; name: string }[]; matiere?: string }) => {
+        const list = d.cours ?? [];
+        setAllCours(list);
+        // Matière par défaut = matiere du profil, sinon 1er cours, sinon fallback
+        const defaultMat = d.matiere ?? list[0]?.name ?? "votre matière";
+        setMatiere(defaultMat);
+      })
       .catch(() => setMatiere("votre matière"));
   }, []);
 
@@ -255,9 +262,27 @@ export default function GenerateurPage() {
               Nouvelle conv.
             </button>
           )}
-          <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "5px 12px", fontSize: 12, fontWeight: 700 }}>
-            {matiere}
-          </div>
+          {allCours.length > 1 ? (
+            <select
+              value={matiere ?? ""}
+              onChange={e => { setMatiere(e.target.value); setMessages([]); setActiveSkill("chat"); }}
+              style={{
+                background: "rgba(255,255,255,0.22)", border: "1px solid rgba(255,255,255,0.45)",
+                color: "#fff", borderRadius: 10, padding: "5px 10px", fontSize: 12,
+                fontWeight: 700, cursor: "pointer", outline: "none",
+              }}
+            >
+              {allCours.map(c => (
+                <option key={c.id} value={c.name} style={{ background: "#1e293b", color: "#fff" }}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div style={{ background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "5px 12px", fontSize: 12, fontWeight: 700 }}>
+              {matiere}
+            </div>
+          )}
         </div>
       </div>
 
