@@ -27,7 +27,6 @@ import {
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
 const GRADIENT = "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)";
-const SIDEBAR_BG = "#0f172a";
 
 // ─── Periods ─────────────────────────────────────────────────────────────────
 
@@ -52,7 +51,7 @@ function getOverallLevel(levels: (Level | null)[]): Level | null {
 
 function LevelBadge({ level }: { level: Level | null }) {
   if (!level) return (
-    <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 8, background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.3)", fontSize: 12, fontWeight: 700 }}>—</span>
+    <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 8, background: "rgba(15,23,42,0.06)", color: "rgba(15,23,42,0.25)", fontSize: 12, fontWeight: 700 }}>—</span>
   );
   return (
     <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 8, background: LEVEL_COLORS[level], color: LEVEL_TEXT_COLORS[level], fontSize: 12, fontWeight: 800 }}>
@@ -415,14 +414,14 @@ export default function BulletinsPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: SIDEBAR_BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 16 }}>Chargement…</span>
+      <div style={{ minHeight: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ color: "#94a3b8", fontSize: 16 }}>Chargement…</span>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: SIDEBAR_BG, color: "#f8fafc" }}>
+    <div style={{ minHeight: "100vh", background: "#F7F8FC" }}>
       {/* Header */}
       <div style={{ background: GRADIENT, padding: "28px 32px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
@@ -441,7 +440,7 @@ export default function BulletinsPage() {
 
       <div style={{ padding: "32px" }}>
         {error && (
-          <div style={{ background: "#450a0a", border: "1px solid #ef4444", borderRadius: 12, padding: "12px 16px", marginBottom: 20, color: "#fca5a5" }}>
+          <div style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 12, padding: "12px 16px", marginBottom: 20, color: "#991B1B" }}>
             Erreur : {error}
           </div>
         )}
@@ -450,7 +449,7 @@ export default function BulletinsPage() {
         <div style={{ display: "flex", gap: 16, alignItems: "flex-end", marginBottom: 28, flexWrap: "wrap" }}>
           {/* Class */}
           <div>
-            <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            <label style={{ display: "block", fontSize: 12, color: "#64748b", marginBottom: 6, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: 0.5 }}>
               Classe
             </label>
             <select
@@ -459,7 +458,7 @@ export default function BulletinsPage() {
                 const c = classes.find((cl) => cl.id === e.target.value) ?? null;
                 setSelectedClass(c);
               }}
-              style={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, color: "#f8fafc", padding: "10px 14px", fontSize: 14, minWidth: 160, cursor: "pointer" }}
+              style={{ background: "#fff", border: "1px solid rgba(15,23,42,0.15)", borderRadius: 10, color: "#0f172a", padding: "10px 14px", fontSize: 14, minWidth: 160, cursor: "pointer" }}
             >
               {classes.length === 0 && <option value="">Aucune classe</option>}
               {classes.map((c) => (
@@ -470,7 +469,7 @@ export default function BulletinsPage() {
 
           {/* Period */}
           <div>
-            <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            <label style={{ display: "block", fontSize: 12, color: "#64748b", marginBottom: 6, fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: 0.5 }}>
               Période
             </label>
             <div style={{ display: "flex", gap: 8 }}>
@@ -479,10 +478,10 @@ export default function BulletinsPage() {
                   key={p2.id}
                   onClick={() => setPeriod(p2.id)}
                   style={{
-                    background: period === p2.id ? "rgba(10,132,255,0.9)" : "#1e293b",
-                    border: `1px solid ${period === p2.id ? "#0A84FF" : "rgba(255,255,255,0.15)"}`,
+                    background: period === p2.id ? "#0A84FF" : "#fff",
+                    border: `1px solid ${period === p2.id ? "#0A84FF" : "rgba(15,23,42,0.15)"}`,
                     borderRadius: 10,
-                    color: "#fff",
+                    color: period === p2.id ? "#fff" : "#0f172a",
                     padding: "10px 14px",
                     fontSize: 13,
                     fontWeight: period === p2.id ? 700 : 500,
@@ -519,23 +518,23 @@ export default function BulletinsPage() {
 
         {/* Student list */}
         {loadingClass ? (
-          <div style={{ textAlign: "center", padding: 60, color: "rgba(255,255,255,0.4)" }}>
+          <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>
             Chargement…
           </div>
         ) : apprentissages.length === 0 ? (
-          <div style={{ background: "#1e293b", borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", padding: 48, textAlign: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid rgba(15,23,42,0.08)", padding: 48, textAlign: "center" }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📚</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.8)", marginBottom: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
               Aucun apprentissage configuré
             </div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)" }}>
+            <div style={{ fontSize: 13, color: "#64748b" }}>
               Les bulletins sont générés à partir de vos apprentissages et de leurs résultats.
             </div>
           </div>
         ) : students.length === 0 ? (
-          <div style={{ background: "#1e293b", borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", padding: 48, textAlign: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 16, border: "1px solid rgba(15,23,42,0.08)", padding: 48, textAlign: "center" }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>👥</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>Aucun élève dans cette classe</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>Aucun élève dans cette classe</div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -549,9 +548,10 @@ export default function BulletinsPage() {
                 <div
                   key={student.id}
                   style={{
-                    background: "#1e293b",
+                    background: "#fff",
                     borderRadius: 16,
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(15,23,42,0.08)",
+                    boxShadow: "0 1px 4px rgba(15,23,42,0.05)",
                     padding: "16px 20px",
                   }}
                 >
@@ -563,23 +563,23 @@ export default function BulletinsPage() {
 
                     {/* Name */}
                     <div style={{ flex: 1, minWidth: 140 }}>
-                      <div style={{ fontWeight: 800, fontSize: 15, color: "#f8fafc" }}>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: "#0f172a" }}>
                         {student.first_name} {student.last_name.toUpperCase()}
                       </div>
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
+                      <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
                         {apprentissages.length} compétences
                       </div>
                     </div>
 
                     {/* Overall level */}
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Niveau global</span>
+                      <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>Niveau global</span>
                       <div
                         style={{
                           padding: "4px 12px",
                           borderRadius: 10,
-                          background: overall ? LEVEL_COLORS[overall] : "rgba(255,255,255,0.07)",
-                          color: overall ? LEVEL_TEXT_COLORS[overall] : "rgba(255,255,255,0.3)",
+                          background: overall ? LEVEL_COLORS[overall] : "rgba(15,23,42,0.06)",
+                          color: overall ? LEVEL_TEXT_COLORS[overall] : "rgba(15,23,42,0.25)",
                           fontWeight: 800,
                           fontSize: 14,
                         }}
@@ -611,7 +611,7 @@ export default function BulletinsPage() {
                         onClick={() => generateAppreciation(student)}
                         disabled={isGenerating}
                         style={{
-                          background: isGenerating ? "rgba(255,255,255,0.07)" : "rgba(10,132,255,0.15)",
+                          background: isGenerating ? "rgba(15,23,42,0.06)" : "rgba(10,132,255,0.10)",
                           border: "1px solid rgba(10,132,255,0.3)",
                           borderRadius: 8,
                           color: "#60a5fa",
@@ -629,7 +629,7 @@ export default function BulletinsPage() {
                         onClick={() => downloadBulletin(student)}
                         disabled={isDownloading}
                         style={{
-                          background: isDownloading ? "rgba(255,255,255,0.07)" : GRADIENT,
+                          background: isDownloading ? "rgba(15,23,42,0.06)" : GRADIENT,
                           border: "none",
                           borderRadius: 8,
                           color: "#fff",
@@ -656,10 +656,10 @@ export default function BulletinsPage() {
                         rows={2}
                         style={{
                           flex: 1,
-                          background: "rgba(10,132,255,0.07)",
+                          background: "rgba(10,132,255,0.05)",
                           border: "1px solid rgba(10,132,255,0.2)",
                           borderRadius: 8,
-                          color: "#e2e8f0",
+                          color: "#0f172a",
                           padding: "8px 12px",
                           fontSize: 13,
                           resize: "vertical",

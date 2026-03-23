@@ -29,12 +29,12 @@ import {
 // ─── Design tokens ────────────────────────────────────────────────────────────
 
 const GRADIENT = "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)";
-const SIDEBAR_BG = "#0f172a";
 
 const card: React.CSSProperties = {
-  background: "#1e293b",
+  background: "#fff",
   borderRadius: 16,
-  border: "1px solid rgba(255,255,255,0.08)",
+  border: "1px solid rgba(15,23,42,0.08)",
+  boxShadow: "0 1px 4px rgba(15,23,42,0.05)",
   padding: "24px 28px",
 };
 
@@ -49,8 +49,8 @@ function LevelBadge({ level }: { level: Level | null }) {
           width: 36,
           height: 28,
           borderRadius: 8,
-          background: "rgba(255,255,255,0.06)",
-          color: "rgba(255,255,255,0.25)",
+          background: "rgba(15,23,42,0.06)",
+          color: "rgba(15,23,42,0.25)",
           fontSize: 11,
           fontWeight: 600,
           lineHeight: "28px",
@@ -284,14 +284,14 @@ export default function CompetencesPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: SIDEBAR_BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 16 }}>Chargement…</span>
+      <div style={{ minHeight: 200, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ color: "#94a3b8", fontSize: 16 }}>Chargement…</span>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: SIDEBAR_BG, color: "#f8fafc" }}>
+    <div style={{ minHeight: "100vh", background: "#F7F8FC" }}>
       {/* Header */}
       <div style={{ background: GRADIENT, padding: "28px 32px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
@@ -310,7 +310,7 @@ export default function CompetencesPage() {
 
       <div style={{ padding: "32px" }}>
         {error && (
-          <div style={{ background: "#450a0a", border: "1px solid #ef4444", borderRadius: 12, padding: "12px 16px", marginBottom: 20, color: "#fca5a5" }}>
+          <div style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 12, padding: "12px 16px", marginBottom: 20, color: "#991B1B" }}>
             Erreur : {error}
           </div>
         )}
@@ -319,7 +319,7 @@ export default function CompetencesPage() {
         <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 28, flexWrap: "wrap" }}>
           {/* Class selector */}
           <div>
-            <label style={{ display: "block", fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            <label style={{ display: "block", fontSize: 12, color: "#64748b", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
               Classe
             </label>
             <select
@@ -329,10 +329,10 @@ export default function CompetencesPage() {
                 setSelectedClass(c);
               }}
               style={{
-                background: "#1e293b",
-                border: "1px solid rgba(255,255,255,0.15)",
+                background: "#fff",
+                border: "1px solid rgba(15,23,42,0.15)",
                 borderRadius: 10,
-                color: "#f8fafc",
+                color: "#0f172a",
                 padding: "10px 14px",
                 fontSize: 14,
                 minWidth: 160,
@@ -372,10 +372,10 @@ export default function CompetencesPage() {
             <Link
               href="/apprentissages"
               style={{
-                background: "rgba(255,255,255,0.07)",
-                border: "1px solid rgba(255,255,255,0.15)",
+                background: "rgba(15,23,42,0.04)",
+                border: "1px solid rgba(15,23,42,0.12)",
                 borderRadius: 10,
-                color: "rgba(255,255,255,0.7)",
+                color: "#475569",
                 padding: "10px 18px",
                 fontSize: 13,
                 fontWeight: 600,
@@ -408,7 +408,7 @@ export default function CompetencesPage() {
               >
                 {lv}
               </span>
-              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>
+              <span style={{ fontSize: 12, color: "#64748b" }}>
                 {{
                   TB: "Très bien",
                   B: "Bien",
@@ -426,8 +426,8 @@ export default function CompetencesPage() {
                 width: 32,
                 height: 22,
                 borderRadius: 6,
-                background: "rgba(255,255,255,0.06)",
-                color: "rgba(255,255,255,0.25)",
+                background: "rgba(15,23,42,0.06)",
+                color: "rgba(15,23,42,0.25)",
                 fontSize: 11,
                 fontWeight: 800,
                 lineHeight: "22px",
@@ -436,22 +436,22 @@ export default function CompetencesPage() {
             >
               —
             </span>
-            <span style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>Non évalué</span>
+            <span style={{ fontSize: 12, color: "#64748b" }}>Non évalué</span>
           </div>
         </div>
 
         {/* Table */}
         {loadingClass ? (
-          <div style={{ textAlign: "center", padding: 60, color: "rgba(255,255,255,0.4)" }}>
+          <div style={{ textAlign: "center", padding: 60, color: "#94a3b8" }}>
             Chargement de la classe…
           </div>
         ) : apprentissages.length === 0 ? (
           <div style={{ ...card, textAlign: "center", padding: 48 }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📚</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.8)", marginBottom: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
               Aucun apprentissage configuré
             </div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>
               Configurez vos apprentissages pour voir la grille de compétences.
             </div>
             <Link href="/apprentissages" style={{ background: GRADIENT, borderRadius: 10, color: "#fff", padding: "10px 20px", fontSize: 14, fontWeight: 700, textDecoration: "none" }}>
@@ -461,7 +461,7 @@ export default function CompetencesPage() {
         ) : students.length === 0 ? (
           <div style={{ ...card, textAlign: "center", padding: 48 }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>👥</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
               Aucun élève dans cette classe
             </div>
           </div>
@@ -477,11 +477,11 @@ export default function CompetencesPage() {
               </colgroup>
               <thead>
                 <tr>
-                  <th style={{ background: "#0f172a", color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: 700, padding: "12px 16px", textAlign: "left", position: "sticky", left: 0, zIndex: 2, borderBottom: "1px solid rgba(255,255,255,0.1)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  <th style={{ background: "#f1f5f9", color: "#64748b", fontSize: 11, fontWeight: 700, padding: "12px 16px", textAlign: "left", position: "sticky", left: 0, zIndex: 2, borderBottom: "1px solid rgba(15,23,42,0.08)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                     Compétence / Apprentissage
                   </th>
                   {students.map((s) => (
-                    <th key={s.id} style={{ background: "#0f172a", color: "#f8fafc", fontSize: 11, fontWeight: 700, padding: "10px 4px", textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.1)", maxWidth: 68, overflow: "hidden" }}>
+                    <th key={s.id} style={{ background: "#f1f5f9", color: "#0f172a", fontSize: 11, fontWeight: 700, padding: "10px 4px", textAlign: "center", borderBottom: "1px solid rgba(15,23,42,0.08)", maxWidth: 68, overflow: "hidden" }}>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
                         <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(10,132,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#60a5fa", fontWeight: 900 }}>
                           {s.first_name.charAt(0)}{s.last_name.charAt(0)}
@@ -492,7 +492,7 @@ export default function CompetencesPage() {
                       </div>
                     </th>
                   ))}
-                  <th style={{ background: "#0f172a", color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 600, padding: "12px 8px", textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.1)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  <th style={{ background: "#f1f5f9", color: "#64748b", fontSize: 10, fontWeight: 600, padding: "12px 8px", textAlign: "center", borderBottom: "1px solid rgba(15,23,42,0.08)", textTransform: "uppercase", letterSpacing: 0.5 }}>
                     Répartition
                   </th>
                 </tr>
@@ -502,17 +502,17 @@ export default function CompetencesPage() {
                   const counts = countLevelsForApprentissage(grid, app.id, students);
                   const notEvaluated = counts.none;
                   return (
-                    <tr key={app.id} style={{ background: rowIdx % 2 === 0 ? "#1e293b" : "#172032" }}>
-                      <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 600, color: "#e2e8f0", position: "sticky", left: 0, background: rowIdx % 2 === 0 ? "#1e293b" : "#172032", borderBottom: "1px solid rgba(255,255,255,0.05)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <tr key={app.id} style={{ background: rowIdx % 2 === 0 ? "#fff" : "rgba(15,23,42,0.02)" }}>
+                      <td style={{ padding: "10px 16px", fontSize: 13, fontWeight: 600, color: "#334155", position: "sticky", left: 0, background: rowIdx % 2 === 0 ? "#fff" : "rgba(15,23,42,0.02)", borderBottom: "1px solid rgba(15,23,42,0.06)", maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {app.name}
                       </td>
                       {students.map((s) => (
-                        <td key={s.id} style={{ padding: "8px 4px", textAlign: "center", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                        <td key={s.id} style={{ padding: "8px 4px", textAlign: "center", borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
                           <LevelBadge level={grid[app.id]?.[s.id] ?? null} />
                         </td>
                       ))}
                       {/* Distribution mini bar */}
-                      <td style={{ padding: "8px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <td style={{ padding: "8px", borderBottom: "1px solid rgba(15,23,42,0.06)" }}>
                         <div style={{ display: "flex", gap: 2, alignItems: "center", justifyContent: "center" }}>
                           {(["TB", "B", "S", "I", "NI"] as Level[]).map((lv) =>
                             counts[lv] > 0 ? (
@@ -539,7 +539,7 @@ export default function CompetencesPage() {
                           {notEvaluated > 0 && (
                             <span
                               title={`Non évalués: ${notEvaluated}`}
-                              style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginLeft: 2 }}
+                              style={{ fontSize: 10, color: "#94a3b8", marginLeft: 2 }}
                             >
                               +{notEvaluated}
                             </span>
@@ -556,7 +556,7 @@ export default function CompetencesPage() {
 
         {/* Footer info */}
         {!loadingClass && students.length > 0 && apprentissages.length > 0 && (
-          <div style={{ marginTop: 16, fontSize: 12, color: "rgba(255,255,255,0.3)", textAlign: "right" }}>
+          <div style={{ marginTop: 16, fontSize: 12, color: "#94a3b8", textAlign: "right" }}>
             {students.length} élèves · {apprentissages.length} compétences · {assessments.length} évaluations liées
           </div>
         )}
