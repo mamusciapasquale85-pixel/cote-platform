@@ -13,13 +13,22 @@ const PROTECTED_PREFIXES = [
   "/apprentissages",
   "/agenda",
   "/eleves",
+  "/eleve",
   "/discipline",
   "/import",
+  "/dashboard",
+  "/classe",
+  "/remediations",
+  "/outils",
+  "/generateur",
+  "/historique",
+  "/creer-evaluation",
+  "/planification",
+  "/seances-remediation",
 ];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hostname = request.headers.get("host") ?? "";
 
   const response = await updateSession(request);
 

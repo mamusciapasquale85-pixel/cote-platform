@@ -11,6 +11,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Agenda",        icon: "📅", href: "/agenda" },
   { label: "Classes",       icon: "👥", href: "/classe" },
   { label: "Évaluations",   icon: "📝", href: "/evaluations" },
+  { label: "Compétences",   icon: "🎯", href: "/competences" },
+  { label: "Bulletins",     icon: "📄", href: "/bulletins" },
   { label: "Remédiations",  icon: "🩺", href: "/remediations" },
   { label: "Outils",        icon: "🎲", href: "/outils" },
   { label: "Générateur IA", icon: "✨", href: "/generateur" },
