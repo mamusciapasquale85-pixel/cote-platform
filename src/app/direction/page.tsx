@@ -6,8 +6,8 @@ import Link from "next/link";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const GRADIENT = "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)";
-const BG = "#0f172a";
-const CARD = { background: "#1e293b", borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)" } as React.CSSProperties;
+const BG = "#F7F8FC";
+const CARD = { background: "#fff", borderRadius: 16, border: "1px solid #e5e7eb" } as React.CSSProperties;
 
 const LEVEL_COLORS: Record<string, string> = { TB: "#16a34a", B: "#86efac", S: "#fbbf24", I: "#fb923c", NI: "#ef4444" };
 const LEVEL_TEXT: Record<string, string>   = { TB: "#fff", B: "#14532d", S: "#78350f", I: "#7c2d12", NI: "#fff" };
@@ -26,15 +26,15 @@ function StatCard({ icon, label, value, color }: { icon: string; label: string; 
     <div style={{ ...CARD, padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
       <div style={{ width: 48, height: 48, borderRadius: 12, background: `${color ?? "#0A84FF"}22`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{icon}</div>
       <div>
-        <div style={{ fontSize: 26, fontWeight: 900, color: color ?? "#f8fafc" }}>{value}</div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", fontWeight: 600 }}>{label}</div>
+        <div style={{ fontSize: 26, fontWeight: 900, color: color ?? "#111827" }}>{value}</div>
+        <div style={{ fontSize: 12, color: "#6b7280", fontWeight: 600 }}>{label}</div>
       </div>
     </div>
   );
 }
 
 function LevelDot({ level }: { level: string | null }) {
-  if (!level) return <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 11 }}>—</span>;
+  if (!level) return <span style={{ color: "#9ca3af", fontSize: 11 }}>—</span>;
   return <span style={{ display: "inline-block", padding: "1px 7px", borderRadius: 6, background: LEVEL_COLORS[level] ?? "#64748b", color: LEVEL_TEXT[level] ?? "#fff", fontSize: 11, fontWeight: 800 }}>{level}</span>;
 }
 
@@ -175,19 +175,19 @@ export default function DirectionPortal() {
   // ─── Render ────────────────────────────────────────────────────────────────
   if (loading) return (
     <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <span style={{ color: "rgba(255,255,255,0.4)" }}>Chargement…</span>
+      <span style={{ color: "#9ca3af" }}>Chargement…</span>
     </div>
   );
 
   if (error) return (
     <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
       <div style={{ fontSize: 36 }}>⚠️</div>
-      <div style={{ color: "#fca5a5" }}>{error}</div>
+      <div style={{ color: "#dc2626" }}>{error}</div>
     </div>
   );
 
   return (
-    <div style={{ minHeight: "100vh", background: BG, color: "#f8fafc" }}>
+    <div style={{ minHeight: "100vh", background: BG, color: "#111827" }}>
       {/* Header */}
       <div style={{ background: GRADIENT, padding: "28px 32px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
@@ -218,14 +218,14 @@ export default function DirectionPortal() {
         {/* Filters */}
         <div style={{ display: "flex", gap: 12, marginBottom: 28, flexWrap: "wrap", alignItems: "center" }}>
           <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
-            style={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, color: "#f8fafc", padding: "9px 14px", fontSize: 13 }}>
+            style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, color: "#374151", padding: "9px 14px", fontSize: 13 }}>
             <option value="all">Toutes les classes</option>
             {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
 
           {activeView === "evaluations" && (
             <select value={filterType} onChange={e => setFilterType(e.target.value)}
-              style={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, color: "#f8fafc", padding: "9px 14px", fontSize: 13 }}>
+              style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, color: "#374151", padding: "9px 14px", fontSize: 13 }}>
               <option value="all">Tous les types</option>
               <option value="summative">Sommatives</option>
               <option value="formative">Formatives</option>
@@ -234,10 +234,10 @@ export default function DirectionPortal() {
 
           {activeView === "eleves" && (
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Rechercher un élève…"
-              style={{ background: "#1e293b", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, color: "#f8fafc", padding: "9px 14px", fontSize: 13, minWidth: 220 }} />
+              style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, color: "#374151", padding: "9px 14px", fontSize: 13, minWidth: 220 }} />
           )}
 
-          <div style={{ marginLeft: "auto", fontSize: 12, color: "rgba(255,255,255,0.35)", fontWeight: 600 }}>
+          <div style={{ marginLeft: "auto", fontSize: 12, color: "#9ca3af", fontWeight: 600 }}>
             {filterClass !== "all" ? `Classe : ${classes.find(c => c.id === filterClass)?.name}` : `${classes.length} classes · ${students.length} élèves`}
           </div>
         </div>
@@ -257,7 +257,7 @@ export default function DirectionPortal() {
             {/* Level distribution */}
             {totalWithLevel > 0 && (
               <div style={{ ...CARD, padding: "24px 28px" }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "rgba(255,255,255,0.7)", marginBottom: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#6b7280", marginBottom: 16, textTransform: "uppercase", letterSpacing: 0.5 }}>
                   Répartition des niveaux — École
                 </div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -266,18 +266,18 @@ export default function DirectionPortal() {
                     const pct = totalWithLevel > 0 ? Math.round((count / totalWithLevel) * 100) : 0;
                     return (
                       <div key={lv} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 60 }}>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: LEVEL_COLORS[lv] }}>{count}</div>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: "#111827" }}>{count}</div>
                         <div style={{ width: 48, height: Math.max(8, pct * 1.5), borderRadius: "4px 4px 0 0", background: LEVEL_COLORS[lv], transition: "height 0.3s" }} />
                         <div style={{ padding: "2px 8px", borderRadius: 6, background: LEVEL_COLORS[lv], color: LEVEL_TEXT[lv], fontSize: 11, fontWeight: 800 }}>{lv}</div>
-                        <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{pct}%</div>
+                        <div style={{ fontSize: 11, color: "#9ca3af" }}>{pct}%</div>
                       </div>
                     );
                   })}
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, minWidth: 60 }}>
-                    <div style={{ fontSize: 18, fontWeight: 900, color: "rgba(255,255,255,0.3)" }}>{dist.none}</div>
-                    <div style={{ width: 48, height: Math.max(8, (dist.none / students.length) * 150), borderRadius: "4px 4px 0 0", background: "rgba(255,255,255,0.08)" }} />
-                    <div style={{ padding: "2px 8px", borderRadius: 6, background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", fontSize: 11, fontWeight: 800 }}>—</div>
-                    <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>non éval.</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: "#9ca3af" }}>{dist.none}</div>
+                    <div style={{ width: 48, height: Math.max(8, (dist.none / students.length) * 150), borderRadius: "4px 4px 0 0", background: "#e5e7eb" }} />
+                    <div style={{ padding: "2px 8px", borderRadius: 6, background: "#e5e7eb", color: "#6b7280", fontSize: 11, fontWeight: 800 }}>—</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af" }}>non éval.</div>
                   </div>
                 </div>
               </div>
@@ -285,7 +285,7 @@ export default function DirectionPortal() {
 
             {/* Classes overview */}
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Classes</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Classes</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
                 {classes.map(cls => {
                   const classStudents = students.filter(s => s.class_group_id === cls.id);
@@ -294,8 +294,8 @@ export default function DirectionPortal() {
                     <div key={cls.id} style={{ ...CARD, padding: "16px 20px" }}>
                       <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{cls.name}</div>
                       <div style={{ display: "flex", gap: 16 }}>
-                        <div><span style={{ fontSize: 18, fontWeight: 900, color: "#60a5fa" }}>{classStudents.length}</span><span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginLeft: 4 }}>élèves</span></div>
-                        <div><span style={{ fontSize: 18, fontWeight: 900, color: "#fbbf24" }}>{classAssessments.length}</span><span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginLeft: 4 }}>évals</span></div>
+                        <div><span style={{ fontSize: 18, fontWeight: 900, color: "#60a5fa" }}>{classStudents.length}</span><span style={{ fontSize: 11, color: "#9ca3af", marginLeft: 4 }}>élèves</span></div>
+                        <div><span style={{ fontSize: 18, fontWeight: 900, color: "#fbbf24" }}>{classAssessments.length}</span><span style={{ fontSize: 11, color: "#9ca3af", marginLeft: 4 }}>évals</span></div>
                       </div>
                     </div>
                   );
@@ -308,13 +308,13 @@ export default function DirectionPortal() {
         {/* ── Élèves ── */}
         {activeView === "eleves" && (
           <div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>{filteredStudents.length} élève{filteredStudents.length > 1 ? "s" : ""}</div>
+            <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 14 }}>{filteredStudents.length} élève{filteredStudents.length > 1 ? "s" : ""}</div>
             <div style={{ overflowX: "auto", borderRadius: 16 }}>
               <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 600 }}>
                 <thead>
-                  <tr style={{ background: "#0f172a" }}>
+                  <tr style={{ background: "#f1f5f9" }}>
                     {["Élève", "Classe", "Évals", "Résultats", "Niveau global"].map(h => (
-                      <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.5)", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid rgba(255,255,255,0.08)" }}>{h}</th>
+                      <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #e5e7eb" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -325,14 +325,14 @@ export default function DirectionPortal() {
                     const studRes = resultats.filter(r => r.student_id === s.id && studAssIds.includes(r.assessment_id));
                     const lv = studentLevel(s.id);
                     return (
-                      <tr key={s.id} style={{ background: i % 2 === 0 ? "#1e293b" : "#172032" }}>
-                        <td style={{ padding: "11px 16px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <tr key={s.id} style={{ background: i % 2 === 0 ? "#fff" : "#f8fafc" }}>
+                        <td style={{ padding: "11px 16px", borderBottom: "1px solid #f1f5f9" }}>
                           <div style={{ fontWeight: 700, fontSize: 14 }}>{s.first_name} {s.last_name.toUpperCase()}</div>
                         </td>
-                        <td style={{ padding: "11px 16px", fontSize: 13, color: "rgba(255,255,255,0.6)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{cls?.name ?? "—"}</td>
-                        <td style={{ padding: "11px 16px", fontSize: 13, color: "#60a5fa", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{studAssIds.length}</td>
-                        <td style={{ padding: "11px 16px", fontSize: 13, color: "#34d399", fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>{studRes.length}</td>
-                        <td style={{ padding: "11px 16px", borderBottom: "1px solid rgba(255,255,255,0.05)" }}><LevelDot level={lv} /></td>
+                        <td style={{ padding: "11px 16px", fontSize: 13, color: "#6b7280", borderBottom: "1px solid #f1f5f9" }}>{cls?.name ?? "—"}</td>
+                        <td style={{ padding: "11px 16px", fontSize: 13, color: "#2563eb", fontWeight: 700, borderBottom: "1px solid #f1f5f9" }}>{studAssIds.length}</td>
+                        <td style={{ padding: "11px 16px", fontSize: 13, color: "#16a34a", fontWeight: 700, borderBottom: "1px solid #f1f5f9" }}>{studRes.length}</td>
+                        <td style={{ padding: "11px 16px", borderBottom: "1px solid #f1f5f9" }}><LevelDot level={lv} /></td>
                       </tr>
                     );
                   })}
@@ -345,7 +345,7 @@ export default function DirectionPortal() {
         {/* ── Évaluations ── */}
         {activeView === "evaluations" && (
           <div>
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 14 }}>{filteredAssessments.length} évaluation{filteredAssessments.length > 1 ? "s" : ""}</div>
+            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 14 }}>{filteredAssessments.length} évaluation{filteredAssessments.length > 1 ? "s" : ""}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {filteredAssessments.map(a => {
                 const cls = classes.find(c => c.id === a.class_group_id);
@@ -358,7 +358,7 @@ export default function DirectionPortal() {
                     </div>
                     <div style={{ flex: 1, minWidth: 160 }}>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>{a.title}</div>
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
+                      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
                         {new Date(a.date).toLocaleDateString("fr-BE", { day: "numeric", month: "short", year: "numeric" })}
                         {cls && ` · ${cls.name}`}
                         {a.max_points && ` · /${a.max_points}`}
@@ -370,7 +370,7 @@ export default function DirectionPortal() {
                           {lv} ×{levDist[lv]}
                         </span>
                       ) : null)}
-                      {assRes.length === 0 && <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>Aucun résultat</span>}
+                      {assRes.length === 0 && <span style={{ fontSize: 12, color: "#9ca3af" }}>Aucun résultat</span>}
                     </div>
                   </div>
                 );
