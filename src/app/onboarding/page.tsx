@@ -402,4 +402,12 @@ function SubmitButton({ children, loading, style }: { children: React.ReactNode;
   );
 }
 
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} style={{ padding: "14px 20px", background: "#f3f4f6", color: "#374151", border: "2px solid #e5e7eb", borderRadius: "8px", fontSize: "1rem", fontWeight: "600", cursor: "pointer" }}>
+      ← Retour
+    </button>
+  );
+}
+
 const inputStyle: React.CSSProperties = { width: "100%", padding: "12px", border: "2px solid #e5e7eb", borderRadius: "8px", fontSize: "0.95rem", outline: "none", boxSizing: "border-box", background: "white" };
