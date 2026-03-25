@@ -56,14 +56,25 @@ export default function LoginPage() {
 
   async function handleDemo(target: "dashboard" | "direction" = "dashboard") {
     setMsg(""); setLoading(true);
-    const email = target === "direction" ? "direction@klasbook.be" : "demo@klasbook.be";
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: "KlasbookDemo2025!",
-    });
-    if (error) { setLoading(false); setMsgType("error"); setMsg("Démo temporairement indisponible."); return; }
-    setLoading(false);
-    window.location.href = `/${target}`;
+    try {
+      const res = await fetch("/api/demo-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erreur serveur");
+      const { error } = await supabase.auth.setSession({
+        access_token: json.access_token,
+        refresh_token: json.refresh_token,
+      });
+      if (error) throw error;
+      window.location.href = `/${target}`;
+    } catch {
+      setLoading(false);
+      setMsgType("error");
+      setMsg("Démo temporairement indisponible.");
+    }
   }
 
   return (
