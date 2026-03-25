@@ -21,31 +21,51 @@ const GRADE_OPTIONS = [
   { label: "6ème secondaire", value: 12 },
 ];
 
-const GRADIENT = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+const GRADIENT = "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)";
+const ACCENT = "#0A84FF";
+const ACCENT_LIGHT = "#eff6ff";
+const ACCENT_BORDER = "#bfdbfe";
+const ACCENT_DARK = "#1d4ed8";
+const ACCENT_DISABLED = "#93c5fd";
 
 const MATIERES_DISPONIBLES = [
-  { id: "nl",            label: "Néerlandais",   emoji: "🇳🇱" },
-  { id: "francais",      label: "Français",      emoji: "📖" },
-  { id: "mathematiques", label: "Mathématiques", emoji: "📐" },
-  { id: "sciences",      label: "Sciences",      emoji: "🔬" },
-  { id: "histoire",      label: "Histoire",      emoji: "🏛️" },
-  { id: "geographie",    label: "Géographie",    emoji: "🗺️" },
-  { id: "anglais",       label: "Anglais",       emoji: "🇬🇧" },
-  { id: "allemand",      label: "Allemand",      emoji: "🇩🇪" },
-  { id: "espagnol",      label: "Espagnol",      emoji: "🇪🇸" },
-  { id: "latin",         label: "Latin",         emoji: "⚱️" },
-  { id: "ed_physique",   label: "Éd. physique",  emoji: "⚽" },
-  { id: "arts",          label: "Arts / Musique",emoji: "🎨" },
-  { id: "religion",      label: "Religion / Morale",emoji: "✝️" },
-  { id: "informatique",  label: "Informatique",  emoji: "💻" },
-  { id: "autre",         label: "Autre",         emoji: "📚" },
+  { id: "nl",            label: "Néerlandais",      emoji: "🇳🇱" },
+  { id: "francais",      label: "Français",          emoji: "📖" },
+  { id: "mathematiques", label: "Mathématiques",     emoji: "📐" },
+  { id: "sciences",      label: "Sciences",          emoji: "🔬" },
+  { id: "histoire",      label: "Histoire",          emoji: "🏛️" },
+  { id: "geographie",    label: "Géographie",        emoji: "🗺️" },
+  { id: "anglais",       label: "Anglais",           emoji: "🇬🇧" },
+  { id: "allemand",      label: "Allemand",          emoji: "🇩🇪" },
+  { id: "espagnol",      label: "Espagnol",          emoji: "🇪🇸" },
+  { id: "latin",         label: "Latin",             emoji: "⚱️" },
+  { id: "ed_physique",   label: "Éd. physique",      emoji: "⚽" },
+  { id: "arts",          label: "Arts / Musique",    emoji: "🎨" },
+  { id: "religion",      label: "Religion / Morale", emoji: "✝️" },
+  { id: "informatique",  label: "Informatique",      emoji: "💻" },
+  { id: "autre",         label: "Autre",             emoji: "📚" },
 ];
 
 const ROLES: { value: Role; label: string; description: string; icon: string }[] = [
   { value: "teacher", label: "Enseignant(e)", description: "Gérer mes classes et évaluations", icon: "📚" },
-  { value: "admin", label: "Direction", description: "Accès complet à l'établissement", icon: "🏫" },
-  { value: "parent", label: "Parent", description: "Suivre les résultats de mon enfant", icon: "👨‍👩‍👧" },
+  { value: "admin",   label: "Direction",     description: "Accès complet à l'établissement",  icon: "🏫" },
+  { value: "parent",  label: "Parent",        description: "Suivre les résultats de mon enfant", icon: "👨‍👩‍👧" },
 ];
+
+// Progress indicator config per role
+const STEP_LABELS: Record<Role, string[]> = {
+  teacher: ["Profil", "Matières", "Classe"],
+  admin:   ["Profil", "École"],
+  parent:  ["Profil", "Enfant"],
+};
+
+function getStepIndex(step: Step, role: Role): number {
+  if (step === 1) return 0;
+  if (step === 5) return 1; // teacher: matières
+  if (step === 2) return role === "teacher" ? 2 : 1;
+  if (step === 3) return 1; // parent: enfant
+  return -1; // step 4 = success, no indicator
+}
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -61,9 +81,6 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Stocké après step 2 pour réutiliser dans step 5
-  const [savedSchoolId, setSavedSchoolId] = useState("");
-
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -71,7 +88,7 @@ export default function OnboardingPage() {
 
   async function handleStep1(e: React.FormEvent) {
     e.preventDefault();
-    setStep(role === "parent" ? 3 : 2);
+    setStep(role === "parent" ? 3 : role === "teacher" ? 5 : 2);
   }
 
   async function handleStep2(e: React.FormEvent) {
@@ -114,48 +131,15 @@ export default function OnboardingPage() {
         });
       }
 
-      setSavedSchoolId(school!.id);
-
-      // Les profs vont à l'étape matières ; admins directement à la confirmation
-      setStep(role === "teacher" ? 5 : 4);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Une erreur est survenue.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleStep5(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Session expirée. Reconnectez-vous.");
-
-      const schoolId = savedSchoolId;
-
-      if (selectedMatieres.length > 0 && schoolId) {
-        // Créer les cours sélectionnés dans la table courses
+      if (role === "teacher" && selectedMatieres.length > 0) {
         const coursRows = selectedMatieres.map(id => {
           const mat = MATIERES_DISPONIBLES.find(m => m.id === id);
-          return {
-            school_id: schoolId,
-            name: mat?.label ?? id,
-            subject_area: id,
-            grade_band: "secondaire",
-          };
+          return { school_id: school!.id, name: mat?.label ?? id, subject_area: id, grade_band: "secondaire" };
         });
         await supabase.from("courses").insert(coursRows);
-
-        // Mettre à jour la matière principale dans school_memberships
         const primaryLabel = MATIERES_DISPONIBLES.find(m => m.id === selectedMatieres[0])?.label ?? selectedMatieres[0];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
-          .from("school_memberships")
-          .update({ matiere: primaryLabel })
-          .eq("user_id", user.id)
-          .eq("school_id", schoolId);
+        await (supabase as any).from("school_memberships").update({ matiere: primaryLabel }).eq("user_id", user.id).eq("school_id", school!.id);
       }
 
       setStep(4);
@@ -164,6 +148,11 @@ export default function OnboardingPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleStep5(e: React.FormEvent) {
+    e.preventDefault();
+    setStep(2);
   }
 
   async function handleStep3(e: React.FormEvent) {
@@ -212,16 +201,54 @@ export default function OnboardingPage() {
     else router.push("/dashboard");
   }
 
+  const labels = STEP_LABELS[role];
+  const currentStepIndex = getStepIndex(step, role);
+  const showProgress = step !== 4;
+
   return (
     <main style={{ minHeight: "100vh", background: GRADIENT, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, sans-serif", padding: "24px" }}>
-      <div style={{ background: "white", borderRadius: "16px", padding: "48px", width: "100%", maxWidth: "520px", boxShadow: "0 25px 50px rgba(0,0,0,0.2)" }}>
+      <div style={{ background: "white", borderRadius: "16px", padding: "40px 48px 48px", width: "100%", maxWidth: "520px", boxShadow: "0 25px 50px rgba(0,0,0,0.2)" }}>
 
-        <div style={{ textAlign: "center", marginBottom: "32px" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: "28px" }}>
           <h1 style={{ fontSize: "2rem", fontWeight: "800", background: GRADIENT, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: 0 }}>
             Klasbook
           </h1>
           <p style={{ color: "#6b7280", marginTop: "6px", fontSize: "0.9rem" }}>Configuration de votre espace</p>
         </div>
+
+        {/* Step progress indicator */}
+        {showProgress && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: "32px" }}>
+            {labels.map((label, i) => {
+              const done = i < currentStepIndex;
+              const active = i === currentStepIndex;
+              return (
+                <div key={i} style={{ display: "flex", alignItems: "center" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+                    <div style={{
+                      width: "32px", height: "32px", borderRadius: "50%",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      background: done ? ACCENT : active ? GRADIENT : "#e5e7eb",
+                      color: done || active ? "white" : "#9ca3af",
+                      fontWeight: "700", fontSize: "0.85rem",
+                      boxShadow: active ? `0 0 0 3px white, 0 0 0 5px ${ACCENT}` : "none",
+                      transition: "all 0.2s",
+                    }}>
+                      {done ? "✓" : i + 1}
+                    </div>
+                    <span style={{ fontSize: "0.72rem", color: active ? ACCENT_DARK : done ? ACCENT : "#9ca3af", fontWeight: active ? 700 : 500, whiteSpace: "nowrap" }}>
+                      {label}
+                    </span>
+                  </div>
+                  {i < labels.length - 1 && (
+                    <div style={{ width: "48px", height: "2px", background: done ? ACCENT : "#e5e7eb", margin: "0 4px", marginBottom: "18px", transition: "background 0.2s" }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Étape 1 : nom + rôle */}
         {step === 1 && (
@@ -235,8 +262,8 @@ export default function OnboardingPage() {
                 {ROLES.map(r => (
                   <button key={r.value} type="button" onClick={() => setRole(r.value)} style={{
                     display: "flex", alignItems: "center", gap: "14px", padding: "14px 16px",
-                    border: role === r.value ? "2px solid #667eea" : "2px solid #e5e7eb",
-                    borderRadius: "10px", background: role === r.value ? "#f5f3ff" : "white",
+                    border: role === r.value ? `2px solid ${ACCENT}` : "2px solid #e5e7eb",
+                    borderRadius: "10px", background: role === r.value ? ACCENT_LIGHT : "white",
                     cursor: "pointer", textAlign: "left", transition: "all 0.15s",
                   }}>
                     <span style={{ fontSize: "1.6rem" }}>{r.icon}</span>
@@ -244,7 +271,7 @@ export default function OnboardingPage() {
                       <div style={{ fontWeight: "700", color: "#111827", fontSize: "0.95rem" }}>{r.label}</div>
                       <div style={{ fontSize: "0.8rem", color: "#6b7280", marginTop: "2px" }}>{r.description}</div>
                     </div>
-                    {role === r.value && <span style={{ marginLeft: "auto", color: "#667eea", fontWeight: "700" }}>✓</span>}
+                    {role === r.value && <span style={{ marginLeft: "auto", color: ACCENT, fontWeight: "700" }}>✓</span>}
                   </button>
                 ))}
               </div>
@@ -263,7 +290,11 @@ export default function OnboardingPage() {
             {role === "teacher" && (
               <>
                 <Field label="Nom de votre première classe">
-                  <input type="text" value={className} onChange={e => setClassName(e.target.value)} placeholder="3B, Néerlandais 1A, …" required style={inputStyle} />
+                  <input type="text" value={className} onChange={e => setClassName(e.target.value)}
+                    placeholder={selectedMatieres.length > 0
+                      ? `ex: 3B ${MATIERES_DISPONIBLES.find(m => m.id === selectedMatieres[0])?.label ?? ""}`
+                      : "ex: 3B, Néerlandais 1A, …"}
+                    required style={inputStyle} />
                 </Field>
                 <Field label="Niveau">
                   <select value={gradeLevel} onChange={e => setGradeLevel(Number(e.target.value))} style={{ ...inputStyle, cursor: "pointer" }}>
@@ -274,7 +305,7 @@ export default function OnboardingPage() {
             )}
             {error && <ErrorBox>{error}</ErrorBox>}
             <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
-              <BackButton onClick={() => setStep(1)} />
+              <BackButton onClick={() => setStep(role === "teacher" ? 5 : 1)} />
               <SubmitButton loading={loading} style={{ flex: 2 }}>{loading ? "Création..." : "Continuer →"}</SubmitButton>
             </div>
           </form>
@@ -310,9 +341,13 @@ export default function OnboardingPage() {
             <div style={{ fontSize: "4rem", marginBottom: "16px" }}>🎉</div>
             <h2 style={{ fontSize: "1.5rem", fontWeight: "800", color: "#111827", margin: "0 0 12px" }}>C'est parti !</h2>
             <p style={{ color: "#6b7280", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "32px" }}>
-              {role === "parent" ? "Votre espace est prêt. Vous pouvez suivre les résultats de votre enfant."
-                : role === "admin" ? "Votre espace est prêt. Vous avez accès à l'ensemble de l'établissement."
-                : "Votre espace est prêt. Vous pouvez gérer vos classes et évaluations."}
+              {role === "parent"
+                ? "Votre espace est prêt. Vous pouvez suivre les résultats de votre enfant."
+                : role === "admin"
+                  ? "Votre espace est prêt. Vous avez accès à l'ensemble de l'établissement."
+                  : selectedMatieres.length > 0
+                    ? `Votre Klasbook est configuré pour ${selectedMatieres.map(id => MATIERES_DISPONIBLES.find(m => m.id === id)?.label).join(", ")}. Vos outils et suggestions IA sont adaptés à votre contexte.`
+                    : "Votre espace est prêt. Vous pouvez gérer vos classes et évaluations."}
             </p>
             <button onClick={goToApp} style={{ width: "100%", padding: "14px", background: GRADIENT, color: "white", border: "none", borderRadius: "8px", fontSize: "1rem", fontWeight: "700", cursor: "pointer" }}>
               Accéder à mon espace →
@@ -320,12 +355,12 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Étape 5 : matières enseignées (teacher) */}
+        {/* Étape 5 : matières enseignées — vient EN PREMIER pour les profs */}
         {step === 5 && (
           <form onSubmit={handleStep5}>
-            <SectionTitle>Quelles matières enseignez-vous ?</SectionTitle>
+            <SectionTitle>Quelle(s) matière(s) enseignez-vous ?</SectionTitle>
             <p style={{ fontSize: "0.85rem", color: "#6b7280", marginBottom: "16px", marginTop: "-8px" }}>
-              Sélectionnez une ou plusieurs matières. Cela personnalisera votre assistant IA et vos outils.
+              Votre Klasbook sera configuré en fonction de vos matières : suggestions IA, modèles d'évaluations, terminologie adaptée.
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "20px" }}>
               {MATIERES_DISPONIBLES.map(m => {
@@ -338,20 +373,25 @@ export default function OnboardingPage() {
                     style={{
                       display: "flex", alignItems: "center", gap: "8px",
                       padding: "10px 12px", borderRadius: "10px", cursor: "pointer",
-                      border: selected ? "2px solid #667eea" : "2px solid #e5e7eb",
-                      background: selected ? "#f5f3ff" : "white",
+                      border: selected ? `2px solid ${ACCENT}` : "2px solid #e5e7eb",
+                      background: selected ? ACCENT_LIGHT : "white",
                       fontWeight: selected ? 700 : 500, fontSize: "0.875rem",
-                      color: selected ? "#5b21b6" : "#374151",
+                      color: selected ? ACCENT_DARK : "#374151",
                       textAlign: "left", transition: "all 0.12s",
                     }}
                   >
                     <span style={{ fontSize: "1.2rem" }}>{m.emoji}</span>
                     <span style={{ flex: 1 }}>{m.label}</span>
-                    {selected && <span style={{ color: "#667eea", fontSize: "0.8rem" }}>✓</span>}
+                    {selected && <span style={{ color: ACCENT, fontSize: "0.8rem" }}>✓</span>}
                   </button>
                 );
               })}
             </div>
+            {selectedMatieres.length > 0 && (
+              <div style={{ background: ACCENT_LIGHT, border: `1px solid ${ACCENT_BORDER}`, borderRadius: "8px", padding: "10px 14px", marginBottom: "14px", fontSize: "0.83rem", color: ACCENT_DARK }}>
+                ✓ {selectedMatieres.map(id => MATIERES_DISPONIBLES.find(m => m.id === id)?.emoji + " " + MATIERES_DISPONIBLES.find(m => m.id === id)?.label).join(" · ")}
+              </div>
+            )}
             {selectedMatieres.length === 0 && (
               <p style={{ fontSize: "0.8rem", color: "#f59e0b", marginBottom: "12px" }}>
                 💡 Sélectionnez au moins une matière pour personnaliser votre expérience.
@@ -359,11 +399,9 @@ export default function OnboardingPage() {
             )}
             {error && <ErrorBox>{error}</ErrorBox>}
             <div style={{ display: "flex", gap: "12px" }}>
-              <button type="button" onClick={() => setStep(4)} style={{ flex: 1, padding: "14px", background: "#f3f4f6", color: "#374151", border: "none", borderRadius: "8px", fontSize: "0.95rem", fontWeight: "600", cursor: "pointer" }}>
-                Passer →
-              </button>
-              <SubmitButton loading={loading} style={{ flex: 2 }}>
-                {loading ? "Enregistrement..." : "Terminer la configuration →"}
+              <BackButton onClick={() => setStep(1)} />
+              <SubmitButton loading={false} style={{ flex: 2 }}>
+                Continuer →
               </SubmitButton>
             </div>
           </form>
@@ -396,7 +434,7 @@ function ErrorBox({ children }: { children: React.ReactNode }) {
 
 function SubmitButton({ children, loading, style }: { children: React.ReactNode; loading: boolean; style?: React.CSSProperties }) {
   return (
-    <button type="submit" disabled={loading} style={{ width: "100%", padding: "14px", background: loading ? "#c4b5fd" : GRADIENT, color: "white", border: "none", borderRadius: "8px", fontSize: "1rem", fontWeight: "700", cursor: loading ? "not-allowed" : "pointer", ...style }}>
+    <button type="submit" disabled={loading} style={{ width: "100%", padding: "14px", background: loading ? ACCENT_DISABLED : GRADIENT, color: "white", border: "none", borderRadius: "8px", fontSize: "1rem", fontWeight: "700", cursor: loading ? "not-allowed" : "pointer", ...style }}>
       {children}
     </button>
   );
