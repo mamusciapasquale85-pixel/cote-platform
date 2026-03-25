@@ -26,15 +26,19 @@ export async function GET(request: Request) {
   });
   if (pwErr) errors.push(`password: ${pwErr.message}`);
 
-  // ── 2. direction@klasbook.be mot de passe ─────────────────────────────────
-  const { data: dirUsers } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 100 });
-  const dirUser = dirUsers?.users.find(u => u.email === "direction@klasbook.be");
-  if (dirUser) {
-    await supabaseAdmin.auth.admin.updateUserById(dirUser.id, {
-      password: "KlasbookDemo2025!",
-      email_confirm: true,
-    });
-  }
+  // ── 2. direction + parent mot de passe ───────────────────────────────────
+  const DIRECTION_USER_ID = "00000000-0000-0000-0000-000000000002";
+  const PARENT_USER_ID    = "00000000-0000-0000-0000-000000000003";
+  const { error: dirPwErr } = await supabaseAdmin.auth.admin.updateUserById(DIRECTION_USER_ID, {
+    password: "KlasbookDemo2025!",
+    email_confirm: true,
+  });
+  if (dirPwErr) errors.push(`direction password: ${dirPwErr.message}`);
+  const { error: parentPwErr } = await supabaseAdmin.auth.admin.updateUserById(PARENT_USER_ID, {
+    password: "KlasbookDemo2025!",
+    email_confirm: true,
+  });
+  if (parentPwErr) errors.push(`parent password: ${parentPwErr.message}`);
 
   // ── 3. Année scolaire ────────────────────────────────────────────────────
   await supabaseAdmin.from("academic_years").upsert({
