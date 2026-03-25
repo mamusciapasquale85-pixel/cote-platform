@@ -2,13 +2,18 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
-const DEMO_USERS: Record<string, { id: string; email: string }> = {
-  dashboard: { id: "00000000-0000-0000-0000-000000000001", email: "demo@klasbook.be" },
-  direction: { id: "00000000-0000-0000-0000-000000000002", email: "direction@klasbook.be" },
+const DEMO_USERS: Record<string, { id: string; email: string; password: string }> = {
+  dashboard: {
+    id: "00000000-0000-0000-0000-000000000001",
+    email: "demo@klasbook.be",
+    password: process.env.DEMO_PASSWORD_PROF || "KlasbookDemo2025!",
+  },
+  direction: {
+    id: "00000000-0000-0000-0000-000000000002",
+    email: "direction@klasbook.be",
+    password: process.env.DEMO_PASSWORD_DIR || "KlasbookDir2025!",
+  },
 };
-
-// Mot de passe éphémère — changé à chaque requête, jamais exposé au client
-const TEMP_PASS = `Demo_${Date.now()}_Kls!`;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -22,16 +27,16 @@ export async function GET(req: NextRequest) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  // 1. Mettre à jour le mot de passe via admin (contourne generateLink)
+  // 1. Forcer le mot de passe connu (idempotent, pas de race condition)
   const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
     user.id,
-    { password: TEMP_PASS }
+    { password: user.password }
   );
   if (updateError) {
     return NextResponse.redirect(`${origin}/login?error=demo`);
   }
 
-  // 2. Se connecter avec ce mot de passe — set les cookies SSR dans la réponse
+  // 2. Se connecter — set les cookies SSR dans la réponse
   const response = NextResponse.redirect(`${origin}/${target}`);
 
   const supabase = createServerClient(
@@ -51,10 +56,11 @@ export async function GET(req: NextRequest) {
 
   const { error: signInError } = await supabase.auth.signInWithPassword({
     email: user.email,
-    password: TEMP_PASS,
+    password: user.password,
   });
 
   if (signInError) {
+    console.error("Demo signIn error:", signInError.message, "target:", target);
     return NextResponse.redirect(`${origin}/login?error=demo`);
   }
 
