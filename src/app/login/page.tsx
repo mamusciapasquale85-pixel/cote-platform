@@ -52,7 +52,7 @@ export default function LoginPage() {
     setMsg("Email envoyé ! Vérifie ta boîte mail et clique sur le lien pour réinitialiser ton mot de passe.");
   }
 
-  const GRAD = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+  const GRAD = "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)";
 
   async function handleDemo(target: "dashboard" | "direction" = "dashboard") {
     setMsg(""); setLoading(true);
@@ -83,7 +83,7 @@ export default function LoginPage() {
           <div style={{ display: "flex", background: "#f3f4f6", borderRadius: 10, padding: 4, marginBottom: 28 }}>
             {(["login", "register"] as const).map((m) => (
               <button key={m} onClick={() => { setMode(m); setMsg(""); }}
-                style={{ flex: 1, padding: 10, border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", transition: "all 0.2s", background: mode === m ? "white" : "transparent", color: mode === m ? "#667eea" : "#6b7280", boxShadow: mode === m ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
+                style={{ flex: 1, padding: 10, border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", transition: "all 0.2s", background: mode === m ? "white" : "transparent", color: mode === m ? "#0A84FF" : "#6b7280", boxShadow: mode === m ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
                 {m === "login" ? "Se connecter" : "Créer un compte"}
               </button>
             ))}
@@ -106,7 +106,7 @@ export default function LoginPage() {
                   style={{ width: "100%", padding: 12, border: "2px solid #e5e7eb", borderRadius: 8, fontSize: "0.95rem", outline: "none", boxSizing: "border-box" }} />
               </div>
               <button type="submit" disabled={loading}
-                style={{ width: "100%", padding: 14, background: loading ? "#c4b5fd" : GRAD, color: "white", border: "none", borderRadius: 8, fontSize: "1rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer" }}>
+                style={{ width: "100%", padding: 14, background: loading ? "#93c5fd" : GRAD, color: "white", border: "none", borderRadius: 8, fontSize: "1rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer" }}>
                 {loading ? "Envoi…" : "Envoyer le lien"}
               </button>
             </form>
@@ -138,14 +138,14 @@ export default function LoginPage() {
             {mode === "login" && (
               <div style={{ textAlign: "right", marginBottom: 20 }}>
                 <button type="button" onClick={() => { setMode("forgot"); setMsg(""); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#667eea", fontSize: 13, fontWeight: 600, padding: 0 }}>
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#0A84FF", fontSize: 13, fontWeight: 600, padding: 0 }}>
                   Mot de passe oublié ?
                 </button>
               </div>
             )}
 
             <button type="submit" disabled={loading}
-              style={{ width: "100%", padding: 14, background: loading ? "#c4b5fd" : GRAD, color: "white", border: "none", borderRadius: 8, fontSize: "1rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer" }}>
+              style={{ width: "100%", padding: 14, background: loading ? "#93c5fd" : GRAD, color: "white", border: "none", borderRadius: 8, fontSize: "1rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer" }}>
               {loading ? "Chargement…" : mode === "login" ? "Se connecter" : "Créer mon compte"}
             </button>
           </form>
