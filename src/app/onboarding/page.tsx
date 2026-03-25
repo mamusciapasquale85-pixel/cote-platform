@@ -196,7 +196,7 @@ export default function OnboardingPage() {
   }
 
   function goToApp() {
-    if (role === "admin") router.push("/admin");
+    if (role === "admin") router.push("/direction");
     else if (role === "parent") router.push("/parent");
     else router.push("/dashboard");
   }
