@@ -64,12 +64,7 @@ export default function LoginPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erreur serveur");
-      const { error } = await supabase.auth.setSession({
-        access_token: json.access_token,
-        refresh_token: json.refresh_token,
-      });
-      if (error) throw error;
-      window.location.href = `/${target}`;
+      window.location.href = json.action_link;
     } catch {
       setLoading(false);
       setMsgType("error");

@@ -10,19 +10,20 @@ export async function POST(req: NextRequest) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  const userId =
-    target === "direction"
-      ? "00000000-0000-0000-0000-000000000002"
-      : "00000000-0000-0000-0000-000000000001";
+  const email =
+    target === "direction" ? "direction@klasbook.be" : "demo@klasbook.be";
 
-  const { data, error } = await supabaseAdmin.auth.admin.createSession(userId);
+  const redirectTo = `https://www.klasbook.be/${target}`;
 
-  if (error || !data.session) {
-    return NextResponse.json({ error: error?.message || "Erreur session" }, { status: 500 });
+  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+    options: { redirectTo },
+  });
+
+  if (error || !data?.properties?.action_link) {
+    return NextResponse.json({ error: error?.message || "Erreur génération lien" }, { status: 500 });
   }
 
-  return NextResponse.json({
-    access_token: data.session.access_token,
-    refresh_token: data.session.refresh_token,
-  });
+  return NextResponse.json({ action_link: data.properties.action_link });
 }
