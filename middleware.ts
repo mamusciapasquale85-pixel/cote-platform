@@ -12,6 +12,7 @@ const PROTECTED_PREFIXES = [
   "/evaluations",
   "/apprentissages",
   "/agenda",
+  "/absences",
   "/eleves",
   "/eleve",
   "/discipline",
