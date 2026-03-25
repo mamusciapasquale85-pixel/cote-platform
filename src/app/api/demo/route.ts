@@ -1,33 +1,45 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
-const DEMO_EMAILS: Record<string, string> = {
-  prof:      "demo@klasbook.be",
-  direction: "direction@klasbook.be",
-  parents:   "parent@klasbook.be",
+const DEMO_USERS: Record<string, { email: string; target: string }> = {
+  prof:      { email: "demo@klasbook.be",      target: "dashboard"  },
+  direction: { email: "direction@klasbook.be", target: "direction"  },
+  parents:   { email: "parent@klasbook.be",    target: "parent"     },
 };
+
+const DEMO_PASSWORD = "KlasbookDemo2025!";
 
 export async function GET(req: NextRequest) {
   const role   = req.nextUrl.searchParams.get("role") || "prof";
   const origin = req.nextUrl.origin;
-  const email  = DEMO_EMAILS[role] ?? DEMO_EMAILS.prof;
+  const demo   = DEMO_USERS[role] ?? DEMO_USERS.prof;
 
-  const supabaseAdmin = createClient(
+  const response = NextResponse.redirect(`${origin}/${demo.target}`);
+
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return []; },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
   );
 
-  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-    options: { redirectTo: `${origin}/auth/callback` },
+  const { error } = await supabase.auth.signInWithPassword({
+    email: demo.email,
+    password: DEMO_PASSWORD,
   });
 
-  if (error || !data?.properties?.action_link) {
-    console.error("Demo generateLink error:", error?.message, "role:", role);
+  if (error) {
+    console.error("Demo signIn error:", error.message, "role:", role);
     return NextResponse.redirect(`${origin}/login?error=demo`);
   }
 
-  return NextResponse.redirect(data.properties.action_link);
+  return response;
 }
