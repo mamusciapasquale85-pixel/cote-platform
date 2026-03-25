@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import TeacherTabs from "../components/TeacherTabs";
 import {
   getTeacherContext,
   listClassGroups,
@@ -291,24 +290,7 @@ export default function CompetencesPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F7F8FC" }}>
-      {/* Header */}
-      <div style={{ background: GRADIENT, padding: "28px 32px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-          <span style={{ fontSize: 28 }}>🎓</span>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, color: "#fff", letterSpacing: -0.5 }}>
-            Grille de compétences FWB
-          </h1>
-        </div>
-        <p style={{ margin: "4px 0 0", color: "rgba(255,255,255,0.8)", fontSize: 14 }}>
-          Vue globale des niveaux par élève et par apprentissage
-        </p>
-        <div style={{ marginTop: 16 }}>
-          <TeacherTabs />
-        </div>
-      </div>
-
-      <div style={{ padding: "32px" }}>
+    <div>
         {error && (
           <div style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 12, padding: "12px 16px", marginBottom: 20, color: "#991B1B" }}>
             Erreur : {error}
@@ -561,6 +543,5 @@ export default function CompetencesPage() {
           </div>
         )}
       </div>
-    </div>
   );
 }
