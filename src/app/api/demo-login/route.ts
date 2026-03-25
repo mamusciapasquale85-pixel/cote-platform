@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const email =
     target === "direction" ? "direction@klasbook.be" : "demo@klasbook.be";
 
-  const redirectTo = `https://www.klasbook.be/${target}`;
+  const redirectTo = `https://www.klasbook.be/auth/callback`;
 
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({
     type: "magiclink",

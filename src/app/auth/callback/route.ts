@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
   // Rediriger selon le rôle
   const role = membership.role;
-  if (role === "admin") return NextResponse.redirect(`${origin}/admin`);
+  if (role === "admin") return NextResponse.redirect(`${origin}/direction`);
   if (role === "parent") return NextResponse.redirect(`${origin}/parent`);
-  return NextResponse.redirect(`${origin}/teacher`);
+  return NextResponse.redirect(`${origin}/dashboard`);
 }
