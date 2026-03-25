@@ -2,13 +2,19 @@ import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
+const DEMO_USERS: Record<string, { id: string; email: string }> = {
+  dashboard: { id: "00000000-0000-0000-0000-000000000001", email: "demo@klasbook.be" },
+  direction: { id: "00000000-0000-0000-0000-000000000002", email: "direction@klasbook.be" },
+};
+
+// Mot de passe éphémère — changé à chaque requête, jamais exposé au client
+const TEMP_PASS = `Demo_${Date.now()}_Kls!`;
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const target = searchParams.get("target") || "dashboard";
   const origin = req.nextUrl.origin;
-
-  const email = target === "direction" ? "direction@klasbook.be" : "demo@klasbook.be";
-  const redirectTo = `${origin}/${target}`;
+  const user = DEMO_USERS[target] ?? DEMO_USERS.dashboard;
 
   const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,18 +22,17 @@ export async function GET(req: NextRequest) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  // Génère le lien magique pour récupérer le hashed_token
-  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-  });
-
-  if (error || !data?.properties?.hashed_token) {
+  // 1. Mettre à jour le mot de passe via admin (contourne generateLink)
+  const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+    user.id,
+    { password: TEMP_PASS }
+  );
+  if (updateError) {
     return NextResponse.redirect(`${origin}/login?error=demo`);
   }
 
-  // Crée la réponse de redirection et y attache les cookies de session
-  const response = NextResponse.redirect(redirectTo);
+  // 2. Se connecter avec ce mot de passe — set les cookies SSR dans la réponse
+  const response = NextResponse.redirect(`${origin}/${target}`);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,13 +49,12 @@ export async function GET(req: NextRequest) {
     }
   );
 
-  // Vérifie l'OTP côté serveur (pas de PKCE requis avec token_hash)
-  const { error: verifyError } = await supabase.auth.verifyOtp({
-    token_hash: data.properties.hashed_token,
-    type: "magiclink",
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password: TEMP_PASS,
   });
 
-  if (verifyError) {
+  if (signInError) {
     return NextResponse.redirect(`${origin}/login?error=demo`);
   }
 
