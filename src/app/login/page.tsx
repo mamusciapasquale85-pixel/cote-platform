@@ -54,22 +54,9 @@ export default function LoginPage() {
 
   const GRAD = "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)";
 
-  async function handleDemo(target: "dashboard" | "direction" = "dashboard") {
-    setMsg(""); setLoading(true);
-    try {
-      const res = await fetch("/api/demo-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Erreur serveur");
-      window.location.href = json.action_link;
-    } catch {
-      setLoading(false);
-      setMsgType("error");
-      setMsg("Démo temporairement indisponible.");
-    }
+  function handleDemo(target: "dashboard" | "direction" = "dashboard") {
+    setLoading(true);
+    window.location.href = `/api/demo-login?target=${target}`;
   }
 
   return (
