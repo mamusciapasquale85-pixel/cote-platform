@@ -153,7 +153,7 @@ export async function listStudentsForClass(
 ): Promise<Student[]> {
   const { data, error } = await ctx.supabase
     .from(T.STUDENT_ENROLLMENTS)
-    .select("students(id,first_name,last_name)")
+    .select("students!student_enrollments_student_id_fkey(id,first_name,last_name)")
     .eq("class_group_id", classGroupId)
     .eq("academic_year_id", ctx.academicYearId);
   if (error) throw error;
