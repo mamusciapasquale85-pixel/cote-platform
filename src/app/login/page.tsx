@@ -152,9 +152,11 @@ export default function LoginPage() {
     }
   }
 
-  function handleDemo(target: "dashboard" | "direction" = "dashboard") {
+  const [showDemoMenu, setShowDemoMenu] = useState(false);
+
+  function handleDemo(role: "prof" | "direction" | "parents") {
     setLoginLoading(true);
-    window.location.href = `/api/demo-login?target=${target}`;
+    window.location.href = `/api/demo?role=${role}`;
   }
 
   const isRegMode = ["r1", "r2", "r3", "r4", "done"].includes(mode);
@@ -200,16 +202,33 @@ export default function LoginPage() {
 
             <div style={{ marginTop: 20 }}>
               <Sep />
-              <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" disabled={loginLoading} onClick={() => handleDemo("dashboard")}
-                  style={{ flex: 1, padding: 12, background: GRAD, color: "white", border: "none", borderRadius: 8, fontSize: "0.88rem", fontWeight: 700, cursor: "pointer", opacity: loginLoading ? 0.7 : 1 }}>
-                  🎮 Démo Professeur
+              {!showDemoMenu ? (
+                <button type="button" disabled={loginLoading} onClick={() => setShowDemoMenu(true)}
+                  style={{ width: "100%", padding: 12, background: GRAD, color: "white", border: "none", borderRadius: 8, fontSize: "0.9rem", fontWeight: 700, cursor: "pointer", opacity: loginLoading ? 0.7 : 1 }}>
+                  🎮 Essayer la démo
                 </button>
-                <button type="button" disabled={loginLoading} onClick={() => handleDemo("direction")}
-                  style={{ flex: 1, padding: 12, background: "linear-gradient(135deg, #0A84FF 0%, #5856D6 100%)", color: "white", border: "none", borderRadius: 8, fontSize: "0.88rem", fontWeight: 700, cursor: "pointer", opacity: loginLoading ? 0.7 : 1 }}>
-                  🏫 Démo Direction
-                </button>
-              </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <p style={{ textAlign: "center", fontSize: 12, color: "#6b7280", margin: "0 0 4px" }}>Choisissez un profil :</p>
+                  {([
+                    { role: "prof",      icon: "📚", label: "Professeur",  desc: "Classes, évaluations, remédiations" },
+                    { role: "direction", icon: "🏫", label: "Direction",   desc: "Vue d'ensemble de l'établissement" },
+                    { role: "parents",   icon: "👨‍👩‍👧", label: "Parent",     desc: "Résultats et suivi de votre enfant" },
+                  ] as const).map(({ role, icon, label, desc }) => (
+                    <button key={role} type="button" disabled={loginLoading} onClick={() => handleDemo(role)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", background: "#f8fafc", border: "2px solid #e5e7eb", borderRadius: 9, cursor: "pointer", textAlign: "left", opacity: loginLoading ? 0.7 : 1, transition: "border-color 0.15s" }}
+                      onMouseEnter={e => (e.currentTarget.style.borderColor = ACCENT)}
+                      onMouseLeave={e => (e.currentTarget.style.borderColor = "#e5e7eb")}>
+                      <span style={{ fontSize: "1.4rem" }}>{icon}</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "#111827" }}>{label}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>{desc}</div>
+                      </div>
+                      <span style={{ marginLeft: "auto", color: "#9ca3af", fontSize: 14 }}>→</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <p style={{ textAlign: "center", marginTop: 8, fontSize: 11, color: "#9ca3af" }}>Accès instantané · Aucune inscription requise</p>
             </div>
           </form>
