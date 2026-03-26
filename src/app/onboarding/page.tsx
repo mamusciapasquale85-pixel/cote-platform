@@ -113,7 +113,10 @@ export default function OnboardingPage() {
         school = newSchool;
       }
 
-      await supabase.from("school_memberships").insert({ school_id: school!.id, user_id: user.id, role });
+      await supabase.from("school_memberships").upsert(
+        { school_id: school!.id, user_id: user.id, role },
+        { onConflict: "school_id,user_id" }
+      );
 
       const { data: year } = await supabase.from("academic_years").select("id").eq("school_id", school!.id).limit(1).maybeSingle();
       let yearId = year?.id;
@@ -170,7 +173,10 @@ export default function OnboardingPage() {
       const { data: school } = await supabase.from("schools").select("id").ilike("name", schoolName.trim()).single();
       if (!school) throw new Error("École introuvable. Vérifiez le nom exact de l'établissement.");
 
-      await supabase.from("school_memberships").insert({ school_id: school.id, user_id: user.id, role: "parent" });
+      await supabase.from("school_memberships").upsert(
+        { school_id: school.id, user_id: user.id, role: "parent" },
+        { onConflict: "school_id,user_id" }
+      );
 
       const { data: student } = await supabase.from("students").select("id")
         .ilike("first_name", childFirstName.trim()).ilike("last_name", childLastName.trim()).single();

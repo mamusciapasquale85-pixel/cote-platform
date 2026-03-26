@@ -31,12 +31,14 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(`${origin}/login`);
 
-  // Vérifier si l'utilisateur a un membership
-  const { data: membership } = await supabase
+  // Vérifier si l'utilisateur a un membership (limit(1) évite l'échec de .single() en cas de doublons)
+  const { data: memberships } = await supabase
     .from("school_memberships")
     .select("role")
     .eq("user_id", user.id)
-    .single();
+    .limit(1);
+
+  const membership = memberships?.[0] ?? null;
 
   // Pas de membership → onboarding
   if (!membership) return NextResponse.redirect(`${origin}/onboarding`);

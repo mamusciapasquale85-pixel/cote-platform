@@ -77,9 +77,10 @@ export default function LoginPage() {
     if (error) { setLoginLoading(false); setLoginMsg("Email ou mot de passe incorrect."); return; }
     // Vérifier membership de CE user (pas n'importe quelle école)
     const { data: { user } } = await supabase.auth.getUser();
-    const { data: membership } = await supabase
+    const { data: memberships } = await supabase
       .from("school_memberships").select("role")
-      .eq("user_id", user!.id).maybeSingle();
+      .eq("user_id", user!.id).limit(1);
+    const membership = memberships?.[0] ?? null;
     setLoginLoading(false);
     if (!membership) { window.location.href = "/onboarding"; return; }
     if (membership.role === "admin") window.location.href = "/direction";
