@@ -534,23 +534,19 @@ export default function AgendaPage() {
       )}
 
       <div style={card}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-          <div style={{ fontSize: 20, fontWeight: 900 }}>Planning hebdomadaire · {weekLabel}</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button style={btnArrow} onClick={() => setWeekStart(addDays(weekStart, -7))} title="Semaine précédente">←</button>
-            <button style={btnArrow} onClick={() => setWeekStart(addDays(weekStart, 7))} title="Semaine suivante">→</button>
-            <button style={btn} onClick={() => ctx && void loadGrid(ctx, weekDays[0], weekDays[4])} disabled={!ctx}>Rafraîchir</button>
-            <button style={btn} onClick={() => setShowModifierPanel((v) => !v)} disabled={!ctx}>
-              {showModifierPanel ? "Fermer" : "Modifier"}
-            </button>
-          </div>
-        </div>
-
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", minWidth: 980, borderCollapse: "separate", borderSpacing: 6 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: "left", width: 72, padding: 8 }}>Slot</th>
+                <th style={{ textAlign: "center", width: 100, padding: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                    <button style={btnArrow} onClick={() => setWeekStart(addDays(weekStart, -7))} title="Semaine précédente">←</button>
+                    <span style={{ fontSize: 11, fontWeight: 700, minWidth: 34, textAlign: "center" }}>
+                      {formatDateShortFR(weekDays[4])}
+                    </span>
+                    <button style={btnArrow} onClick={() => setWeekStart(addDays(weekStart, 7))} title="Semaine suivante">→</button>
+                  </div>
+                </th>
                 {weekDays.map((date, idx) => (
                   <th key={date} style={{ textAlign: "left", padding: 8, fontWeight: 900 }}>
                     {WEEKDAY_LABELS[idx]} {formatDateShortFR(date)}
@@ -601,23 +597,19 @@ export default function AgendaPage() {
                           })
                         }
                       >
-                        <div style={{ fontWeight: 900, fontSize: 13 }}>{className || ""}</div>
-                        <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700 }}>{row?.lesson_title || ""}</div>
+                        {/* Nom de la classe */}
+                        <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.65 }}>{className || ""}</div>
 
-                        {/* Badge tag manuel (agenda) */}
+                        {/* Titre de la leçon */}
+                        {row?.lesson_title && (
+                          <div style={{ marginTop: 4, fontSize: 13, fontWeight: 800, lineHeight: 1.3 }}>
+                            {row.lesson_title}
+                          </div>
+                        )}
+
+                        {/* Post-it tag manuel (agenda) */}
                         {rowTag && (
-                          <button
-                            style={{
-                              marginTop: 8,
-                              border: "none",
-                              borderRadius: 999,
-                              padding: "2px 8px",
-                              fontSize: 11,
-                              fontWeight: 800,
-                              color: "white",
-                              background: rowTag === "eval" ? "#dc2626" : "#f59e0b",
-                              cursor: "pointer",
-                            }}
+                          <div
                             onClick={(e) => {
                               e.stopPropagation();
                               if (rowTag === "eval" && classId) {
@@ -625,40 +617,54 @@ export default function AgendaPage() {
                               }
                             }}
                             title={rowTag === "eval" ? "Aller vers Évaluations" : "Tag devoir"}
-                          >
-                            {rowTag === "eval" ? "Éval" : "Devoir"}
-                          </button>
-                        )}
-
-                        {/* Badges évaluations depuis /evaluations */}
-                        {cellAssessments.map((a) => (
-                          <button
-                            key={a.id}
                             style={{
-                              display: "block",
-                              marginTop: 4,
-                              border: "none",
-                              borderRadius: 999,
-                              padding: "2px 8px",
+                              marginTop: 6,
+                              background: rowTag === "eval" ? "#fef08a" : "#fde68a",
+                              border: `1px solid ${rowTag === "eval" ? "#facc15" : "#f59e0b"}`,
+                              borderRadius: 6,
+                              padding: "3px 6px",
                               fontSize: 11,
                               fontWeight: 800,
-                              color: "white",
-                              background: a.type === "summative" ? "#dc2626" : "#7c3aed",
+                              color: "#78350f",
                               cursor: "pointer",
-                              maxWidth: "100%",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              textAlign: "left",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
                             }}
+                          >
+                            📝 {rowTag === "eval" ? "Éval" : "Devoir"}
+                          </div>
+                        )}
+
+                        {/* Post-its évaluations depuis /evaluations */}
+                        {cellAssessments.map((a) => (
+                          <div
+                            key={a.id}
                             onClick={(e) => {
                               e.stopPropagation();
                               router.push(`/evaluations?date=${date}&class_group_id=${classId}`);
                             }}
                             title={a.title}
+                            style={{
+                              marginTop: 4,
+                              background: a.type === "summative" ? "#fef08a" : "#ede9fe",
+                              border: `1px solid ${a.type === "summative" ? "#facc15" : "#c4b5fd"}`,
+                              borderRadius: 6,
+                              padding: "3px 6px",
+                              fontSize: 11,
+                              fontWeight: 800,
+                              color: a.type === "summative" ? "#78350f" : "#4c1d95",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
                           >
-                            📋 {a.type === "summative" ? "Éval" : "Form."} — {a.title}
-                          </button>
+                            📝 {a.title}
+                          </div>
                         ))}
                       </td>
                     );
@@ -669,60 +675,14 @@ export default function AgendaPage() {
           </table>
         </div>
 
-        <div
-          style={{
-            marginTop: 16,
-            width: "100%",
-            borderRadius: 14,
-            border: "1px solid var(--border)",
-            boxShadow: "var(--shadow-card)",
-            background: "rgba(255,255,255,0.94)",
-            padding: "9px 10px",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              justifyContent: "space-between",
-              gap: 10,
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ fontSize: 15, fontWeight: 900, paddingTop: 8, minWidth: 120 }}>
-              Idées / Tags
-            </div>
-            <div style={{ flex: "1 1 420px", minWidth: "min(100%, 280px)" }}>
-              <textarea
-                ref={quickNoteRef}
-                value={quickNote}
-                onChange={(e) => setQuickNote(e.target.value)}
-                onInput={resizeQuickNoteTextarea}
-                placeholder="Note rapide..."
-                style={{
-                  ...input,
-                  minHeight: 44,
-                  height: 44,
-                  resize: "none",
-                  overflow: "hidden",
-                  padding: "10px 12px",
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginTop: 8, opacity: 0.72, fontSize: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {ideaTags.length > 0 ? (
-              ideaTags.map((tag) => (
-                <span key={tag} style={{ fontWeight: 700 }}>
-                  #{tag}
-                </span>
-              ))
-            ) : (
-              <span>V1 placeholder.</span>
-            )}
-          </div>
+        {/* Boutons sous la grille */}
+        <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+          <button style={btn} onClick={() => ctx && void loadGrid(ctx, weekDays[0], weekDays[4])} disabled={!ctx}>Rafraîchir</button>
+          <button style={btn} onClick={() => setShowModifierPanel((v) => !v)} disabled={!ctx}>
+            {showModifierPanel ? "Fermer" : "Modifier"}
+          </button>
         </div>
+
       </div>
 
       {showModifierPanel && (

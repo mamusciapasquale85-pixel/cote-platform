@@ -97,6 +97,27 @@ export async function GET() {
       .order("created_at", { ascending: false })
       .limit(5);
 
+    // Notes à l'élève récentes
+    let notesRecentes: { id: string; eleve_nom: string; note: string; created_at: string }[] = [];
+    try {
+      const { data: noteRows } = await supabase
+        .from("discipline_notes")
+        .select("id,note,created_at,students(first_name,last_name)")
+        .eq("school_id", schoolId)
+        .eq("academic_year_id", academicYearId)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      notesRecentes = (noteRows ?? []).map((n: any) => {
+        const s = Array.isArray(n.students) ? n.students[0] : n.students;
+        return {
+          id: n.id,
+          eleve_nom: s ? `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim() : "—",
+          note: n.note ?? "",
+          created_at: n.created_at,
+        };
+      });
+    } catch { /* table inexistante */ }
+
     const rt = remTerminees ?? 0;
     const ra = remActives ?? 0;
 
@@ -112,6 +133,7 @@ export async function GET() {
       },
       eleves_en_difficulte: elevesEnDifficulte,
       rem_recentes: remRecentes,
+      notes_recentes: notesRecentes,
       evals_recentes: (evalRows ?? []).map((e: any) => ({
         id: e.id, title: e.title, date: e.date, type: e.type,
       })),

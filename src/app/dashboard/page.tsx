@@ -15,10 +15,13 @@ type EleveNI = { id: string; prenom: string; nom: string; nb_ni: number };
 type Rem = { id: string; statut: string; attendu: string | null; type_remediation: string | null; created_at: string; eleve_id: string; eleve_nom: string };
 type Eval = { id: string; title: string; date: string | null; type: string | null };
 
+type NoteRecente = { id: string; eleve_nom: string; note: string; created_at: string };
+
 type DashboardData = {
   stats: Stats;
   eleves_en_difficulte: EleveNI[];
   rem_recentes: Rem[];
+  notes_recentes: NoteRecente[];
   evals_recentes: Eval[];
 };
 
@@ -102,7 +105,7 @@ export default function DashboardPage() {
   );
 
   if (!data) return null;
-  const { stats, eleves_en_difficulte, rem_recentes, evals_recentes } = data;
+  const { stats, eleves_en_difficulte, rem_recentes, notes_recentes = [], evals_recentes } = data;
   const tauxNI = stats.nb_eleves > 0 ? Math.round((stats.nb_ni / stats.nb_eleves) * 100) : 0;
 
   return (
@@ -140,21 +143,27 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* JAUGES + ÉLÈVES EN DIFFICULTÉ */}
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 14 }}>
-        <div style={{ ...card, display: "flex", flexDirection: "column", gap: 20, alignItems: "center", justifyContent: "center", minWidth: 140 }}>
-          <MiniGauge
-            pct={stats.taux_remediation}
-            color={stats.taux_remediation >= 70 ? "#22C55E" : stats.taux_remediation >= 40 ? "#F59E0B" : "#EF4444"}
-            label="Remédiations terminées"
-          />
-          <MiniGauge
-            pct={100 - tauxNI}
-            color={(100 - tauxNI) >= 80 ? "#22C55E" : (100 - tauxNI) >= 60 ? "#F59E0B" : "#EF4444"}
-            label="Élèves sans NI"
-          />
+      {/* 4 CADRES ÉGAUX */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14 }}>
+
+        {/* Cadre 1 : Jauges */}
+        <div style={{ ...card, alignSelf: "start", display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 900, opacity: 0.5, marginBottom: 8, letterSpacing: 0.3 }}>APERÇU</div>
+          <div style={{ display: "flex", gap: 20, justifyContent: "center" }}>
+            <MiniGauge
+              pct={stats.taux_remediation}
+              color={stats.taux_remediation >= 70 ? "#22C55E" : stats.taux_remediation >= 40 ? "#F59E0B" : "#EF4444"}
+              label="Remédiations terminées"
+            />
+            <MiniGauge
+              pct={100 - tauxNI}
+              color={(100 - tauxNI) >= 80 ? "#22C55E" : (100 - tauxNI) >= 60 ? "#F59E0B" : "#EF4444"}
+              label="Élèves sans NI"
+            />
+          </div>
         </div>
 
+        {/* Cadre 2 : Élèves en difficulté */}
         <div style={card}>
           <div style={sectionTitle}>
             🚨 Élèves en difficulté
@@ -197,10 +206,56 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-      </div>
 
-      {/* REMÉDIATIONS + ÉVALUATIONS */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        {/* Cadre 3 : Notes à l'élève */}
+        <div style={card}>
+          <div style={sectionTitle}>📋 Notes à l'élève</div>
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <Link href="/discipline?type=pedagogique" style={{ textDecoration: "none", flex: 1 }}>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "10px 8px", borderRadius: 12, cursor: "pointer",
+                background: "rgba(10,132,255,0.08)", border: "1px solid rgba(10,132,255,0.25)",
+                fontWeight: 800, fontSize: 12, color: "#0A63BF",
+              }}>
+                📝 Pédagogique
+              </div>
+            </Link>
+            <Link href="/discipline?type=disciplinaire" style={{ textDecoration: "none", flex: 1 }}>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "10px 8px", borderRadius: 12, cursor: "pointer",
+                background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)",
+                fontWeight: 800, fontSize: 12, color: "#991B1B",
+              }}>
+                🔴 Disciplinaire
+              </div>
+            </Link>
+          </div>
+          {notes_recentes.length === 0 ? (
+            <div style={{ opacity: 0.6, fontSize: 13 }}>Aucune note récente</div>
+          ) : (
+            <div style={{ display: "grid", gap: 6 }}>
+              {notes_recentes.map((n) => (
+                <Link key={n.id} href="/discipline" style={{ textDecoration: "none", color: "inherit" }}>
+                  <div style={{
+                    border: "1px solid rgba(15,23,42,0.08)", borderRadius: 10, padding: "8px 12px", cursor: "pointer",
+                  }}
+                    onMouseEnter={(el) => (el.currentTarget.style.background = "rgba(15,23,42,0.02)")}
+                    onMouseLeave={(el) => (el.currentTarget.style.background = "transparent")}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: 13 }}>{n.eleve_nom}</div>
+                    <div style={{ fontSize: 11, opacity: 0.65, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {n.note} · {formatDateFR(n.created_at)}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Cadre 4 : Remédiations récentes */}
         <div style={card}>
           <div style={{ ...sectionTitle, justifyContent: "space-between" }}>
             <span>🔧 Remédiations en cours</span>
@@ -232,58 +287,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div style={card}>
-          <div style={{ ...sectionTitle, justifyContent: "space-between" }}>
-            <span>📝 Évaluations récentes</span>
-            <Link href="/evaluations" style={{ fontSize: 12, fontWeight: 700, color: "#0A84FF", textDecoration: "none" }}>Voir tout →</Link>
-          </div>
-          {evals_recentes.length === 0 ? (
-            <div style={{ opacity: 0.6, fontSize: 13 }}>Aucune évaluation créée</div>
-          ) : (
-            <div style={{ display: "grid", gap: 8 }}>
-              {evals_recentes.map((e) => (
-                <Link key={e.id} href="/evaluations" style={{ textDecoration: "none", color: "inherit" }}>
-                  <div style={{
-                    border: "1px solid rgba(15,23,42,0.08)", borderRadius: 12, padding: "10px 12px", cursor: "pointer",
-                  }}
-                    onMouseEnter={(el) => (el.currentTarget.style.background = "rgba(15,23,42,0.02)")}
-                    onMouseLeave={(el) => (el.currentTarget.style.background = "transparent")}
-                  >
-                    <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 4 }}>{e.title}</div>
-                    <div style={{ fontSize: 12, opacity: 0.65 }}>
-                      {e.type ?? "—"} · {e.date ? formatDateFR(e.date) : "Date non définie"}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── ACCÈS RAPIDES (avec Import en bas) ── */}
-      <div style={card}>
-        <div style={sectionTitle}>⚡ Accès rapides</div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          {[
-            { href: "/teacher",        label: "📋 Classes & cotation", color: "#0A84FF" },
-            { href: "/evaluations",    label: "📝 Évaluations",        color: "#FF9F0A" },
-            { href: "/remediations",   label: "🔧 Remédiations",       color: "#636AFF" },
-            { href: "/generateur",     label: "✨ Générateur IA",      color: "#FF3B30" },
-            { href: "/agenda",         label: "📅 Agenda",             color: "#30D158" },
-            { href: "/outils",         label: "🎲 Outils de classe",   color: "#FF9500" },
-            { href: "/import",         label: "📥 Import",             color: "#64748b" },
-          ].map(({ href, label, color }) => (
-            <Link key={href} href={href} style={{
-              padding: "10px 16px", borderRadius: 12, fontWeight: 800, fontSize: 13,
-              textDecoration: "none", color,
-              background: `${color}14`, border: `1px solid ${color}30`,
-              transition: "opacity 0.15s",
-            }}>
-              {label}
-            </Link>
-          ))}
-        </div>
       </div>
 
     </div>

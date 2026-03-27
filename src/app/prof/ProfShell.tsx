@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { createBrowserClient } from "@supabase/ssr";
+import React, { useState, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 
 type NavItem = { label: string; icon: string; href: string };
 
@@ -22,11 +21,11 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function ProfShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const avatarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 900);
@@ -35,14 +34,21 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  async function handleLogout() {
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleOutsideClick(e: MouseEvent) {
+      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [menuOpen]);
+
+  function handleLogout() {
     setLoggingOut(true);
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    await supabase.auth.signOut();
-    router.push("/login");
+    setMenuOpen(false);
+    window.location.href = "/auth/logout";
   }
 
   function isActive(href: string) {
@@ -102,6 +108,20 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
             </nav>
           )}
 
+          {/* Déconnexion directe — visible toujours */}
+          {!isMobile && (
+            <a href="/auth/logout" style={{
+              marginLeft: 12, flexShrink: 0,
+              display: "flex", alignItems: "center", gap: 5,
+              padding: "6px 10px", borderRadius: 8,
+              textDecoration: "none", fontSize: "0.82rem",
+              fontWeight: 500, color: "#ef4444",
+              whiteSpace: "nowrap",
+            }}>
+              🚪 Déconnexion
+            </a>
+          )}
+
           {/* Hamburger mobile */}
           {isMobile && (
             <div style={{ flex: 1 }}>
@@ -115,7 +135,7 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
           )}
 
           {/* AVATAR */}
-          <div style={{ position: "relative", flexShrink: 0, marginLeft: 12 }}>
+          <div ref={avatarRef} style={{ position: "relative", flexShrink: 0, marginLeft: 12 }}>
             <button onClick={() => setMenuOpen(v => !v)} style={{
               width: 36, height: 36, borderRadius: "50%", border: "none", cursor: "pointer",
               background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
@@ -134,14 +154,14 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
                   display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 8,
                   textDecoration: "none", fontSize: "0.875rem", fontWeight: 500, color: "#334155",
                 }}>📥 Import</a>
-                <button onClick={handleLogout} disabled={loggingOut} style={{
-                  width: "100%", padding: "9px 12px", borderRadius: 8,
-                  border: "none", background: "transparent", cursor: "pointer",
+                <a href="/auth/logout" style={{
                   display: "flex", alignItems: "center", gap: 8,
-                  fontSize: "0.875rem", fontWeight: 600, color: "#ef4444", textAlign: "left",
+                  padding: "9px 12px", borderRadius: 8,
+                  fontSize: "0.875rem", fontWeight: 600, color: "#ef4444",
+                  textDecoration: "none", cursor: "pointer",
                 }}>
-                  🚪 {loggingOut ? "Déconnexion..." : "Se déconnecter"}
-                </button>
+                  🚪 Se déconnecter
+                </a>
               </div>
             )}
           </div>
@@ -188,9 +208,6 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      {menuOpen && (
-        <div onClick={() => setMenuOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 150 }} />
-      )}
       {mobileNavOpen && (
         <div onClick={() => setMobileNavOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 98 }} />
       )}

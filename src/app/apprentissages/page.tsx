@@ -106,6 +106,10 @@ export default function ApprentissagesPage() {
 
   async function onAdd() {
     if (!ctx) return;
+    if (!newName.trim()) {
+      setErrorMsg("Veuillez entrer un nom pour l'apprentissage.");
+      return;
+    }
     try {
       setErrorMsg(null);
       setInfoMsg(null);
