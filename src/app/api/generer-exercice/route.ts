@@ -24,6 +24,8 @@ type ExerciceRequest = {
   subject?: string;
   attendu?: string;
   contexte_remediation?: string;
+  student_id?: string;
+  classe?: string;
 };
 
 // ─── Labels d'exercices par matière ──────────────────────────────────────────
@@ -681,8 +683,11 @@ function buildPrompt(params: {
   langue: string;
   attendu?: string;
   contexteRemediation?: string;
+  memoire?: string;
+  resultatsEleve?: string;
+  contexteHebdo?: string;
 }): string {
-  const { subject, typeExercice, niveau, theme, langue, attendu, contexteRemediation } = params;
+  const { subject, typeExercice, niveau, theme, langue, attendu, contexteRemediation, memoire, resultatsEleve, contexteHebdo } = params;
 
   // Récupération du référentiel FWB pour la matière et le niveau
   const referentiel = getReferentiel(subject, niveau);
@@ -706,9 +711,32 @@ function buildPrompt(params: {
     basePrompt = buildPromptLangues({ typeExercice, niveau, theme, langue, attendu, contexteRemediation });
   }
 
-  // Injection du référentiel officiel FWB à la suite du prompt
+  // Injection mémoire pédagogique (éviter répétition)
+  const memoireSection = memoire ? `
+
+---
+📚 MÉMOIRE PÉDAGOGIQUE — Exercices déjà générés récemment pour ce groupe/niveau :
+${memoire}
+⚠️ IMPORTANT : Ne répète PAS ces exercices. Varie les structures, les contextes et les exemples utilisés.` : "";
+
+  // Injection résultats élève (remédiation ciblée)
+  const eleveSection = resultatsEleve ? `
+
+---
+🎯 PROFIL DE L'ÉLÈVE — Données issues des évaluations récentes :
+${resultatsEleve}
+⚠️ IMPORTANT : Cet exercice doit remédier précisément aux lacunes identifiées ci-dessus.` : "";
+
+  // Injection contexte hebdomadaire IA
+  const hebdoSection = contexteHebdo ? `
+
+---
+📊 CONTEXTE PÉDAGOGIQUE DE LA SEMAINE :
+${contexteHebdo}` : "";
+
+  // Injection du référentiel officiel FWB
   if (referentiel) {
-    return `${basePrompt}
+    return `${basePrompt}${memoireSection}${eleveSection}${hebdoSection}
 
 ---
 ⚠️ CONSIGNE IMPÉRATIVE : L'exercice que tu génères DOIT être conforme aux attendus officiels ci-dessous. Respecte scrupuleusement les savoirs, savoir-faire et compétences définis pour le niveau ${niveau} dans le référentiel FWB.
@@ -716,7 +744,7 @@ function buildPrompt(params: {
 ${referentiel}`;
   }
 
-  return basePrompt;
+  return `${basePrompt}${memoireSection}${eleveSection}${hebdoSection}`;
 }
 
 function extractAnthropicText(payload: unknown): string {
@@ -763,12 +791,72 @@ export async function POST(req: Request) {
     const attendu = body.attendu?.trim() || undefined;
     const contexteRemediation = body.contexte_remediation?.trim() || undefined;
 
+    // ─── Mémoire pédagogique : 5 derniers exercices (même matière + niveau) ──
+    let memoire: string | undefined;
+    try {
+      const { data: derniers } = await supabase
+        .from("exercices")
+        .select("titre, theme, type_exercice, created_at")
+        .eq("teacher_id", user.id)
+        .eq("subject", subject as string)
+        .eq("niveau", niveau)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (derniers && derniers.length > 0) {
+        memoire = derniers
+          .map((e: { titre: string; theme: string; type_exercice: string }) =>
+            `- ${e.type_exercice} | Thème: "${e.theme}" | ${e.titre}`)
+          .join("\n");
+      }
+    } catch { /* non-bloquant */ }
+
+    // ─── Contexte élève : résultats des dernières évaluations ──────────────
+    let resultatsEleve: string | undefined;
+    if (body.student_id) {
+      try {
+        const { data: evals } = await supabase
+          .from("evaluations")
+          .select("titre, score, max_score, created_at, notes")
+          .eq("student_id", body.student_id)
+          .order("created_at", { ascending: false })
+          .limit(5);
+        if (evals && evals.length > 0) {
+          resultatsEleve = evals
+            .map((e: { titre: string; score: number; max_score: number; notes?: string }) => {
+              const pct = e.max_score > 0 ? Math.round((e.score / e.max_score) * 100) : "?";
+              return `- ${e.titre} : ${e.score}/${e.max_score} (${pct}%)${e.notes ? ` — Notes: ${e.notes}` : ""}`;
+            })
+            .join("\n");
+        }
+      } catch { /* non-bloquant */ }
+    }
+
+    // ─── Contexte hebdomadaire IA (mis à jour chaque lundi) ────────────────
+    let contexteHebdo: string | undefined;
+    try {
+      const { data: hebdo } = await supabase
+        .from("ia_contexte_hebdo")
+        .select("top_themes, types_negliges")
+        .eq("subject", subject as string)
+        .order("semaine", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (hebdo) {
+        const parts = [];
+        if (hebdo.top_themes?.length > 0)
+          parts.push(`Thèmes les plus travaillés en ce moment : ${hebdo.top_themes.join(", ")}`);
+        if (hebdo.types_negliges?.length > 0)
+          parts.push(`Types d'exercices peu utilisés récemment (à privilégier) : ${hebdo.types_negliges.join(", ")}`);
+        if (parts.length > 0) contexteHebdo = parts.join("\n");
+      }
+    } catch { /* non-bloquant */ }
+
     const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
     if (!apiKey) {
       return NextResponse.json({ error: "ANTHROPIC_API_KEY manquante dans .env.local" }, { status: 500 });
     }
 
-    const prompt = buildPrompt({ subject, typeExercice, niveau, theme, langue, attendu, contexteRemediation });
+    const prompt = buildPrompt({ subject, typeExercice, niveau, theme, langue, attendu, contexteRemediation, memoire, resultatsEleve, contexteHebdo });
 
     const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -818,7 +906,7 @@ ${CONTEXTE_SYSTEME_FWB}`,
           theme,
           titre,
           contenu: exercice,
-          classe: (body as ExerciceRequest & { classe?: string }).classe ?? "",
+          classe: body.classe ?? "",
         })
         .select("id")
         .single();
