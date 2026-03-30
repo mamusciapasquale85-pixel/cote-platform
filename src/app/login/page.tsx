@@ -66,6 +66,7 @@ export default function LoginPage() {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [className, setClassName] = useState("");
   const [gradeLevel, setGradeLevel] = useState(7);
+  const [promoCode, setPromoCode] = useState("");
   const [regError, setRegError] = useState("");
   const [regLoading, setRegLoading] = useState(false);
 
@@ -135,6 +136,7 @@ export default function LoginPage() {
           subjects,
           className,
           gradeLevel,
+          promoCode: promoCode.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -344,9 +346,11 @@ export default function LoginPage() {
                 <h3 style={{ margin: "0 0 20px", fontSize: "1.05rem", fontWeight: 700, color: "#111827" }}>Votre établissement</h3>
                 <Lbl>Nom de l'école / l'institut</Lbl>
                 <input value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="Institut Marie Curie, Bruxelles" required style={{ ...inp, marginBottom: 8 }} />
-                <p style={{ fontSize: "0.78rem", color: "#6b7280", marginBottom: 20 }}>
+                <p style={{ fontSize: "0.78rem", color: "#6b7280", marginBottom: 16 }}>
                   Si votre établissement existe déjà dans Klasbook, vous serez automatiquement rattaché.
                 </p>
+                <Lbl>Code promo <span style={{ fontWeight: 400, color: "#9ca3af" }}>(optionnel)</span></Lbl>
+                <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="ex: KLASBETA2026" style={{ ...inp, marginBottom: 20, letterSpacing: "0.05em" }} />
                 {regError && <ErrBox>{regError}</ErrBox>}
                 <div style={{ display: "flex", gap: 10 }}>
                   <BackBtn onClick={() => setMode("r2")} />

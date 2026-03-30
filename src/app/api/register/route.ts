@@ -11,7 +11,7 @@ const MATIERES_MAP: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const { firstName, lastName, email, password, role, schoolName, subjects, className, gradeLevel } = await req.json();
+    const { firstName, lastName, email, password, role, schoolName, subjects, className, gradeLevel, promoCode } = await req.json();
 
     const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,12 +29,25 @@ export async function POST(req: NextRequest) {
     if (userError) return NextResponse.json({ error: userError.message }, { status: 400 });
     const userId = userData.user.id;
 
-    // 2. Profil utilisateur
+    // 2. Vérifier code promo (si fourni)
+    let planFromPromo = "free";
+    if (promoCode?.trim()) {
+      const { data: promo } = await admin
+        .from("promo_codes")
+        .select("plan")
+        .eq("code", promoCode.trim().toUpperCase())
+        .eq("active", true)
+        .maybeSingle();
+      if (promo) planFromPromo = promo.plan;
+    }
+
+    // 3. Profil utilisateur
     await admin.from("user_profiles").insert({
       id: userId,
       full_name: `${firstName.trim()} ${lastName.trim()}`,
       display_role: role,
       locale: "fr",
+      ...(planFromPromo !== "free" ? { plan: planFromPromo, plan_expires_at: null } : {}),
     });
 
     // 3. École — chercher ou créer
