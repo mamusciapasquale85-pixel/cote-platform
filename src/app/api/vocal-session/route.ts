@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       const voice = VOICE_MAP[body.langue ?? "nl"] ?? "nl-BE-ArnaudNeural";
       const mp3 = await synthesizeSpeech(body.text, voice);
 
-      return new NextResponse(mp3, {
+      return new NextResponse(new Uint8Array(mp3), {
         status: 200,
         headers: {
           "Content-Type": "audio/mpeg",

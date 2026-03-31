@@ -108,7 +108,7 @@ export async function assessPronunciation(
       "Pronunciation-Assessment": assessmentConfig,
       Accept: "application/json",
     },
-    body: audioBuffer,
+    body: new Uint8Array(audioBuffer),
   });
 
   if (!res.ok) {

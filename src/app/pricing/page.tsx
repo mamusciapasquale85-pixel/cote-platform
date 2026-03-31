@@ -277,7 +277,7 @@ export default function PricingPage() {
 
       {/* Garantie */}
       <div style={{
-        maxWidth: 700, margin: "0 auto 80px", padding: "0 24px",
+        maxWidth: 700, margin: "0 auto 80px",
         background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.2)",
         borderRadius: 18, padding: "24px 32px", textAlign: "center",
       }}>
