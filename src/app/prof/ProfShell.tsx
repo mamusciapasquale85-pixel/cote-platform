@@ -17,6 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Outils",        icon: "🎲", href: "/outils" },
   { label: "Générateur IA", icon: "✨", href: "/generateur" },
   { label: "Historique",    icon: "📚", href: "/historique" },
+  { label: "Vocal",         icon: "🎙", href: "/vocal" },
 ];
 
 export default function ProfShell({ children }: { children: React.ReactNode }) {
