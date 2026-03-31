@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 
         const subscription = await stripe.subscriptions.retrieve(
           session.subscription as string
-        );
+        ) as unknown as Stripe.Subscription;
         const userId = subscription.metadata?.supabase_user_id;
         if (!userId) break;
 
