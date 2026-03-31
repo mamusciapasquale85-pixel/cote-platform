@@ -535,6 +535,20 @@ export default function TeacherCotationView() {
         level: levelInput === "" ? null : levelInput,
       });
 
+      // Notification parent (fire-and-forget)
+      const currentAssessment = assessments.find((a) => a.id === assessmentId);
+      fetch("/api/notify-parent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          evaluationTitle: currentAssessment?.title ?? "",
+          level: levelInput || null,
+          value: parsedValue,
+          maxPoints: currentAssessment?.max_points ?? null,
+        }),
+      }).catch(() => {/* silencieux */});
+
       await reloadStudentResults(ctx, studentId);
       setValueInput("");
       setLevelInput("");

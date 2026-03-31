@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatDateFR } from "@/lib/date";
+import { createClient } from "@/lib/supabase/client";
 import {
   type UUID, type TeacherContext, type ClassGroup, type Course, type Apprentissage,
   type Assessment, type ParsedAssessmentCsvRow, type AssessmentCsvImportSummary,
@@ -113,11 +114,18 @@ const COTATION_OPTIONS: { id: CotationType; label: string; desc: string }[] = [
   { id: "nisbttb", label: "NI / I / S / B / TB", desc: "Évaluation par compétences" },
 ];
 
+// ── Types supplémentaires ────────────────────────────────────────────────────
+type SchoolTemplate = { school_name: string; teacher_name: string; address: string; logo_url: string };
+const DEFAULT_SCHOOL_TEMPLATE: SchoolTemplate = { school_name: "", teacher_name: "", address: "", logo_url: "" };
+type IaSource = "pure" | "cours";
+type PdfFormat = "klasbook" | "perso";
+
 // ── Modal Créer ──────────────────────────────────────────────────────────────
 function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose }: {
   ctx: TeacherContext; classes: ClassGroup[]; courses: Course[]; apprentissages: Apprentissage[];
   onCreated: () => void; onClose: () => void;
 }) {
+  const supabase = createClient();
   const [title, setTitle] = useState("");
   const [type, setType] = useState<AssessmentType>("summative");
   const [date, setDate] = useState(toISODate(new Date()));
@@ -132,10 +140,40 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
   const [selectedSubject, setSelectedSubject] = useState<SubjectDef>(SUBJECTS[0]);
   const [typeExercice, setTypeExercice] = useState(SUBJECTS[0].types[0].id);
   const [niveau, setNiveau] = useState(SUBJECTS[0].niveaux[0]);
+  const [iaSource, setIaSource] = useState<IaSource>("pure");
+  const [coursProf, setCoursProf] = useState("");
+  const [pdfFormat, setPdfFormat] = useState<PdfFormat>("klasbook");
+  const [schoolTemplate, setSchoolTemplate] = useState<SchoolTemplate>(DEFAULT_SCHOOL_TEMPLATE);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [genResult, setGenResult] = useState<string | null>(null);
+
+  // Charge le canevas école depuis user_profiles
+  useEffect(() => {
+    async function loadTemplate() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("user_profiles").select("template_json, full_name").eq("id", user.id).maybeSingle();
+      if (data) {
+        const t = (data.template_json ?? {}) as Partial<SchoolTemplate>;
+        setSchoolTemplate({
+          school_name: t.school_name ?? "",
+          teacher_name: t.teacher_name ?? (data.full_name ?? ""),
+          address: t.address ?? "",
+          logo_url: t.logo_url ?? "",
+        });
+      }
+    }
+    void loadTemplate();
+  }, [supabase]);
+
+  // Auto-sélectionne le cours correspondant à la matière choisie
+  useEffect(() => {
+    if (!courses.length) return;
+    const match = courses.find(c => c.name.toLowerCase().includes(selectedSubject.label.toLowerCase()));
+    if (match) setCourseId(match.id);
+  }, [selectedSubject, courses]);
 
   function handleSubjectChange(subj: SubjectDef) {
     setSelectedSubject(subj);
@@ -145,6 +183,12 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
 
   const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 9, border: "1px solid #E5E7EB", fontSize: 14, width: "100%", boxSizing: "border-box" };
   const sel: React.CSSProperties = { ...inp, cursor: "pointer", background: "#FFF" };
+  const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" };
+  function pillStyle(active: boolean): React.CSSProperties {
+    return { flex: 1, padding: "8px 0", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 700,
+      border: active ? "2px solid #0A84FF" : "1.5px solid #E5E7EB",
+      background: active ? "#EFF6FF" : "#FFF", color: active ? "#0A63BF" : "#374151" };
+  }
 
   async function onSubmit() {
     if (!title.trim()) return setErr("Titre obligatoire.");
@@ -176,6 +220,7 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
           niveau,
           theme,
           classe: classId ? classes.find(c => c.id === classId)?.name ?? "" : "",
+          ...(iaSource === "cours" && coursProf.trim() ? { contexte_remediation: `COURS DU PROFESSEUR :\n${coursProf.trim()}` } : {}),
         }),
       });
       const data = await res.json() as { exercice?: string; titre?: string; id?: string | null; error?: string };
@@ -191,87 +236,86 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
     const PAGE_W = 210, ML = 15, MR = 15, CONTENT_W = PAGE_W - ML - MR;
     let y = 0;
 
-    // ── Barre couleur en haut
+    // ── En-tête selon le format choisi
     doc.setFillColor(15, 23, 42);
     doc.rect(0, 0, PAGE_W, 8, "F");
     doc.setFillColor(10, 132, 255);
     doc.rect(0, 0, 60, 8, "F");
     y = 16;
 
-    // ── En-tête Klasbook
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(15, 23, 42);
-    doc.text("KLASBOOK", ML, y);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`${selectedSubject.emoji} ${selectedSubject.label}`, ML + 40, y);
-    y += 7;
+    if (pdfFormat === "klasbook") {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(15, 23, 42);
+      doc.text("KLASBOOK", ML, y);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`${selectedSubject.emoji} ${selectedSubject.label}`, ML + 40, y);
+      y += 7;
+    } else {
+      const schoolName = schoolTemplate.school_name || "Mon École";
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(15, 23, 42);
+      doc.text(schoolName.toUpperCase(), ML, y);
+      y += 5;
+      if (schoolTemplate.address) {
+        doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(100, 116, 139);
+        doc.text(schoolTemplate.address, ML, y); y += 4;
+      }
+      if (schoolTemplate.teacher_name) {
+        doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(100, 116, 139);
+        doc.text(`Prof : ${schoolTemplate.teacher_name}`, ML, y); y += 4;
+      }
+      y += 3;
+    }
 
     // ── Ligne séparatrice
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.4);
-    doc.line(ML, y, PAGE_W - MR, y);
-    y += 5;
+    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.4);
+    doc.line(ML, y, PAGE_W - MR, y); y += 5;
 
     // ── Grille d'infos (2 colonnes)
     const COL2 = ML + CONTENT_W / 2;
-    doc.setFontSize(10);
-    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(10); doc.setTextColor(15, 23, 42);
     const className = classId ? classes.find(c => c.id === classId)?.name ?? "—" : "—";
     const cotationLabel = cotation === "points" ? `       / ${maxPoints}` : "NI  /  I  /  S  /  B  /  TB";
-
     const infoRows: [string, string, string, string][] = [
       ["Matière :", selectedSubject.label, "Type :", type === "summative" ? "Sommative" : type === "formative" ? "Formative" : "Évaluation"],
       ["Classe :", className, "Date :", formatDateFR(date)],
       ["Nom / Prénom :", "_ _ _ _ _ _ _ _ _ _ _ _ _ _ _", cotation === "points" ? "Points :" : "Niveau :", cotationLabel],
     ];
     for (const [label1, val1, label2, val2] of infoRows) {
-      doc.setFont("helvetica", "bold");
-      doc.text(label1, ML, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(val1, ML + 28, y);
-      doc.setFont("helvetica", "bold");
-      doc.text(label2, COL2, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(val2, COL2 + 22, y);
+      doc.setFont("helvetica", "bold"); doc.text(label1, ML, y);
+      doc.setFont("helvetica", "normal"); doc.text(val1, ML + 28, y);
+      doc.setFont("helvetica", "bold"); doc.text(label2, COL2, y);
+      doc.setFont("helvetica", "normal"); doc.text(val2, COL2 + 22, y);
       y += 6;
     }
     y += 4;
 
-    // ── Titre de l'évaluation
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(10, 132, 255);
-    doc.text(title.trim(), ML, y);
-    y += 8;
+    // ── Titre
+    doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(10, 132, 255);
+    doc.text(title.trim(), ML, y); y += 8;
 
     // ── Contenu IA
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(30, 41, 59);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(30, 41, 59);
     const lines = doc.splitTextToSize(genResult, CONTENT_W);
     for (const line of lines) {
       if (y > 280) { doc.addPage(); y = 15; }
-      doc.text(line, ML, y);
-      y += 5;
+      doc.text(line, ML, y); y += 5;
     }
 
     // ── Pied de page
     const pageCount = doc.getNumberOfPages();
+    const footerLabel = pdfFormat === "klasbook" ? "Klasbook" : (schoolTemplate.school_name || "Mon École");
     for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(148, 163, 184);
-      doc.text(`Klasbook — ${selectedSubject.label} — ${formatDateFR(date)}`, ML, 290);
+      doc.setPage(i); doc.setFontSize(8); doc.setTextColor(148, 163, 184);
+      doc.text(`${footerLabel} — ${selectedSubject.label} — ${formatDateFR(date)}`, ML, 290);
       doc.text(`${i} / ${pageCount}`, PAGE_W - MR - 10, 290);
     }
-
     doc.save(`eval-${selectedSubject.id}-${date}.pdf`);
   }
-
-  const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(15,23,42,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
@@ -286,29 +330,20 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
         <div style={{ padding: 22, display: "grid", gap: 12, overflowY: "auto" }}>
           {err && <div style={{ padding: "9px 14px", borderRadius: 9, background: "rgba(220,38,38,.08)", border: "1px solid rgba(220,38,38,.25)", color: "#991B1B", fontSize: 13 }}>{err}</div>}
 
-          {/* Type pills */}
+          {/* 1. Type d'évaluation */}
           <div>
             <div style={lbl}>Type d&apos;évaluation</div>
             <div style={{ display: "flex", gap: 8 }}>
               {(["summative", "formative", "diag", "oral"] as const).map(t => (
-                <button key={t} onClick={() => setType(t as AssessmentType)}
-                  style={{ flex: 1, padding: "8px 0", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 700,
-                    border: type === t ? "2px solid #0A84FF" : "1.5px solid #E5E7EB",
-                    background: type === t ? "#EFF6FF" : "#FFF", color: type === t ? "#0A63BF" : "#374151" }}>
+                <button key={t} onClick={() => setType(t as AssessmentType)} style={pillStyle(type === t)}>
                   {t === "summative" ? "🎓 Sommative" : t === "formative" ? "📊 Formative" : t === "diag" ? "🔍 Diag." : "🎤 Orale"}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Titre */}
-          <div>
-            <div style={lbl}>Titre / Thème *</div>
-            <input style={{ ...inp, height: 44 }} placeholder="Ex: Vocabulaire — De familie" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
-          </div>
-
-          {/* Matière (dropdown) + Niveau + Type exercice */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          {/* 2. Matière + Classe */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <div style={lbl}>Matière *</div>
               <select style={sel} value={selectedSubject.id}
@@ -316,6 +351,23 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
                 {SUBJECTS.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
               </select>
             </div>
+            <div>
+              <div style={lbl}>Classe / Année *</div>
+              <select style={sel} value={classId} onChange={e => setClassId(e.target.value as UUID)}>
+                <option value="">Choisir…</option>
+                {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* 3. Titre / Thème */}
+          <div>
+            <div style={lbl}>Titre / Thème *</div>
+            <input style={{ ...inp, height: 44 }} placeholder="Ex: Vocabulaire — De familie" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+          </div>
+
+          {/* 4. Niveau + Type d'exercice */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <div style={lbl}>Niveau</div>
               <select style={sel} value={niveau} onChange={e => setNiveau(e.target.value)}>
@@ -330,7 +382,24 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
             </div>
           </div>
 
-          {/* Cotation */}
+          {/* 5. Source IA */}
+          <div style={{ borderRadius: 12, border: "1px solid #E5E7EB", padding: "12px 14px", background: "#FAFAFA" }}>
+            <div style={lbl}>Source pour l&apos;IA</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setIaSource("pure")} style={pillStyle(iaSource === "pure")}>✨ IA pure</button>
+              <button onClick={() => setIaSource("cours")} style={pillStyle(iaSource === "cours")}>📚 Basé sur mon cours</button>
+            </div>
+            {iaSource === "cours" && (
+              <textarea
+                style={{ ...inp, height: 80, resize: "vertical", paddingTop: 9, marginTop: 10, background: "#fff" }}
+                placeholder="Colle ici les notes de cours, le vocabulaire ou le texte support que l'IA doit utiliser…"
+                value={coursProf}
+                onChange={e => setCoursProf(e.target.value)}
+              />
+            )}
+          </div>
+
+          {/* 6. Cotation */}
           <div>
             <div style={lbl}>Système de cotation</div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -347,25 +416,7 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
             </div>
           </div>
 
-          {/* Classe + Cours */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div>
-              <div style={lbl}>Classe *</div>
-              <select style={sel} value={classId} onChange={e => setClassId(e.target.value as UUID)}>
-                <option value="">Choisir…</option>
-                {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <div style={lbl}>Cours *</div>
-              <select style={sel} value={courseId} onChange={e => setCourseId(e.target.value as UUID)}>
-                <option value="">Choisir…</option>
-                {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Date + Points/Cotation + Statut */}
+          {/* 7. Date + Points + Statut */}
           <div style={{ display: "grid", gridTemplateColumns: cotation === "points" ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10 }}>
             <div>
               <div style={lbl}>Date</div>
@@ -387,7 +438,32 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
             </div>
           </div>
 
-          {/* Apprentissage + Parents */}
+          {/* 8. Format PDF */}
+          <div style={{ borderRadius: 12, border: "1px solid #E5E7EB", padding: "12px 14px", background: "#FAFAFA" }}>
+            <div style={lbl}>Format de sortie PDF</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setPdfFormat("klasbook")} style={pillStyle(pdfFormat === "klasbook")}>🏫 Canevas Klasbook</button>
+              <button onClick={() => setPdfFormat("perso")} style={pillStyle(pdfFormat === "perso")}>🎨 Canevas personnalisé</button>
+            </div>
+            {pdfFormat === "perso" && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+                <div>
+                  <div style={{ ...lbl, marginBottom: 4 }}>Nom de l&apos;école</div>
+                  <input style={{ ...inp, background: "#fff" }} value={schoolTemplate.school_name} onChange={e => setSchoolTemplate(t => ({ ...t, school_name: e.target.value }))} placeholder="Ex: Athénée Royal de…" />
+                </div>
+                <div>
+                  <div style={{ ...lbl, marginBottom: 4 }}>Nom du professeur</div>
+                  <input style={{ ...inp, background: "#fff" }} value={schoolTemplate.teacher_name} onChange={e => setSchoolTemplate(t => ({ ...t, teacher_name: e.target.value }))} placeholder="Ex: M. Dupont" />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ ...lbl, marginBottom: 4 }}>Adresse</div>
+                  <input style={{ ...inp, background: "#fff" }} value={schoolTemplate.address} onChange={e => setSchoolTemplate(t => ({ ...t, address: e.target.value }))} placeholder="Ex: Rue de la Loi 1, 1000 Bruxelles" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 9. Apprentissage + Parents */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <div style={lbl}>Apprentissage</div>
@@ -404,7 +480,7 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
             </div>
           </div>
 
-          {/* Instructions */}
+          {/* 10. Instructions */}
           <div>
             <div style={lbl}>Instructions / Consignes (optionnel)</div>
             <textarea style={{ ...inp, height: 68, resize: "vertical", paddingTop: 9 }} placeholder="Ex: Vocabulaire de la famille, mots de liaison, present simple…" value={instructions} onChange={e => setInstructions(e.target.value)} />
@@ -433,7 +509,7 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
                   style={{ height: 42, padding: "0 16px", borderRadius: 9, border: "1px solid #BBF7D0",
                     background: "#F0FDF4", color: "#166534", fontWeight: 700, fontSize: 13, cursor: "pointer",
                     display: "flex", alignItems: "center", gap: 6 }}>
-                  📄 Télécharger PDF Klasbook
+                  📄 {pdfFormat === "klasbook" ? "PDF Klasbook" : "PDF personnalisé"}
                 </button>
               )}
             </div>

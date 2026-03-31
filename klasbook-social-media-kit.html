@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Klasbook — Kit Réseaux Sociaux</title>
+  <style>
+    :root {
+      --red: #FF3B30;
+      --blue: #0A84FF;
+      --fb: #1877F2;
+      --ig: #E1306C;
+      --li: #0A66C2;
+      --bg: #0a0d14;
+      --surface: #141a24;
+      --surface2: #1e2536;
+      --border: rgba(255,255,255,0.08);
+      --text: #ffffff;
+      --text2: rgba(255,255,255,0.72);
+      --text3: rgba(255,255,255,0.42);
+      --green: #10b981;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; line-height:1.6; }
+
+    /* TOP HEADER */
+    .kit-header {
+      background: linear-gradient(135deg, var(--red) 0%, var(--blue) 100%);
+      padding: 48px 48px 40px;
+      position: relative; overflow: hidden;
+    }
+    .kit-header::after {
+      content: '⚡';
+      position: absolute; right: 60px; top: 50%; transform: translateY(-50%);
+      font-size: 140px; opacity: 0.12;
+    }
+    .kit-header h1 { font-size: 2.4rem; font-weight: 900; letter-spacing: -1px; }
+    .kit-header p { opacity: 0.88; margin-top: 8px; font-size: 1.05rem; }
+    .kit-meta { display:flex; gap:24px; margin-top:20px; flex-wrap:wrap; }
+    .kit-meta span {
+      background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.28);
+      border-radius: 20px; padding: 5px 14px; font-size: 0.82rem; font-weight: 600;
+    }
+
+    /* NAV TABS */
+    .nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; padding: 0 48px; gap: 4px; overflow-x: auto;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .nav-btn {
+      background: none; border: none; color: var(--text3);
+      cursor: pointer; padding: 16px 22px; font-size: 0.9rem; font-weight: 600;
+      border-bottom: 3px solid transparent; transition: all 0.2s; white-space: nowrap;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .nav-btn:hover { color: var(--text2); }
+    .nav-btn.active { color: var(--text); border-bottom-color: var(--active-color, var(--red)); }
+
+    /* SECTIONS */
+    .section { display: none; padding: 48px; max-width: 1100px; margin: 0 auto; }
+    .section.active { display: block; }
+
+    /* PLATFORM BADGE */
+    .platform-badge {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 8px 20px; border-radius: 30px; font-size: 1rem; font-weight: 700;
+      margin-bottom: 32px;
+    }
+    .platform-badge.fb { background: rgba(24,119,242,0.15); border: 1.5px solid rgba(24,119,242,0.4); color: #5b9cf6; }
+    .platform-badge.ig { background: rgba(225,48,108,0.15); border: 1.5px solid rgba(225,48,108,0.4); color: #f06292; }
+    .platform-badge.li { background: rgba(10,102,194,0.15); border: 1.5px solid rgba(10,102,194,0.4); color: #5b9cf6; }
+    .platform-badge.all { background: rgba(255,59,48,0.12); border: 1.5px solid rgba(255,59,48,0.3); color: #FF6B60; }
+
+    /* CARD */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px; margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text3); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 10px; }
+    .card p { color: var(--text2); font-size: 0.93rem; line-height: 1.7; }
+
+    /* TEXT BOX */
+    .textbox {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 20px 22px;
+      font-size: 0.92rem; color: var(--text2); line-height: 1.75;
+      position: relative; margin-top: 10px;
+    }
+    .textbox.highlight { border-color: rgba(255,59,48,0.3); }
+    .copy-btn {
+      position: absolute; top: 12px; right: 12px;
+      background: rgba(255,255,255,0.08); border: 1px solid var(--border);
+      border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; color: var(--text3);
+      cursor: pointer; transition: all 0.2s;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,0.14); color: var(--text2); }
+    .copy-btn.copied { background: rgba(16,185,129,0.15); color: var(--green); border-color: rgba(16,185,129,0.3); }
+
+    /* GRID */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+    /* SPEC TAG */
+    .spec { display: flex; gap: 12px; margin-bottom: 10px; }
+    .spec-label { font-size: 0.8rem; font-weight: 700; color: var(--text3); min-width: 120px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .spec-value { font-size: 0.88rem; color: var(--text2); }
+
+    /* POST CARD */
+    .post-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden; margin-bottom: 20px;
+    }
+    .post-header {
+      padding: 14px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .post-header .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--red), var(--blue));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; font-weight: 900; flex-shrink: 0;
+    }
+    .post-header .meta strong { font-size: 0.88rem; }
+    .post-header .meta span { font-size: 0.78rem; color: var(--text3); }
+    .post-body { padding: 18px 20px; font-size: 0.92rem; color: var(--text2); line-height: 1.75; white-space: pre-wrap; }
+    .post-image-area {
+      background: linear-gradient(135deg, rgba(255,59,48,0.1), rgba(10,132,255,0.1));
+      border-top: 1px solid var(--border); padding: 16px 20px;
+      font-size: 0.82rem; color: var(--text3); font-style: italic;
+    }
+    .post-footer {
+      padding: 12px 20px; border-top: 1px solid var(--border);
+      display: flex; gap: 20px;
+    }
+    .post-action { font-size: 0.82rem; color: var(--text3); display: flex; align-items: center; gap: 6px; }
+    .post-num { font-size: 0.72rem; font-weight: 700; color: var(--text3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; }
+
+    /* HASHTAG CLOUD */
+    .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .tag {
+      background: rgba(10,132,255,0.1); border: 1px solid rgba(10,132,255,0.25);
+      border-radius: 20px; padding: 5px 12px; font-size: 0.82rem; color: #5b9cf6;
+    }
+    .tag.priority { background: rgba(255,59,48,0.12); border-color: rgba(255,59,48,0.3); color: #FF6B60; }
+
+    /* VISUAL SPEC */
+    .visual-box {
+      border: 2px dashed var(--border); border-radius: 12px; padding: 24px;
+      text-align: center; color: var(--text3); font-size: 0.88rem;
+      background: rgba(255,255,255,0.02);
+    }
+    .visual-box .dims { font-size: 1.3rem; font-weight: 800; color: var(--text2); margin-bottom: 4px; }
+    .visual-box .name { font-size: 0.85rem; margin-bottom: 12px; }
+
+    /* COLOR SWATCHES */
+    .swatch-row { display: flex; gap: 12px; margin-top: 10px; }
+    .swatch { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 700; }
+
+    /* CALENDAR TABLE */
+    .cal-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    .cal-table th { padding: 10px 14px; background: var(--surface2); color: var(--text3); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; text-align: left; border-bottom: 1px solid var(--border); }
+    .cal-table td { padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); color: var(--text2); vertical-align: top; }
+    .cal-table tr:hover td { background: rgba(255,255,255,0.02); }
+    .plat-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 8px; font-size: 0.72rem; font-weight: 700; }
+    .plat-chip.fb { background: rgba(24,119,242,0.15); color: #5b9cf6; }
+    .plat-chip.ig { background: rgba(225,48,108,0.15); color: #f06292; }
+    .plat-chip.li { background: rgba(10,102,194,0.15); color: #5b9cf6; }
+
+    /* SECTION TITLE */
+    .sec-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px; }
+    .sec-sub { color: var(--text3); font-size: 0.92rem; margin-bottom: 32px; }
+
+    /* ALERT */
+    .alert {
+      background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.2);
+      border-radius: 10px; padding: 14px 18px; font-size: 0.88rem; color: var(--text2);
+      margin-bottom: 20px; display: flex; gap: 10px; align-items: flex-start;
+    }
+
+    /* FOOTER */
+    .kit-footer {
+      background: var(--surface); border-top: 1px solid var(--border);
+      padding: 24px 48px; text-align: center; color: var(--text3); font-size: 0.82rem;
+    }
+
+    @media (max-width: 768px) {
+      .kit-header, .section, .nav { padding-left: 20px; padding-right: 20px; }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .kit-header::after { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="kit-header">
+  <h1>⚡ Klasbook — Kit Réseaux Sociaux</h1>
+  <p>Profils, contenus de lancement et stratégie pour Facebook, Instagram & LinkedIn</p>
+  <div class="kit-meta">
+    <span>🇧🇪 Marché FWB</span>
+    <span>🎓 Cible : Enseignants secondaire</span>
+    <span>🚀 Lancement Early Adopter</span>
+    <span>📅 Version Mars 2026</span>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav class="nav">
+  <button class="nav-btn active" onclick="show('identite')" style="--active-color:#FF3B30">🎨 Identité</button>
+  <button class="nav-btn" onclick="show('facebook')" style="--active-color:#1877F2">📘 Facebook</button>
+  <button class="nav-btn" onclick="show('instagram')" style="--active-color:#E1306C">📸 Instagram</button>
+  <button class="nav-btn" onclick="show('linkedin')" style="--active-color:#0A66C2">💼 LinkedIn</button>
+  <button class="nav-btn" onclick="show('posts')" style="--active-color:#10b981">✍️ Posts de lancement</button>
+  <button class="nav-btn" onclick="show('calendar')" style="--active-color:#f59e0b">📅 Calendrier 30j</button>
+  <button class="nav-btn" onclick="show('promo')" style="--active-color:#f59e0b">🎁 Offre -50%</button>
+</nav>
+
+<!-- ===== IDENTITÉ ===== -->
+<section class="section active" id="identite">
+  <div class="platform-badge all">🎨 Identité de marque Klasbook</div>
+  <p class="sec-title">Charte & cohérence cross-plateforme</p>
+  <p class="sec-sub">Tous tes profils doivent respirer la même identité pour maximiser la reconnaissance de marque.</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Nom de marque</div>
+      <h3>⚡ Klasbook</h3>
+      <p>Toujours avec le ⚡ devant. Capital K, minuscule le reste. Pas d'espace entre "Klas" et "book".</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Tagline principale</div>
+      <h3>La remédiation automatique pour les enseignants FWB</h3>
+      <p>Variante courte : <em>"Plus d'heures perdues sur les remédiations."</em></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Palette de couleurs</div>
+    <div class="swatch-row">
+      <div>
+        <div class="swatch" style="background:#FF3B30;">❤️</div>
+        <div style="font-size:0.75rem; margin-top:4px; color:var(--text3);">#FF3B30<br>Rouge principal</div>
+      </div>
+      <div>
+        <div class="swatch" style="background:#0A84FF;">💙</div>
+        <div style="font-size:0.75rem; margin-top:4px; color:var(--text3);">#0A84FF<br>Bleu IA</div>
+      </div>
+      <div>
+        <div class="swatch" style="background:linear-gradient(135deg,#FF3B30,#0A84FF);">✨</div>
+        <div style="font-size:0.75rem; margin-top:4px; color:var(--text3);">Gradient<br>Identité</div>
+      </div>
+      <div>
+        <div class="swatch" style="background:#ffffff; border:1px solid rgba(0,0,0,0.1);">⬜</div>
+        <div style="font-size:0.75rem; margin-top:4px; color:var(--text3);">#FFFFFF<br>Texte clair</div>
+      </div>
+      <div>
+        <div class="swatch" style="background:#06090f;">⬛</div>
+        <div style="font-size:0.75rem; margin-top:4px; color:var(--text3);">#06090F<br>Fond sombre</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Tone of Voice</div>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:8px;">
+        <li style="color:var(--text2); font-size:0.9rem;">✅ <strong>Direct et concret</strong> — pas de jargon, des bénéfices clairs</li>
+        <li style="color:var(--text2); font-size:0.9rem;">✅ <strong>Pair-à-pair</strong> — tu parles comme un collègue enseignant, pas comme une startup tech</li>
+        <li style="color:var(--text2); font-size:0.9rem;">✅ <strong>Empathique</strong> — tu montres que tu comprends leur quotidien difficile</li>
+        <li style="color:var(--text2); font-size:0.9rem;">✅ <strong>Fier de FWB</strong> — toujours mettre en avant l'ancrage belge francophone</li>
+        <li style="color:var(--text2); font-size:0.9rem;">❌ <strong>Jamais corporate</strong> — pas de "solutions innovantes", "synergie", etc.</li>
+        <li style="color:var(--text2); font-size:0.9rem;">❌ <strong>Jamais agressif</strong> — pas de critique directe des outils concurrents</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">Messages clés à répéter</div>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:10px;">
+        <li style="color:var(--text2); font-size:0.9rem; background:var(--surface2); padding:10px 14px; border-radius:8px;">🤖 <strong>Remédiation automatique par IA</strong> — une première en FWB</li>
+        <li style="color:var(--text2); font-size:0.9rem; background:var(--surface2); padding:10px 14px; border-radius:8px;">🎯 <strong>Exercices différenciés par élève</strong> — pas une remédiation de masse</li>
+        <li style="color:var(--text2); font-size:0.9rem; background:var(--surface2); padding:10px 14px; border-radius:8px;">🇧🇪 <strong>Conçu par un enseignant FWB</strong> — Athénée Marie Curie, Bruxelles</li>
+        <li style="color:var(--text2); font-size:0.9rem; background:var(--surface2); padding:10px 14px; border-radius:8px;">✅ <strong>Sans accord de la direction</strong> — outil personnel, abonnement individuel</li>
+        <li style="color:var(--text2); font-size:0.9rem; background:var(--surface2); padding:10px 14px; border-radius:8px;">🚀 <strong>Opérationnel en 5 minutes</strong> — aucune installation, aucune réunion IT</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Photo de profil (même pour les 3 plateformes)</div>
+    <div class="grid-2">
+      <div>
+        <p style="color:var(--text2); font-size:0.9rem; margin-bottom:16px;">Utilise un visuel carré avec fond noir/sombre, le symbole ⚡ en grand, et "Klasbook" en dessous en blanc. Le tout avec le gradient rouge→bleu subtil en fond. Dimensions : <strong>400×400px minimum</strong>.</p>
+        <div class="spec"><div class="spec-label">Format</div><div class="spec-value">Carré 1:1 — 400×400px ou 800×800px</div></div>
+        <div class="spec"><div class="spec-label">Fond</div><div class="spec-value">Noir profond #06090F ou gradient sombre</div></div>
+        <div class="spec"><div class="spec-label">Éléments</div><div class="spec-value">⚡ grand + "Klasbook" + éventuel point rouge/bleu</div></div>
+      </div>
+      <div class="visual-box" style="display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; background: #06090f; min-height:120px;">
+        <div style="width:80px; height:80px; border-radius:16px; background:linear-gradient(135deg,#FF3B30,#0A84FF); display:flex; align-items:center; justify-content:center; font-size:2.2rem;">⚡</div>
+        <div style="font-size:0.7rem; color:var(--text3);">Aperçu concept logo</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FACEBOOK ===== -->
+<section class="section" id="facebook">
+  <div class="platform-badge fb">📘 Facebook</div>
+  <p class="sec-title">Page Facebook Klasbook</p>
+  <p class="sec-sub">Page publique pour toucher les enseignants FWB, partager du contenu pédagogique et générer des inscriptions à la liste d'attente.</p>
+
+  <div class="alert">⚡ Crée une <strong>Page Facebook</strong> (pas un profil personnel). Catégorie : <strong>Logiciel/Application</strong> ou <strong>Entreprise d'éducation</strong>.</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Informations de base</div>
+      <div class="spec"><div class="spec-label">Nom de page</div><div class="spec-value">Klasbook — Enseignants FWB</div></div>
+      <div class="spec"><div class="spec-label">Nom d'utilisateur</div><div class="spec-value">@klasbook.be</div></div>
+      <div class="spec"><div class="spec-label">Catégorie</div><div class="spec-value">Application éducative / Logiciel</div></div>
+      <div class="spec"><div class="spec-label">Bouton CTA</div><div class="spec-value">« S'inscrire » → lien liste d'attente</div></div>
+      <div class="spec"><div class="spec-label">Email</div><div class="spec-value">contact@klasbook.be</div></div>
+      <div class="spec"><div class="spec-label">Site web</div><div class="spec-value">klasbook.be</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Photo de couverture Facebook</div>
+      <div class="visual-box" style="min-height:120px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <div class="dims">820 × 312 px</div>
+        <div class="name">Photo de couverture Facebook</div>
+        <div style="font-size:0.8rem; line-height:1.6;">Fond sombre dégradé · ⚡ Klasbook centré à gauche<br>"Finis les remédiations à la main." à droite<br>Sous-titre : "Le 1er assistant pédagogique IA pour les enseignants FWB 🇧🇪"<br>Bande gradient rouge→bleu en bas</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Description courte (255 caractères max)</div>
+    <div class="textbox highlight">
+      <button class="copy-btn" onclick="copyText(this)">Copier</button>
+      ⚡ Klasbook — L'assistant pédagogique IA pour les enseignants de la Fédération Wallonie-Bruxelles. Détecte les lacunes de tes élèves, génère des remédiations ciblées automatiquement. Conçu par un prof FWB, pour les profs FWB.
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">À propos (description longue)</div>
+    <div class="textbox">
+      <button class="copy-btn" onclick="copyText(this)">Copier</button>
+🎓 Klasbook est le premier outil de remédiation automatique par IA conçu spécifiquement pour les enseignants de la Fédération Wallonie-Bruxelles.
+
+🔍 LE PROBLÈME QU'ON RÉSOUT
+Chaque semaine, des dizaines d'élèves sortent de tes évaluations avec des lacunes. Et toi, tu te retrouves seul·e à analyser les résultats, identifier les élèves en difficulté, et préparer des exercices de remédiation — tout ça à la main, sur ton temps personnel.
+
+🤖 LA SOLUTION KLASBOOK
+Klasbook automatise tout ce processus :
+→ Tu saisis les résultats de tes formatives
+→ Klasbook détecte automatiquement les lacunes par compétence
+→ Des exercices de remédiation ciblés sont générés par IA pour CHAQUE élève
+→ Tu suis la progression jusqu'à la maîtrise
+
+🇧🇪 FAIT EN FWB, POUR LA FWB
+Conçu par Pasquale, professeur de néerlandais à l'Athénée Marie Curie de Bruxelles. Klasbook est adapté aux référentiels FWB et aux réalités du terrain belge francophone.
+
+✅ PAS BESOIN DE L'ACCORD DE LA DIRECTION
+Klasbook est un abonnement individuel — comme un livre pédagogique. Tu peux l'utiliser dès aujourd'hui sans validation IT ni réunion de direction.
+
+💰 TARIFS
+• Starter : Gratuit (1 classe, 10 élèves, 5 remédiations/mois)
+• Pro : 19€/mois — classes & remédiations illimitées
+• École : 199€/mois pour 10 enseignants
+
+📧 Contact : contact@klasbook.be
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Groupes Facebook à rejoindre / cibler</div>
+    <ul style="list-style:none; display:flex; flex-direction:column; gap:8px;">
+      <li style="color:var(--text2); font-size:0.9rem;">📌 "Enseignants en Belgique / Professeurs FWB" (groupes de profs belges)</li>
+      <li style="color:var(--text2); font-size:0.9rem;">📌 "Profs de langues — Belgique" (ciblage néerlandais, français, etc.)</li>
+      <li style="color:var(--text2); font-size:0.9rem;">📌 "Ressources pédagogiques FWB" (partage de ressources enseignants)</li>
+      <li style="color:var(--text2); font-size:0.9rem;">📌 Groupes d'athénées et lycées bruxellois</li>
+      <li style="color:var(--text2); font-size:0.9rem;">📌 Groupes de syndicats enseignants (CSC, CGSP, etc.)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Hashtags Facebook (5-8 par post)</div>
+    <div class="tag-cloud">
+      <span class="tag priority">#KlasBook</span>
+      <span class="tag priority">#EnseignantsFWB</span>
+      <span class="tag priority">#PédagogieIA</span>
+      <span class="tag">#FédérationWallonieBruxelles</span>
+      <span class="tag">#EnseignantsBeIges</span>
+      <span class="tag">#Remédiation</span>
+      <span class="tag">#PédagogieDifférenciée</span>
+      <span class="tag">#EdTechBelgique</span>
+      <span class="tag">#ProfDeFrançais</span>
+      <span class="tag">#ProfDeNéerlandais</span>
+      <span class="tag">#IntelligenceArtificielle</span>
+      <span class="tag">#EnseignementSecondaire</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== INSTAGRAM ===== -->
+<section class="section" id="instagram">
+  <div class="platform-badge ig">📸 Instagram</div>
+  <p class="sec-title">Compte Instagram Klasbook</p>
+  <p class="sec-sub">Plateforme visuelle pour toucher les jeunes enseignants, partager des tips pédagogiques et créer une communauté FWB.</p>
+
+  <div class="alert">⚡ Crée un <strong>Compte Professionnel Instagram</strong> (Créateur ou Entreprise) pour accéder aux stats et au bouton de contact.</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Informations de base</div>
+      <div class="spec"><div class="spec-label">Nom d'utilisateur</div><div class="spec-value">@klasbook.be</div></div>
+      <div class="spec"><div class="spec-label">Nom affiché</div><div class="spec-value">⚡ Klasbook FWB</div></div>
+      <div class="spec"><div class="spec-label">Type de compte</div><div class="spec-value">Professionnel — Créateur</div></div>
+      <div class="spec"><div class="spec-label">Catégorie</div><div class="spec-value">Application éducative</div></div>
+      <div class="spec"><div class="spec-label">Email</div><div class="spec-value">contact@klasbook.be</div></div>
+      <div class="spec"><div class="spec-label">Lien bio</div><div class="spec-value">klasbook.be (ou lien liste d'attente)</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Photo de profil</div>
+      <div class="spec"><div class="spec-label">Format</div><div class="spec-value">Carré — 320×320px minimum</div></div>
+      <div class="spec"><div class="spec-label">Visible</div><div class="spec-value">Cercle — ne pas mettre de texte aux bords</div></div>
+      <div class="spec"><div class="spec-label">Contenu</div><div class="spec-value">Logo ⚡ sur fond noir/gradient</div></div>
+      <p style="font-size:0.85rem; color:var(--text3); margin-top:10px;">→ Même photo de profil que Facebook pour la cohérence de marque.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Bio Instagram (150 caractères max)</div>
+    <div class="textbox highlight">
+      <button class="copy-btn" onclick="copyText(this)">Copier</button>
+⚡ Assistant pédagogique IA pour profs FWB 🇧🇪
+Remédiation auto · Différenciation réelle
+Conçu par un enseignant, pour les enseignants
+🔗 Liste d'attente ouverte 👇
+    </div>
+    <p style="font-size:0.8rem; color:var(--text3); margin-top:10px;">💡 Utilise Linktree ou ton lien direct klasbook.be dans "Site web"</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Story Highlights à créer</div>
+    <div class="grid-3">
+      <div style="background:var(--surface2); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:1.5rem; margin-bottom:8px;">🤖</div>
+        <div style="font-size:0.88rem; font-weight:700;">Comment ça marche</div>
+        <div style="font-size:0.78rem; color:var(--text3); margin-top:4px;">Les 4 étapes Klasbook</div>
+      </div>
+      <div style="background:var(--surface2); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:1.5rem; margin-bottom:8px;">⭐</div>
+        <div style="font-size:0.88rem; font-weight:700;">Fonctionnalités</div>
+        <div style="font-size:0.78rem; color:var(--text3); margin-top:4px;">Ce que fait Klasbook</div>
+      </div>
+      <div style="background:var(--surface2); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:1.5rem; margin-bottom:8px;">💬</div>
+        <div style="font-size:0.88rem; font-weight:700;">Témoignage</div>
+        <div style="font-size:0.78rem; color:var(--text3); margin-top:4px;">Ce que disent les profs</div>
+      </div>
+      <div style="background:var(--surface2); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:1.5rem; margin-bottom:8px;">💰</div>
+        <div style="font-size:0.88rem; font-weight:700;">Tarifs</div>
+        <div style="font-size:0.78rem; color:var(--text3); margin-top:4px;">Gratuit + Pro + École</div>
+      </div>
+      <div style="background:var(--surface2); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:1.5rem; margin-bottom:8px;">❓</div>
+        <div style="font-size:0.88rem; font-weight:700;">FAQ</div>
+        <div style="font-size:0.78rem; color:var(--text3); margin-top:4px;">Questions fréquentes</div>
+      </div>
+      <div style="background:var(--surface2); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:1.5rem; margin-bottom:8px;">🎁</div>
+        <div style="font-size:0.88rem; font-weight:700;">Early Adopter</div>
+        <div style="font-size:0.78rem; color:var(--text3); margin-top:4px;">Offre de lancement</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Stratégie de contenu Instagram</div>
+    <div class="grid-2">
+      <div>
+        <p style="font-size:0.88rem; font-weight:700; margin-bottom:10px;">Types de posts à alterner :</p>
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:8px;">
+          <li style="font-size:0.88rem; color:var(--text2);">📊 <strong>Stats/chiffres chocs</strong> — "Un prof passe en moyenne 3h/sem sur les remédiations"</li>
+          <li style="font-size:0.88rem; color:var(--text2);">🎓 <strong>Tips pédagogiques</strong> — conseils pratiques pour la différenciation</li>
+          <li style="font-size:0.88rem; color:var(--text2);">🤖 <strong>Démo produit</strong> — screenshots, UI, workflow</li>
+          <li style="font-size:0.88rem; color:var(--text2);">💬 <strong>Témoignage</strong> — citations d'enseignants</li>
+          <li style="font-size:0.88rem; color:var(--text2);">❓ <strong>Question/Sondage</strong> — engager la communauté</li>
+          <li style="font-size:0.88rem; color:var(--text2);">🇧🇪 <strong>FWB local</strong> — actualités éducation en Belgique</li>
+        </ul>
+      </div>
+      <div>
+        <p style="font-size:0.88rem; font-weight:700; margin-bottom:10px;">Fréquence recommandée :</p>
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:8px;">
+          <li style="font-size:0.88rem; color:var(--text2);">📌 <strong>3-4 posts/semaine</strong> sur le feed</li>
+          <li style="font-size:0.88rem; color:var(--text2);">📌 <strong>5-7 stories/semaine</strong> (coulisses, sondages, tips)</li>
+          <li style="font-size:0.88rem; color:var(--text2);">📌 <strong>1 Reel/semaine</strong> — démo produit ou tip pédago en 30-60s</li>
+          <li style="font-size:0.88rem; color:var(--text2);">🕐 <strong>Meilleurs horaires</strong> : 7h-8h, 12h-13h, 17h-19h (avant/après cours)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Bank de hashtags Instagram</div>
+    <p style="font-size:0.85rem; color:var(--text3); margin-bottom:12px;">Utilise 15-20 hashtags par post. Mix gros volumes + niches.</p>
+    <div class="tag-cloud">
+      <span class="tag priority">#klasbook</span>
+      <span class="tag priority">#enseignantsfwb</span>
+      <span class="tag priority">#pédagogieIA</span>
+      <span class="tag">#professeurbelge</span>
+      <span class="tag">#enseignantsbelges</span>
+      <span class="tag">#edtech</span>
+      <span class="tag">#edtechbelgique</span>
+      <span class="tag">#remédiation</span>
+      <span class="tag">#différenciation</span>
+      <span class="tag">#pédagogiedifférenciée</span>
+      <span class="tag">#proffwb</span>
+      <span class="tag">#profbelge</span>
+      <span class="tag">#enseignementsecondaire</span>
+      <span class="tag">#intelligenceartificielle</span>
+      <span class="tag">#IA</span>
+      <span class="tag">#classebelge</span>
+      <span class="tag">#profdefrançais</span>
+      <span class="tag">#profdeneerlandais</span>
+      <span class="tag">#éducationIA</span>
+      <span class="tag">#apprendreautrement</span>
+      <span class="tag">#ressourcespédagogiques</span>
+      <span class="tag">#innovationpédagogique</span>
+      <span class="tag">#belgiquefr</span>
+      <span class="tag">#wallonie</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== LINKEDIN ===== -->
+<section class="section" id="linkedin">
+  <div class="platform-badge li">💼 LinkedIn</div>
+  <p class="sec-title">Page Entreprise LinkedIn Klasbook</p>
+  <p class="sec-sub">Crédibilité professionnelle, recrutement de bêta-testeurs et partenariats institutionnels (CPF, Fédération WB, syndicats enseignants).</p>
+
+  <div class="alert">⚡ Crée une <strong>Page Entreprise LinkedIn</strong> (pas un profil personnel). Elle est gratuite et distincte du profil de Pasquale. Relie-la à ton profil personnel comme "Fondateur" de Klasbook.</div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Informations de base</div>
+      <div class="spec"><div class="spec-label">Nom</div><div class="spec-value">Klasbook</div></div>
+      <div class="spec"><div class="spec-label">URL personnalisée</div><div class="spec-value">linkedin.com/company/klasbook</div></div>
+      <div class="spec"><div class="spec-label">Secteur</div><div class="spec-value">E-Learning / Technologie éducative</div></div>
+      <div class="spec"><div class="spec-label">Taille</div><div class="spec-value">1-10 employés (startup)</div></div>
+      <div class="spec"><div class="spec-label">Type</div><div class="spec-value">Société privée (éducation)</div></div>
+      <div class="spec"><div class="spec-label">Fondée</div><div class="spec-value">2025</div></div>
+      <div class="spec"><div class="spec-label">Siège</div><div class="spec-value">Bruxelles, Belgique</div></div>
+      <div class="spec"><div class="spec-label">Site web</div><div class="spec-value">klasbook.be</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Logo + Image de couverture LinkedIn</div>
+      <div class="spec"><div class="spec-label">Logo</div><div class="spec-value">300×300px — ⚡ sur fond noir</div></div>
+      <div class="spec"><div class="spec-label">Couverture</div><div class="spec-value">1128×191px — format bandeau</div></div>
+      <p style="font-size:0.85rem; color:var(--text3); margin-top:12px;">Couverture : fond noir avec gradient rouge→bleu discret, tagline en blanc : <em>"La remédiation automatique pour les enseignants FWB 🇧🇪"</em></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Tagline (120 caractères max)</div>
+    <div class="textbox highlight">
+      <button class="copy-btn" onclick="copyText(this)">Copier</button>
+L'assistant pédagogique IA qui automatise la remédiation pour les enseignants de la Fédération Wallonie-Bruxelles 🇧🇪
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">À propos (section "About" — 2000 caractères max)</div>
+    <div class="textbox">
+      <button class="copy-btn" onclick="copyText(this)">Copier</button>
+⚡ Klasbook — Le premier assistant pédagogique IA conçu par un enseignant de la Fédération Wallonie-Bruxelles.
+
+NOTRE MISSION
+Réduire le temps que les enseignants passent sur les tâches administratives et répétitives — comme la préparation des remédiations — pour qu'ils puissent se concentrer sur ce qui compte vraiment : enseigner.
+
+LE PROBLÈME QU'ON RÉSOUT
+Un enseignant FWB passe en moyenne plusieurs heures par semaine à analyser les résultats de ses évaluations, identifier les lacunes élève par élève, et préparer des exercices de remédiation adaptés. C'est chronophage, épuisant, et pourtant indispensable.
+
+COMMENT KLASBOOK LE RÉSOUT
+Klasbook automatise l'intégralité du processus post-évaluation :
+• Détection automatique des lacunes par compétence
+• Génération d'exercices de remédiation ciblés par IA (Claude d'Anthropic)
+• Différenciation réelle : chaque élève reçoit l'exercice adapté à SA lacune
+• Tableau de bord de suivi de progression jusqu'à la maîtrise
+
+POURQUOI KLASBOOK EST DIFFÉRENT
+Contrairement à Smartschool, Pronote ou Additio, Klasbook a été conçu par un enseignant actif en FWB — Pasquale, professeur de néerlandais à l'Athénée Marie Curie de Bruxelles. Il intègre nativement les référentiels FWB et les réalités du terrain belge francophone.
+
+POUR QUI ?
+Enseignants du secondaire en Fédération Wallonie-Bruxelles, toutes matières confondues. Utilisable sans accord de la direction — abonnement individuel, opérationnel en 5 minutes.
+
+OFFRE DE LANCEMENT : Starter gratuit · Pro à 19€/mois · École à 199€/mois/10 profs
+📧 contact@klasbook.be | 🌐 klasbook.be
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Stratégie de contenu LinkedIn</div>
+    <div class="grid-2">
+      <div>
+        <p style="font-size:0.88rem; font-weight:700; margin-bottom:10px;">Types de posts efficaces sur LinkedIn :</p>
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:8px;">
+          <li style="font-size:0.88rem; color:var(--text2);">📖 <strong>Storytelling fondateur</strong> — "Voici pourquoi j'ai créé Klasbook"</li>
+          <li style="font-size:0.88rem; color:var(--text2);">📊 <strong>Insights secteur</strong> — données sur l'enseignement en FWB</li>
+          <li style="font-size:0.88rem; color:var(--text2);">🔧 <strong>Coulisses produit</strong> — process de développement, décisions UX</li>
+          <li style="font-size:0.88rem; color:var(--text2);">💡 <strong>Thought leadership</strong> — IA dans l'éducation, pédagogie différenciée</li>
+          <li style="font-size:0.88px; color:var(--text2);">🏆 <strong>Milestones</strong> — 1ère inscription, 100 inscrits, 1ère école</li>
+          <li style="font-size:0.88rem; color:var(--text2);">🤝 <strong>Partenariats</strong> — syndicats, CPMS, hautes écoles pédagogiques</li>
+        </ul>
+      </div>
+      <div>
+        <p style="font-size:0.88rem; font-weight:700; margin-bottom:10px;">Fréquence recommandée :</p>
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:8px;">
+          <li style="font-size:0.88rem; color:var(--text2);">📌 <strong>2-3 posts/semaine</strong> depuis le profil personnel de Pasquale</li>
+          <li style="font-size:0.88rem; color:var(--text2);">📌 <strong>1 post/semaine</strong> depuis la page entreprise Klasbook</li>
+          <li style="font-size:0.88rem; color:var(--text2);">📌 <strong>Toujours partager</strong> les posts de la page depuis ton profil perso</li>
+          <li style="font-size:0.88rem; color:var(--text2);">🕐 <strong>Meilleurs horaires</strong> : mardi-jeudi, 7h-9h ou 12h-13h</li>
+        </ul>
+        <p style="font-size:0.85rem; color:var(--text3); margin-top:12px;">💡 <strong>Astuce LinkedIn</strong> : Les posts du profil personnel ont 5x plus de portée que les pages entreprises. Publie toujours en perso d'abord.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Hashtags LinkedIn (5-10 par post)</div>
+    <div class="tag-cloud">
+      <span class="tag priority">#Klasbook</span>
+      <span class="tag priority">#EduTech</span>
+      <span class="tag priority">#IntelligenceArtificielle</span>
+      <span class="tag">#EducationBelgique</span>
+      <span class="tag">#FWB</span>
+      <span class="tag">#Enseignement</span>
+      <span class="tag">#Innovation</span>
+      <span class="tag">#PédagogieDifférenciée</span>
+      <span class="tag">#Startup</span>
+      <span class="tag">#StartupBelge</span>
+      <span class="tag">#EdTechBE</span>
+      <span class="tag">#IA</span>
+      <span class="tag">#Entrepreneuriat</span>
+      <span class="tag">#Professeur</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===== POSTS DE LANCEMENT ===== -->
+<section class="section" id="posts">
+  <div class="platform-badge all">✍️ Posts de lancement</div>
+  <p class="sec-title">10 posts prêts à publier</p>
+  <p class="sec-sub">Copie-colle, adapte légèrement selon la plateforme. Commence par le Post 1 dès le lancement des pages.</p>
+
+  <!-- POST 1 — LANCEMENT -->
+  <div class="post-num">Post 1 — Annonce de lancement (à publier sur les 3 plateformes)</div>
+  <div class="post-card">
+    <div class="post-header">
+      <div class="avatar">⚡</div>
+      <div class="meta">
+        <strong>Klasbook</strong><br>
+        <span><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span> · Aujourd'hui</span>
+      </div>
+    </div>
+    <div class="post-body">
+<button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+🚀 Klasbook est officiellement lancé !
+
+Ça fait des mois que j'y travaille — les week-ends, les soirées, les vacances — et aujourd'hui c'est réel.
+
+J'enseigne le néerlandais à l'Athénée Marie Curie de Bruxelles depuis des années. Et chaque semaine, le même problème : des heures perdues à préparer des remédiations différenciées pour chaque élève.
+
+Résultat : soit je fais une remédiation générique (inutile), soit je passe mes nuits à personnaliser chaque exercice (épuisant).
+
+Alors j'ai créé Klasbook.
+
+⚡ Klasbook détecte automatiquement les lacunes de chaque élève après tes évaluations, et génère des exercices de remédiation ciblés par IA — pour chaque élève, pour chaque compétence.
+
+Sans que tu aies à lever le petit doigt.
+
+🇧🇪 Conçu pour les enseignants de la Fédération Wallonie-Bruxelles. Adapté aux référentiels FWB. Utilisable sans accord de ta direction.
+
+La liste d'attente est ouverte. Tarif Early Adopter garanti pour les premiers inscrits.
+
+Lien en bio / en commentaire 👇
+
+#Klasbook #EnseignantsFWB #PédagogieIA #EduTech #ProfBelge
+    </div>
+    <div class="post-image-area">🖼️ Visuel suggéré : Photo de Pasquale en classe, ou screenshot de l'interface Klasbook, ou infographie "Avant Klasbook / Après Klasbook"</div>
+  </div>
+
+  <!-- POST 2 — PROBLÈME -->
+  <div class="post-num">Post 2 — Le problème (Instagram / Facebook)</div>
+  <div class="post-card">
+    <div class="post-header">
+      <div class="avatar">⚡</div>
+      <div class="meta">
+        <strong>Klasbook</strong><br>
+        <span><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> · Jour 3</span>
+      </div>
+    </div>
+    <div class="post-body">
+<button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+⏱️ Combien d'heures as-tu passé cette semaine sur tes remédiations ?
+
+Soyons honnêtes.
+
+→ Corriger les formatives
+→ Identifier élève par élève qui a raté quoi
+→ Préparer des exercices adaptés à chaque lacune
+→ Vérifier si la remédiation a fonctionné
+
+C'est 2h, 3h, parfois plus. Par semaine. Sur ton temps personnel.
+
+Et souvent, faute de temps, on finit par donner les mêmes exercices à toute la classe. Lucas n'a pas la même lacune qu'Emma. Mais on n'a pas le choix.
+
+C'est exactement le problème que Klasbook résout.
+
+🤖 L'IA détecte les lacunes, génère les exercices, adapte pour chaque élève.
+Toi, tu vérifies, tu valides, tu enseignes.
+
+Rejoins la liste d'attente (lien en bio).
+Tarif Early Adopter garanti.
+
+#PédagogieDifférenciée #EnseignantsFWB #Remédiation #Klasbook
+    </div>
+    <div class="post-image-area">🖼️ Visuel suggéré : Carousel "5 problèmes que Klasbook résout" ou infographie avec stats (ex: "3h/semaine perdues sur les remédiations")</div>
+  </div>
+
+  <!-- POST 3 — COMMENT ÇA MARCHE -->
+  <div class="post-num">Post 3 — Comment ça marche (Carousel Instagram)</div>
+  <div class="post-card">
+    <div class="post-header">
+      <div class="avatar">⚡</div>
+      <div class="meta">
+        <strong>Klasbook</strong><br>
+        <span><span class="plat-chip ig">IG</span> · Jour 5 · Carousel (4 slides)</span>
+      </div>
+    </div>
+    <div class="post-body">
+<button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+📋 Voilà comment Klasbook fonctionne — en 4 étapes 👇 (swipe →)
+
+[Slide 1] 📝 Tu saisis les résultats de ta formative
+Compétence par compétence, élève par élève.
+Ça prend 5 minutes.
+
+[Slide 2] 🔍 Klasbook détecte les lacunes automatiquement
+L'IA analyse et identifie qui a raté quoi, pour quelle compétence.
+Toi, tu n'analyses rien.
+
+[Slide 3] 🤖 Des exercices ciblés sont générés pour chaque élève
+Lucas a du mal avec les conjugaisons ? Il reçoit un exercice sur les conjugaisons.
+Emma a du mal avec le vocabulaire ? Elle reçoit un exercice sur le vocabulaire.
+Chaque élève. Chaque lacune. Automatiquement.
+
+[Slide 4] 📈 Tu suis la progression
+Dashboard clair : qui progresse, qui stagne, qui est prêt pour la sommative.
+
+Total : 5 minutes de saisie. Des heures économisées.
+
+🔗 Liste d'attente en bio !
+#Klasbook #EnseignantsFWB #IA #EdTech #PédagogieDifférenciée
+    </div>
+    <div class="post-image-area">🖼️ Visuel suggéré : 4 slides carrées avec fond sombre, icône + titre + 2 lignes de texte blanc sur chaque slide. Gradient rouge→bleu en accent.</div>
+  </div>
+
+  <!-- POST 4 — TÉMOIGNAGE -->
+  <div class="post-num">Post 4 — Témoignage (toutes plateformes)</div>
+  <div class="post-card">
+    <div class="post-header">
+      <div class="avatar">⚡</div>
+      <div class="meta">
+        <strong>Klasbook</strong><br>
+        <span><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span> · Jour 7</span>
+      </div>
+    </div>
+    <div class="post-body">
+<button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+💬 Ce qu'on entend des premiers enseignants qui testent Klasbook :
+
+"Depuis que j'utilise Klasbook, je sais exactement quel élève a besoin de quoi, sans passer des heures à analyser mes corrections. Les exercices de remédiation sont générés automatiquement — c'est comme avoir un assistant pédagogique à temps plein."
+
+— Professeur de néerlandais · Athénée Marie Curie, Bruxelles
+
+C'est exactement ce qu'on a voulu créer.
+
+Un outil qui fait le travail répétitif pour toi, pour que tu puisses te concentrer sur ce qui compte : enseigner.
+
+Tu veux tester en avant-première ?
+👉 Rejoins la liste d'attente (lien en bio / commentaire)
+Les premiers inscrits bénéficient du tarif Early Adopter.
+
+#Klasbook #EnseignantsFWB #EduTech #PédagogieDifférenciée
+    </div>
+    <div class="post-image-area">🖼️ Visuel suggéré : Citation en grand sur fond sombre, avec les initiales "P.V." et "⭐⭐⭐⭐⭐" en dessous</div>
+  </div>
+
+  <!-- POST 5 — LINKEDIN STORYTELLING -->
+  <div class="post-num">Post 5 — Storytelling fondateur (LinkedIn — depuis profil perso de Pasquale)</div>
+  <div class="post-card">
+    <div class="post-header">
+      <div class="avatar">P</div>
+      <div class="meta">
+        <strong>Pasquale V. — Fondateur de Klasbook</strong><br>
+        <span><span class="plat-chip li">LI</span> · Post personnel · Jour 2</span>
+      </div>
+    </div>
+    <div class="post-body">
+<button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+Il y a 18 mois, j'ai décidé de résoudre le problème qui me prenait le plus de temps dans mon quotidien d'enseignant.
+
+Je suis prof de néerlandais à l'Athénée Marie Curie de Bruxelles depuis des années.
+
+Et chaque semaine, le même rituel épuisant :
+→ Corriger les évaluations formatives
+→ Analyser les résultats élève par élève
+→ Identifier qui a raté quelle compétence
+→ Préparer un exercice de remédiation adapté pour chaque lacune
+
+Le problème ? Ce travail représentait 2 à 3 heures par semaine sur mon temps personnel. Et souvent, faute de temps, je finissais par donner la même remédiation à toute la classe. Inefficace. Épuisant. Frustrant.
+
+Alors j'ai construit Klasbook.
+
+⚡ Klasbook est un assistant pédagogique IA qui automatise l'intégralité du processus post-évaluation :
+- Détection automatique des lacunes
+- Génération d'exercices différenciés par élève et par compétence
+- Suivi de progression jusqu'à la maîtrise
+
+En 18 mois, j'ai appris à coder, testé l'outil dans mes propres classes, itéré en continu.
+
+Aujourd'hui, je lance la liste d'attente.
+
+🇧🇪 Pour tous les enseignants de la Fédération Wallonie-Bruxelles.
+
+Si tu es enseignant·e en FWB (ou si tu en connais un·e), je serais reconnaissant que tu partages ce post.
+
+Lien liste d'attente en commentaire 👇
+
+#Klasbook #EduTech #StartupBelge #FWB #IA #Enseignement
+    </div>
+  </div>
+
+  <!-- POST 6 — COMPARAISON -->
+  <div class="post-num">Post 6 — Pourquoi pas Smartschool / Pronote ? (Facebook / LinkedIn)</div>
+  <div class="post-card">
+    <div class="post-header">
+      <div class="avatar">⚡</div>
+      <div class="meta">
+        <strong>Klasbook</strong><br>
+        <span><span class="plat-chip fb">FB</span> <span class="plat-chip li">LI</span> · Semaine 2</span>
+      </div>
+    </div>
+    <div class="post-body">
+<button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+❓ "On a déjà Smartschool / Pronote à l'école, pourquoi payer un outil de plus ?"
+
+C'est LA question qu'on nous pose le plus souvent. La réponse est simple.
+
+Smartschool, Pronote, Additio — ce sont d'excellents outils de gestion administrative. Carnets de notes, communications parents, emplois du temps.
+
+Mais aucun d'eux ne fait ce que fait Klasbook :
+❌ Pas de détection automatique des lacunes
+❌ Pas de remédiation générée par IA
+❌ Pas d'exercices différenciés par élève
+❌ Pas de suivi de progression post-remédiation
+
+Ce sont des outils pour l'administration.
+Klasbook est un outil pour l'enseignant·e.
+
+Et tu n'as besoin d'aucune autorisation pour l'utiliser — c'est un abonnement individuel, comme un livre pédagogique.
+
+Starter gratuit · Pro à 19€/mois.
+🔗 Liste d'attente en bio.
+
+#Klasbook #EnseignantsFWB #EdTech
+    </div>
+  </div>
+
+  <!-- POST 7 — TARIFS -->
+  <div class="post-num">Post 7 — Annonce des tarifs (toutes plateformes)</div>
+  <div class="post-card">
+    <div class="post-header">
+      <div class="avatar">⚡</div>
+      <div class="meta">
+        <strong>Klasbook</strong><br>
+        <span><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span> · Semaine 2</span>
+      </div>
+    </div>
+    <div class="post-body">
+<button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+💰 Combien coûte Klasbook ? Voici la transparence totale.
+
+🆓 STARTER — Gratuit pour toujours
+• 1 classe, 10 élèves
+• Évaluations formatives
+• 5 remédiations IA / mois
+Parfait pour tester sans risque.
+
+⭐ PRO — 19€ / mois (sans engagement)
+• Classes & élèves illimités
+• Remédiations IA illimitées
+• Différenciation par compétence
+• Tableau de bord avancé
+• 30 jours d'essai gratuit
+
+🏫 ÉCOLE — 199€ / mois
+• 10 comptes enseignants inclus
+• Tableau de bord direction
+• Onboarding dédié
+• Facturation centralisée
+
+Pour référence : 19€/mois = 0,63€/jour.
+Soit moins qu'un café.
+Pour récupérer 2-3h de travail par semaine.
+
+🔗 Commence gratuitement aujourd'hui (lien en bio)
+
+#Klasbook #EnseignantsFWB #EdTech #PrixTransparent
+    </div>
+    <div class="post-image-area">🖼️ Visuel suggéré : Tableau comparatif 3 colonnes (Starter / Pro / École) sur fond sombre. Design minimaliste.</div>
+  </div>
+
+  <!-- POST 8 — SONDAGE -->
+  <div class="post-num">Post 8 — Sondage engagement (Instagram Stories / Facebook)</div>
+  <div class="post-card">
+    <div class="post-header">
+      <div class="avatar">⚡</div>
+      <div class="meta">
+        <strong>Klasbook</strong><br>
+        <span><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> · Story + Post · Semaine 1</span>
+      </div>
+    </div>
+    <div class="post-body">
+<button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+📊 Question pour les enseignants FWB 👇
+
+Combien de temps passes-tu chaque semaine sur la préparation de tes remédiations ?
+
+🔴 Moins d'1h — c'est géré !
+🟠 1 à 2h — c'est beaucoup mais ça va
+🔵 2 à 3h — trop de temps perdu
+⚫ Plus de 3h — c'est insupportable
+
+Réponds en commentaire (ou sondage story) !
+
+On pose cette question parce qu'on veut comprendre la réalité du terrain. Et parce que Klasbook est né de ce constat : ce temps ne devrait pas être perdu.
+
+#EnseignantsFWB #Klasbook #Sondage
+    </div>
+    <div class="post-image-area">🖼️ Visuel suggéré : Fond sombre avec la question en grand, 4 options colorées. En Story : utilise le sondage natif Instagram/Facebook.</div>
+  </div>
+
+  <!-- POST 9 — FAQ -->
+  <div class="post-num">Post 9 — FAQ "Pas besoin de l'accord de la direction" (toutes plateformes)</div>
+  <div class="post-card">
+    <div class="post-header">
+      <div class="avatar">⚡</div>
+      <div class="meta">
+        <strong>Klasbook</strong><br>
+        <span><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span> · Semaine 2</span>
+      </div>
+    </div>
+    <div class="post-body">
+<button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+✅ Non, tu n'as PAS besoin de l'accord de ta direction pour utiliser Klasbook.
+
+On nous pose souvent cette question. Voilà la réponse claire.
+
+Klasbook est un outil que tu souscris toi-même, à titre personnel. Exactement comme tu achètes un livre pédagogique sur Amazon. Ou comme tu prends un abonnement à une application de correction.
+
+Pas de validation IT.
+Pas de réunion de direction.
+Pas de marché public.
+Pas d'attente de 6 mois.
+
+Tu décides. Tu t'inscris. Tu l'utilises dès demain.
+
+C'est voulu. On a construit Klasbook pour les enseignants — pas pour les administrations.
+
+Starter gratuit pour essayer sans engagement.
+🔗 Lien en bio.
+
+#EnseignantsFWB #Klasbook #AutonomieEnseignant
+    </div>
+  </div>
+
+  <!-- POST 10 — URGENCE EARLY ADOPTER -->
+  <div class="post-num">Post 10 — Urgence Early Adopter (à publier semaine 2-3)</div>
+  <div class="post-card">
+    <div class="post-header">
+      <div class="avatar">⚡</div>
+      <div class="meta">
+        <strong>Klasbook</strong><br>
+        <span><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span> · Semaine 2-3</span>
+      </div>
+    </div>
+    <div class="post-body">
+<button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+⏰ Le tarif Early Adopter de Klasbook ferme bientôt.
+
+Les premiers inscrits sur la liste d'attente bénéficient d'un tarif préférentiel garanti à vie — même si les prix augmentent ensuite.
+
+C'est notre façon de récompenser ceux qui nous font confiance avant même le lancement officiel.
+
+→ Tu t'inscris maintenant
+→ Tu gardes le tarif Early Adopter pour toujours
+→ Tu accèdes à Klasbook en priorité dès le lancement
+
+Déjà plusieurs enseignants FWB sur la liste.
+
+🔗 Lien en bio / en commentaire 👇
+
+⚡ Klasbook — Remédiation automatique par IA pour enseignants FWB 🇧🇪
+
+#Klasbook #EarlyAdopter #EnseignantsFWB #Lancement
+    </div>
+  </div>
+</section>
+
+<!-- ===== CALENDRIER 30 JOURS ===== -->
+<section class="section" id="calendar">
+  <div class="platform-badge all">📅 Plan de contenu — 30 premiers jours</div>
+  <p class="sec-title">Calendrier de publication</p>
+  <p class="sec-sub">Un plan semaine par semaine pour maximiser la visibilité au lancement. Adapte les dates à ton calendrier réel.</p>
+
+  <div class="card">
+    <div class="card-title">Semaine 1 — Lancement & notoriété</div>
+    <table class="cal-table">
+      <thead>
+        <tr><th>Jour</th><th>Plateforme</th><th>Type</th><th>Contenu</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Jour 1</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>Annonce lancement</td><td>Post 1 — "Klasbook est officiellement lancé !" (storytelling fondateur)</td></tr>
+        <tr><td><strong>Jour 2</strong></td><td><span class="plat-chip li">LI</span></td><td>Post perso Pasquale</td><td>Post 5 — Storytelling personnel "pourquoi j'ai créé Klasbook"</td></tr>
+        <tr><td><strong>Jour 3</strong></td><td><span class="plat-chip ig">IG</span></td><td>Story sondage</td><td>"Combien d'heures sur les remédiations cette semaine ?" (sondage natif)</td></tr>
+        <tr><td><strong>Jour 4</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span></td><td>Le problème</td><td>Post 2 — "Combien d'heures as-tu passé cette semaine sur tes remédiations ?"</td></tr>
+        <tr><td><strong>Jour 5</strong></td><td><span class="plat-chip ig">IG</span></td><td>Carousel</td><td>Post 3 — "Comment ça marche en 4 étapes" (carousel)</td></tr>
+        <tr><td><strong>Jour 6</strong></td><td><span class="plat-chip fb">FB</span></td><td>Partage groupe</td><td>Partager le post de lancement dans 3-5 groupes Facebook d'enseignants FWB</td></tr>
+        <tr><td><strong>Jour 7</strong></td><td><span class="plat-chip ig">IG</span></td><td>Reel</td><td>Vidéo courte (30s) : "Avant/Après Klasbook" ou démo rapide de l'interface</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Semaine 2 — Éducation & preuves sociales</div>
+    <table class="cal-table">
+      <thead>
+        <tr><th>Jour</th><th>Plateforme</th><th>Type</th><th>Contenu</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Jour 8</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>Témoignage</td><td>Post 4 — Citation d'enseignant testeur</td></tr>
+        <tr><td><strong>Jour 9</strong></td><td><span class="plat-chip li">LI</span></td><td>Insight secteur</td><td>"5 chiffres sur l'enseignement secondaire en FWB" (données + angle Klasbook)</td></tr>
+        <tr><td><strong>Jour 10</strong></td><td><span class="plat-chip ig">IG</span></td><td>Story FAQ</td><td>Story "Questions / Réponses" sur Klasbook (format texte)</td></tr>
+        <tr><td><strong>Jour 11</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip li">LI</span></td><td>Comparaison</td><td>Post 6 — "Pourquoi pas Smartschool / Pronote ?"</td></tr>
+        <tr><td><strong>Jour 12</strong></td><td><span class="plat-chip ig">IG</span></td><td>Carousel features</td><td>"6 fonctionnalités Klasbook en images" (1 slide = 1 feature)</td></tr>
+        <tr><td><strong>Jour 14</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>Tarifs</td><td>Post 7 — Annonce transparente des tarifs</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Semaine 3 — Engagement & conversion</div>
+    <table class="cal-table">
+      <thead>
+        <tr><th>Jour</th><th>Plateforme</th><th>Type</th><th>Contenu</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Jour 15</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span></td><td>Sondage</td><td>Post 8 — "Combien de temps sur tes remédiations par semaine ?"</td></tr>
+        <tr><td><strong>Jour 16</strong></td><td><span class="plat-chip li">LI</span></td><td>Thought leadership</td><td>"Pourquoi l'IA va transformer (mais pas remplacer) les enseignants FWB"</td></tr>
+        <tr><td><strong>Jour 17</strong></td><td><span class="plat-chip ig">IG</span></td><td>Reel</td><td>Démo produit complète (60s) : de la saisie des résultats à la remédiation générée</td></tr>
+        <tr><td><strong>Jour 18</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>FAQ</td><td>Post 9 — "Pas besoin de l'accord de ta direction"</td></tr>
+        <tr><td><strong>Jour 19</strong></td><td><span class="plat-chip ig">IG</span></td><td>Story highlight</td><td>Crée et publie les 6 Story Highlights (Comment ça marche, Features, Témoignage, etc.)</td></tr>
+        <tr><td><strong>Jour 21</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span></td><td>Coulisses</td><td>"Voilà à quoi ressemble une journée de développement de Klasbook" (contenu humain)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Semaine 4 — Urgence & récapitulatif</div>
+    <table class="cal-table">
+      <thead>
+        <tr><th>Jour</th><th>Plateforme</th><th>Type</th><th>Contenu</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Jour 22</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>Milestone</td><td>"On vient de dépasser X inscrits sur la liste d'attente ! Merci 🙏" (social proof)</td></tr>
+        <tr><td><strong>Jour 24</strong></td><td><span class="plat-chip ig">IG</span></td><td>Reel testimonial</td><td>Vidéo-témoignage d'un enseignant qui teste Klasbook (même 30s depuis chez lui)</td></tr>
+        <tr><td><strong>Jour 25</strong></td><td><span class="plat-chip li">LI</span></td><td>Post perso Pasquale</td><td>"Ce que j'ai appris en 30 jours de lancement de Klasbook" (transparence)</td></tr>
+        <tr><td><strong>Jour 26</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span></td><td>Tip pédago</td><td>"3 astuces pour une différenciation efficace sans passer des heures dessus" (valeur gratuite)</td></tr>
+        <tr><td><strong>Jour 28</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>Early Adopter urgence</td><td>Post 10 — "Le tarif Early Adopter ferme bientôt" (call to action fort)</td></tr>
+        <tr><td><strong>Jour 30</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>Bilan 1 mois</td><td>"Un mois de Klasbook : X inscrits, voici ce qu'on a appris et la suite..." (transparence radicale)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Conseils transversaux</div>
+    <div class="grid-2">
+      <div>
+        <p style="font-size:0.88rem; font-weight:700; margin-bottom:10px; color: var(--text);">✅ À faire systématiquement :</p>
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:8px;">
+          <li style="font-size:0.87rem; color:var(--text2);">→ Répondre à TOUS les commentaires dans les 2h après publication</li>
+          <li style="font-size:0.87rem; color:var(--text2);">→ Taguer @klasbook.be sur les posts personnels de Pasquale</li>
+          <li style="font-size:0.87rem; color:var(--text2);">→ Partager le lien d'inscription dans les groupes FB une fois/semaine</li>
+          <li style="font-size:0.87rem; color:var(--text2);">→ Enregistrer les meilleurs commentaires pour en faire des témoignages</li>
+          <li style="font-size:0.87rem; color:var(--text2);">→ Croiser les abonnés : inviter les followers IG à suivre LinkedIn et vice versa</li>
+        </ul>
+      </div>
+      <div>
+        <p style="font-size:0.88rem; font-weight:700; margin-bottom:10px; color: var(--text);">❌ À éviter absolument :</p>
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:8px;">
+          <li style="font-size:0.87rem; color:var(--text2);">→ Posts sans visuel — toujours accompagner d'une image ou d'une infographie</li>
+          <li style="font-size:0.87rem; color:var(--text2);">→ Trop de hashtags sur LinkedIn (max 5-7)</li>
+          <li style="font-size:0.87rem; color:var(--text2);">→ Mettre le lien dans le post LinkedIn (ça tue la portée — mets-le en commentaire)</li>
+          <li style="font-size:0.87rem; color:var(--text2);">→ Publier sans crocher les résultats de la semaine précédente</li>
+          <li style="font-size:0.87rem; color:var(--text2);">→ Négliger les stories Instagram — c'est là que vit l'engagement quotidien</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== OFFRE -50% ===== -->
+<section class="section" id="promo">
+  <div class="platform-badge all">🎁 Offre de lancement — 50% de réduction</div>
+  <p class="sec-title">Offre Early Adopter : -50% jusqu'au 30 juin 2026</p>
+  <p class="sec-sub">Un code promo exclusif pour les premiers inscrits. À utiliser dans toutes tes communications et publications.</p>
+
+  <!-- CODE PROMO CENTRAL -->
+  <div style="background: linear-gradient(135deg, rgba(255,59,48,0.15), rgba(10,132,255,0.15)); border: 2px solid rgba(255,59,48,0.4); border-radius: 20px; padding: 40px; text-align: center; margin-bottom: 32px;">
+    <div style="font-size:0.82rem; font-weight:700; color:var(--text3); letter-spacing:0.15em; text-transform:uppercase; margin-bottom:12px;">Code de réduction exclusif</div>
+    <div style="font-size:3.5rem; font-weight:900; letter-spacing:6px; background:linear-gradient(135deg,#FF3B30,#0A84FF); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:16px;">KLASFWB50</div>
+    <div style="font-size:1.2rem; color:var(--text2); margin-bottom:8px;">-50% sur le plan Pro · <strong>9,50€/mois</strong> au lieu de 19€</div>
+    <div style="font-size:0.88rem; color:var(--text3);">⏰ Offre valable jusqu'au <strong>30 juin 2026</strong> · Réduction appliquée à vie tant que l'abonnement est actif</div>
+    <button onclick="navigator.clipboard.writeText('KLASFWB50').then(()=>{this.textContent='✓ Copié !'; setTimeout(()=>this.textContent='Copier le code',2000)})" style="margin-top:20px; background:white; color:#06090f; border:none; border-radius:10px; padding:12px 28px; font-size:0.95rem; font-weight:800; cursor:pointer; letter-spacing:1px;">Copier le code</button>
+  </div>
+
+  <!-- DÉTAILS DE L'OFFRE -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">Conditions de l'offre</div>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:10px;">
+        <li style="color:var(--text2); font-size:0.9rem;">✅ <strong>Plan concerné</strong> : Pro uniquement (Starter reste gratuit)</li>
+        <li style="color:var(--text2); font-size:0.9rem;">✅ <strong>Réduction</strong> : -50% → 9,50€/mois au lieu de 19€</li>
+        <li style="color:var(--text2); font-size:0.9rem;">✅ <strong>Durée de validité</strong> : jusqu'au 30 juin 2026</li>
+        <li style="color:var(--text2); font-size:0.9rem;">✅ <strong>Application</strong> : réduction à vie tant que l'abonnement est maintenu actif</li>
+        <li style="color:var(--text2); font-size:0.9rem;">✅ <strong>Comment l'utiliser</strong> : saisir KLASFWB50 à l'inscription / au paiement</li>
+        <li style="color:var(--text2); font-size:0.9rem;">⚠️ <strong>Limite</strong> : 1 code par enseignant · non cumulable</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">Angle marketing de l'offre</div>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:10px;">
+        <li style="color:var(--text2); font-size:0.9rem;">🎯 <strong>Urgence réelle</strong> : date de fin concrète (30 juin) — crée une vraie raison d'agir maintenant</li>
+        <li style="color:var(--text2); font-size:0.9rem;">💡 <strong>Valeur perçue</strong> : "9,50€/mois = moins d'un café par jour pour récupérer 2-3h/semaine"</li>
+        <li style="color:var(--text2); font-size:0.9rem;">🔁 <strong>Fidélisation</strong> : la réduction est à vie → incite à s'inscrire tôt pour la garder</li>
+        <li style="color:var(--text2); font-size:0.9rem;">🤝 <strong>Réciprocité</strong> : "Vous nous faites confiance avant le lancement, on vous récompense"</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- POSTS PROMO -->
+  <div class="card">
+    <div class="card-title">Post annonce de l'offre (toutes plateformes)</div>
+    <div class="post-card" style="margin-bottom:0; border:none;">
+      <div class="post-body" style="border-radius:10px; background:var(--surface2);">
+        <button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+🎁 Offre de lancement Klasbook — 50% de réduction jusqu'au 30 juin.
+
+Pour célébrer le lancement et remercier les premiers soutiens, on offre 50% sur le plan Pro pendant toute la période de lancement.
+
+Normalement : 19€/mois
+Avec le code : <strong>9,50€/mois</strong> — à vie tant que tu gardes l'abonnement.
+
+👉 CODE : KLASFWB50
+
+À utiliser à l'inscription.
+Valable jusqu'au 30 juin 2026 uniquement.
+
+Ce que tu débloques avec le Pro :
+✅ Classes & élèves illimités
+✅ Remédiations IA illimitées
+✅ Différenciation par compétence pour chaque élève
+✅ Tableau de bord de progression avancé
+✅ 30 jours d'essai gratuit inclus
+
+9,50€/mois. Moins d'un café par jour.
+Pour récupérer 2 à 3 heures par semaine.
+
+🇧🇪 Pour les enseignants de la Fédération Wallonie-Bruxelles.
+🔗 Lien d'inscription en bio / en commentaire.
+
+#Klasbook #EnseignantsFWB #OffreLancement #EarlyAdopter #EdTech
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Post compte à rebours (à publier le 20 juin)</div>
+    <div class="post-card" style="margin-bottom:0; border:none;">
+      <div class="post-body" style="border-radius:10px; background:var(--surface2);">
+        <button class="copy-btn" style="position:static; float:right; margin-top:-4px;" onclick="copyText(this)">Copier</button>
+⏰ Il reste 10 jours pour profiter de l'offre -50% sur Klasbook.
+
+Le 30 juin à minuit, le code KLASFWB50 expire.
+Le prix repassera à 19€/mois.
+
+Les enseignants qui s'inscrivent avant cette date gardent le tarif réduit (9,50€/mois) à vie.
+
+C'est 113,90€ d'économie par an. Tous les ans. Tant que tu gardes l'abonnement.
+
+Ne remets pas à demain ce que tu peux faire ce soir en 2 minutes.
+
+→ Inscription gratuite (plan Starter)
+→ Code KLASFWB50 si tu passes au Pro
+
+🔗 Lien en bio.
+
+#Klasbook #EnseignantsFWB #DernièreChance #EarlyAdopter
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Post story Instagram — Format visuel urgence</div>
+    <div class="grid-2">
+      <div style="background:var(--surface2); border-radius:12px; padding:20px; font-size:0.88rem; color:var(--text2);">
+        <p style="font-weight:700; margin-bottom:10px; color:var(--text);">Slide 1 — Annonce</p>
+        <p>Fond noir · gradient rouge→bleu en bas</p>
+        <p style="margin-top:8px;">Grand texte centré :<br><strong>"50% de réduction sur Klasbook Pro"</strong></p>
+        <p style="margin-top:8px;">Sous-titre : "Code KLASFWB50 · Valable jusqu'au 30 juin"</p>
+        <p style="margin-top:8px;">CTA : bouton "Lien d'inscription" (autocollant lien)</p>
+      </div>
+      <div style="background:var(--surface2); border-radius:12px; padding:20px; font-size:0.88rem; color:var(--text2);">
+        <p style="font-weight:700; margin-bottom:10px; color:var(--text);">Slide 2 — Code en gros</p>
+        <p>Fond noir · cadre rouge autour du code</p>
+        <p style="margin-top:8px;">Code en énorme :<br><strong>KLASFWB50</strong></p>
+        <p style="margin-top:8px;">"19€ → 9,50€/mois · Réduction à vie"</p>
+        <p style="margin-top:8px;">Icône timer ⏰ + "Expire le 30 juin"</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Intégration dans les autres posts — Formules prêtes à coller</div>
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div class="textbox" style="margin-top:0;">
+        <button class="copy-btn" onclick="copyText(this)">Copier</button>
+💡 Offre de lancement : -50% sur le plan Pro avec le code <strong>KLASFWB50</strong> — valable jusqu'au 30 juin 2026.
+      </div>
+      <div class="textbox" style="margin-top:0;">
+        <button class="copy-btn" onclick="copyText(this)">Copier</button>
+🎁 CODE PROMO : <strong>KLASFWB50</strong> → 50% de réduction sur le Pro (9,50€/mois au lieu de 19€). Valable jusqu'au 30 juin.
+      </div>
+      <div class="textbox" style="margin-top:0;">
+        <button class="copy-btn" onclick="copyText(this)">Copier</button>
+⏰ Offre limitée : le code <strong>KLASFWB50</strong> donne -50% sur Klasbook Pro jusqu'au 30 juin. Réduction garantie à vie pour les inscrits.
+      </div>
+    </div>
+  </div>
+
+  <!-- PLANNING PROMO -->
+  <div class="card">
+    <div class="card-title">Planning de communication de l'offre</div>
+    <table class="cal-table">
+      <thead>
+        <tr><th>Date</th><th>Plateforme</th><th>Action</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Jour du lancement</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>Post annonce de l'offre -50% + code KLASFWB50</td></tr>
+        <tr><td><strong>J+3</strong></td><td><span class="plat-chip ig">IG</span></td><td>Story avec le code en grand format + autocollant lien</td></tr>
+        <tr><td><strong>J+7</strong></td><td><span class="plat-chip fb">FB</span></td><td>Rappel de l'offre dans les groupes d'enseignants FWB</td></tr>
+        <tr><td><strong>1er juin</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>"Plus que 30 jours pour profiter de l'offre -50%"</td></tr>
+        <tr><td><strong>20 juin</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>Post compte à rebours "10 jours restants"</td></tr>
+        <tr><td><strong>27 juin</strong></td><td><span class="plat-chip ig">IG</span></td><td>Story urgence "3 jours restants" + sondage "Tu t'es inscrit ?"</td></tr>
+        <tr><td><strong>29 juin</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span> <span class="plat-chip li">LI</span></td><td>"Dernière nuit — code KLASFWB50 expire demain à minuit"</td></tr>
+        <tr><td><strong>1er juillet</strong></td><td><span class="plat-chip fb">FB</span> <span class="plat-chip ig">IG</span></td><td>Post "L'offre est terminée — voici ce que tu as raté" (FOMO pour prochaine promo)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="kit-footer">
+  ⚡ Klasbook Social Media Kit · contact@klasbook.be · klasbook.be · 🇧🇪 Fédération Wallonie-Bruxelles
+</div>
+
+<script>
+  function show(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  function copyText(btn) {
+    const parent = btn.closest('.textbox, .post-body');
+    const clone = parent.cloneNode(true);
+    clone.querySelectorAll('button').forEach(b => b.remove());
+    const text = clone.innerText.trim();
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = '✓ Copié';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copier'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+</script>
+</body>
+</html>

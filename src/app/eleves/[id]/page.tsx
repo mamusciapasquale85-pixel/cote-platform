@@ -83,6 +83,75 @@ const btnPrimary: React.CSSProperties = {
   ...btn, background: "rgba(10,132,255,0.08)", borderColor: "rgba(10,132,255,0.25)", color: "#0A63BF",
 };
 
+/* ─── ProgressionChart ─── */
+function ProgressionChart({ results }: { results: StudentResult[] }) {
+  const now = new Date();
+  const yr = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+  const periods = [
+    { id: "T1", label: "T1", sub: "Sept–Déc", from: new Date(`${yr}-09-01`), to: new Date(`${yr}-12-31`) },
+    { id: "T2", label: "T2", sub: "Jan–Mars", from: new Date(`${yr + 1}-01-01`), to: new Date(`${yr + 1}-03-31`) },
+    { id: "T3", label: "T3", sub: "Avr–Juin", from: new Date(`${yr + 1}-04-01`), to: new Date(`${yr + 1}-06-30`) },
+  ];
+  const data = periods.map((p) => {
+    const inP = results.filter((r) => {
+      if (!r.date) return false;
+      const d = new Date(r.date);
+      return d >= p.from && d <= p.to;
+    });
+    const total = inP.length;
+    const reussies = inP.filter((r) => !isNi(r.level)).length;
+    const score = total > 0 ? Math.round((reussies / total) * 100) : null;
+    return { ...p, score, total };
+  });
+
+  if (!data.some((d) => d.score !== null)) return (
+    <div style={{ opacity: 0.6, fontSize: 13 }}>Pas encore assez de données par trimestre.</div>
+  );
+
+  const BAR_W = 90, GAP = 30, MAX_H = 110, SVG_W = 3 * (BAR_W + GAP) + GAP, SVG_H = MAX_H + 54;
+
+  const validPts = data
+    .map((d, i) => d.score !== null ? { x: GAP + i * (BAR_W + GAP) + BAR_W / 2, y: MAX_H - (d.score / 100) * MAX_H } : null)
+    .filter(Boolean) as { x: number; y: number }[];
+
+  return (
+    <svg width={SVG_W} height={SVG_H} style={{ display: "block", maxWidth: "100%" }}>
+      {/* grid lines */}
+      {[0, 25, 50, 75, 100].map((v) => (
+        <g key={v}>
+          <line x1={0} y1={MAX_H - (v / 100) * MAX_H} x2={SVG_W} y2={MAX_H - (v / 100) * MAX_H} stroke="rgba(15,23,42,0.06)" strokeWidth={1} />
+          <text x={SVG_W - 2} y={MAX_H - (v / 100) * MAX_H - 3} textAnchor="end" fontSize={9} fill="#94A3B8">{v}%</text>
+        </g>
+      ))}
+      {/* trend line */}
+      {validPts.length >= 2 && (
+        <path d={validPts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")}
+          stroke="#0A84FF" strokeWidth={2.5} fill="none" strokeDasharray="5 3" opacity={0.5} />
+      )}
+      {data.map((d, i) => {
+        const x = GAP + i * (BAR_W + GAP);
+        const barH = d.score !== null ? (d.score / 100) * MAX_H : 0;
+        const y = MAX_H - barH;
+        const color = d.score === null ? "#CBD5E1" : masteryColor(d.score);
+        return (
+          <g key={d.id}>
+            <rect x={x} y={0} width={BAR_W} height={MAX_H} fill="rgba(15,23,42,0.03)" rx={6} />
+            {d.score !== null && <rect x={x} y={y} width={BAR_W} height={barH} fill={color} rx={6} opacity={0.82} />}
+            <text x={x + BAR_W / 2} y={d.score !== null ? y - 7 : MAX_H / 2 + 5} textAnchor="middle" fontSize={15} fontWeight={900} fill={d.score !== null ? color : "#94A3B8"}>
+              {d.score !== null ? `${d.score}%` : "—"}
+            </text>
+            <text x={x + BAR_W / 2} y={MAX_H + 16} textAnchor="middle" fontSize={13} fontWeight={800} fill="#334155">{d.label}</text>
+            <text x={x + BAR_W / 2} y={MAX_H + 30} textAnchor="middle" fontSize={10} fill="#94A3B8">{d.sub}</text>
+            {d.total > 0 && (
+              <text x={x + BAR_W / 2} y={MAX_H + 44} textAnchor="middle" fontSize={10} fill="#CBD5E1">{d.total} éval{d.total > 1 ? "s" : ""}</text>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 /* ─── ScoreGauge ─── */
 function ScoreGauge({ score }: { score: number }) {
   const r = 56;
@@ -311,6 +380,14 @@ export default function ElevePage() {
           </div>
         )}
       </div>
+
+      {/* ── PROGRESSION T1/T2/T3 ── */}
+      {results.length > 0 && (
+        <div style={card}>
+          <div style={sectionTitle}>📈 Progression par trimestre</div>
+          <ProgressionChart results={results} />
+        </div>
+      )}
 
       {/* ── RÉSULTATS ── */}
       <div style={card}>
