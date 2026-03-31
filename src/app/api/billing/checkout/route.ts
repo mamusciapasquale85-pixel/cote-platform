@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "STRIPE_SECRET_KEY manquante" }, { status: 500 });
   }
 
-  const stripe = new Stripe(stripeKey, { apiVersion: "2025-01-27.acacia" });
+  const stripe = new Stripe(stripeKey, { apiVersion: "2026-03-25.dahlia" });
 
   try {
     const supabase = await createSupabaseServerClient();
