@@ -63,7 +63,8 @@ export async function POST(req: Request) {
         if (!userId) break;
 
         const plan = planFromMetadata(subscription);
-        const expiresAt = new Date(subscription.current_period_end * 1000).toISOString();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const expiresAt = new Date((subscription as any).current_period_end * 1000).toISOString();
 
         await supabase
           .from("user_profiles")
@@ -86,8 +87,9 @@ export async function POST(req: Request) {
 
         const isActive = ["active", "trialing"].includes(subscription.status);
         const plan = isActive ? planFromMetadata(subscription) : "free";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const expiresAt = isActive
-          ? new Date(subscription.current_period_end * 1000).toISOString()
+          ? new Date((subscription as any).current_period_end * 1000).toISOString()
           : null;
 
         await supabase
