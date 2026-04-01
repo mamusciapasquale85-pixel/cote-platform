@@ -207,25 +207,18 @@ export default function VocalPage() {
           {/* Résultat */}
           {result && <PronunciationFeedback result={result} />}
 
-          {/* Message si pas de clé Azure */}
+          {/* Placeholder avant premier enregistrement */}
           {!result && (
             <div style={{
-              background: "#fffbeb",
-              border: "1px solid #fde68a",
+              background: "#f0f9ff",
+              border: "1px solid #bae6fd",
               borderRadius: 12,
               padding: "14px 16px",
               fontSize: 13,
-              color: "#92400e",
+              color: "#0369a1",
+              textAlign: "center",
             }}>
-              <strong>Configuration requise :</strong> Ajoute{" "}
-              <code style={{ background: "#fef3c7", padding: "1px 4px", borderRadius: 3 }}>AZURE_SPEECH_KEY</code>{" "}
-              et{" "}
-              <code style={{ background: "#fef3c7", padding: "1px 4px", borderRadius: 3 }}>AZURE_SPEECH_REGION</code>{" "}
-              dans ton <code>.env.local</code> pour activer le module vocal.{" "}
-              <a href="https://portal.azure.com" target="_blank" rel="noopener noreferrer"
-                style={{ color: "#0A84FF", fontWeight: 600 }}>
-                Obtenir une clé Azure →
-              </a>
+              🎙 Écoute la prononciation, puis enregistre ta voix pour recevoir un feedback instantané.
             </div>
           )}
         </div>
