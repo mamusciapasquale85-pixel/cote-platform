@@ -243,6 +243,18 @@ export default function AgendaPage() {
     return map;
   }, [weekAssessments]);
 
+  // Map date → toutes les évaluations du jour (toutes classes)
+  const assessmentsByDate = useMemo(() => {
+    const map = new Map<string, AgendaAssessment[]>();
+    for (const a of weekAssessments) {
+      if (!a.date) continue;
+      const existing = map.get(a.date) ?? [];
+      existing.push(a);
+      map.set(a.date, existing);
+    }
+    return map;
+  }, [weekAssessments]);
+
   const ideaTags = useMemo(() => {
     const tags = new Set<string>();
     for (const row of slotsRows) {
@@ -547,11 +559,33 @@ export default function AgendaPage() {
                     <button style={btnArrow} onClick={() => setWeekStart(addDays(weekStart, 7))} title="Semaine suivante">→</button>
                   </div>
                 </th>
-                {weekDays.map((date, idx) => (
-                  <th key={date} style={{ textAlign: "left", padding: 8, fontWeight: 900 }}>
-                    {WEEKDAY_LABELS[idx]} {formatDateShortFR(date)}
-                  </th>
-                ))}
+                {weekDays.map((date, idx) => {
+                  const dayAssessments = assessmentsByDate.get(date) ?? [];
+                  return (
+                    <th key={date} style={{ textAlign: "left", padding: 8, fontWeight: 900, verticalAlign: "top" }}>
+                      <div>{WEEKDAY_LABELS[idx]} {formatDateShortFR(date)}</div>
+                      {dayAssessments.length > 0 && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
+                          {dayAssessments.map(a => (
+                            <div
+                              key={a.id}
+                              title={a.title}
+                              onClick={() => router.push(`/evaluations?date=${date}`)}
+                              style={{
+                                background: a.type === "summative" ? "#FF3B30" : "#FF9500",
+                                borderRadius: "50%",
+                                width: 10,
+                                height: 10,
+                                cursor: "pointer",
+                                flexShrink: 0,
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
 
