@@ -32,6 +32,15 @@ type GenResult = {
 
 const GRADIENT = "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)";
 
+
+const COMPETENCES_FWB = [
+  { id: "audition", label: "Compréhension à l'audition" },
+  { id: "lecture", label: "Compréhension à la lecture" },
+  { id: "expression_ecrite", label: "Expression écrite" },
+  { id: "orale_sans", label: "Expression orale (sans interaction)" },
+  { id: "orale_avec", label: "Expression orale (avec interaction)" },
+];
+
 const DEFAULT_TEMPLATE: SchoolTemplate = {
   school_name: "",
   teacher_name: "",
@@ -60,6 +69,11 @@ const SUBJECTS: Subject[] = [
       { id: "flashcards", label: "Flashcards" },
       { id: "mots_meles", label: "Mots mêlés" },
       { id: "kahoot_csv", label: "Questions Kahoot" },
+      { id: "comp_ee", label: "Expression Écrite (EE)" },
+      { id: "comp_ca", label: "Compréhension à l'Audition (CA)" },
+      { id: "comp_eosi", label: "Expr. Orale sans Interaction (EOSI)" },
+      { id: "comp_eoi", label: "Expr. Orale avec Interactions (EOI)" },
+      { id: "comp_cl", label: "Compréhension à la Lecture (CL)" },
     ],
   },
   {
@@ -143,6 +157,11 @@ const SUBJECTS: Subject[] = [
       { id: "traduction", label: "Traduction" },
       { id: "lecture", label: "Compréhension écrite" },
       { id: "flashcards", label: "Flashcards" },
+      { id: "comp_ee", label: "Expression Écrite (EE)" },
+      { id: "comp_ca", label: "Compréhension à l'Audition (CA)" },
+      { id: "comp_eosi", label: "Expr. Orale sans Interaction (EOSI)" },
+      { id: "comp_eoi", label: "Expr. Orale avec Interactions (EOI)" },
+      { id: "comp_cl", label: "Compréhension à la Lecture (CL)" },
     ],
   },
 ];
@@ -164,6 +183,7 @@ export default function CreerEvaluationPage() {
   const [classe, setClasse] = useState("");
   const [maxPoints, setMaxPoints] = useState("20");
   const [evalDate, setEvalDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [competenceFWB, setCompetenceFWB] = useState(COMPETENCES_FWB[0].id);
 
   // Résultat
   const [result, setResult] = useState<GenResult | null>(null);
@@ -230,6 +250,7 @@ export default function CreerEvaluationPage() {
           subject: selectedSubject.id,
           langue: selectedSubject.id,
           type_exercice: typeExercice,
+          competence_fwb: competenceFWB,
           niveau,
           theme,
           classe,
@@ -262,12 +283,20 @@ export default function CreerEvaluationPage() {
     let y = MT;
 
     // ── Barre de couleur en haut ──────────────────────────────
-    doc.setFillColor(15, 23, 42); // #0f172a (sidebar dark)
-    doc.rect(0, 0, PAGE_W, 8, "F");
-    doc.setFillColor(10, 132, 255); // #0A84FF accent
-    doc.rect(0, 0, 60, 8, "F");
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, PAGE_W, 10, "F");
+    doc.setFillColor(10, 132, 255);
+    doc.rect(0, 0, 70, 10, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text("KLASBOOK", 4, 7);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(200, 220, 255);
+    doc.text("Plateforme pédagogique FWB", 4, 14);
 
-    y = 16;
+    y = 20;
 
     // ── Nom de l'école ───────────────────────────────────────
     doc.setFont("helvetica", "bold");
@@ -393,7 +422,7 @@ export default function CreerEvaluationPage() {
 
       // Ligne vide
       if (!line.trim()) {
-        y += 3;
+        y += 4;
         continue;
       }
 
@@ -421,7 +450,7 @@ export default function CreerEvaluationPage() {
           doc.setTextColor(30, 41, 59);
         }
         doc.text(wLine, ML, y);
-        y += 5;
+        y += 5.5;
       }
     }
 
@@ -565,6 +594,18 @@ export default function CreerEvaluationPage() {
               ✨ Paramètres IA
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>
+                Compétence FWB
+                <select
+                  value={competenceFWB}
+                  onChange={e => setCompetenceFWB(e.target.value)}
+                  style={{ display: "block", width: "100%", marginTop: 3, padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 12, background: "#fff" }}
+                >
+                  {COMPETENCES_FWB.map(c => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
+              </label>
               <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>
                 Type d&apos;exercice
                 <select
