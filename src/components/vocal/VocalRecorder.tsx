@@ -31,6 +31,35 @@ type Status = "idle" | "requesting" | "recording" | "processing" | "error";
 
 const MAX_DURATION_MS = 10_000; // 10 secondes max
 
+
+// Conversion WebM -> WAV PCM 16kHz (requis par Azure Speech REST API)
+async function convertToWav(blob: Blob): Promise<Blob> {
+  const ab = await blob.arrayBuffer();
+  const ctx = new AudioContext({ sampleRate: 16000 });
+  const decoded = await ctx.decodeAudioData(ab);
+  const wav = encodeWav (decoded);
+  await ctx.close();
+  return new Blob([wav], { type: "audio/wav" });
+}
+
+function encodeWav(buf: AudioBuffer): ArrayBuffer {
+  const ch = buf.getChannelData(0);
+  const len = ch.length;
+  const out = new ArrayBuffer(44 + len * 2);
+  const v = new DataView(out);
+  const ws = (o: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(o+i, s.charCodeAt(i)); };
+  ws(0, "RIFF"); v.setUint32(4, 36 + len * 2, true); ws(8, "WAVE");
+  ws(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true); v.setUint32(24, 16000, true);
+  v.setUint32(28, 32000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  ws(36, "data"); v.setUint32(40, len * 2, true);
+  for (let i = 0, o = 44; i < len; i++, o += 2) {
+    const s = Math.max(-1, Math.min(1, ch[i]));
+    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return out;
+}
+
 export default function VocalRecorder({
   referenceText,
   langue = "nl",
@@ -78,9 +107,10 @@ export default function VocalRecorder({
         setStatus("processing");
 
         try {
-          const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+          const webmBlob = new Blob(chunksRef.current, { type: "audio/webm" });
+          const blob = await convertToWav(webmBlob);
           const form = new FormData();
-          form.append("audio", blob, "recording.webm");
+          form.append("audio", blob, "recording.wav");
           form.append("reference_text", referenceText);
           form.append("langue", langue);
           form.append("theme", theme);
