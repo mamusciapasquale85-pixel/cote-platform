@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
@@ -11,14 +10,13 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Absences",      icon: "📋", href: "/absences" },
   { label: "Classes",       icon: "👥", href: "/classe" },
   { label: "Évaluations",   icon: "📝", href: "/evaluations" },
-  { label: "Vocal 🆕",        icon: "🎙", href: "/vocal" },
+  { label: "Vocal 🆕",      icon: "🎙", href: "/vocal" },
   { label: "Compétences",   icon: "🎯", href: "/competences" },
   { label: "Bulletins",     icon: "📄", href: "/bulletins" },
   { label: "Remédiations",  icon: "🩺", href: "/remediations" },
   { label: "Outils",        icon: "🎲", href: "/outils" },
   { label: "Générateur IA", icon: "✨", href: "/generateur" },
   { label: "Historique",    icon: "📚", href: "/historique" },
-
 ];
 
 export default function ProfShell({ children }: { children: React.ReactNode }) {
@@ -61,7 +59,6 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#F7F8FC", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-
       <header style={{
         position: "sticky", top: 0, zIndex: 100,
         background: "rgba(255,255,255,0.95)",
@@ -71,8 +68,10 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
       }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px" }}>
 
-          {/* LIGNE 1 : Logo + Déconnexion */}
+          {/* LIGNE 1 : Logo (gauche) + Déconnexion + Avatar (droite) */}
           <div style={{ height: 52, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+
+            {/* Logo */}
             <a href="/dashboard" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               <div style={{
                 width: 32, height: 32, borderRadius: 10,
@@ -87,21 +86,66 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
               </span>
             </a>
 
-            {!isMobile && (
-              <a href="/auth/logout" style={{
-                flexShrink: 0,
-                display: "flex", alignItems: "center", gap: 5,
-                padding: "6px 10px", borderRadius: 8,
-                textDecoration: "none", fontSize: "0.82rem",
-                fontWeight: 500, color: "#ef4444",
-                whiteSpace: "nowrap",
+            {/* Droite : Déconnexion + Avatar profil */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+              {!isMobile && (
+                <a href="/auth/logout" style={{
+                  flexShrink: 0,
+                  display: "flex", alignItems: "center", gap: 5,
+                  padding: "6px 10px", borderRadius: 8,
+                  textDecoration: "none", fontSize: "0.82rem",
+                  fontWeight: 500, color: "#ef4444",
+                  whiteSpace: "nowrap",
+                }}>
+                  🚪 Déconnexion
+                </a>
+              )}
+
+              {/* Avatar */}
+              <div ref={avatarRef} style={{ position: "relative", flexShrink: 0 }}>
+                <button onClick={() => setMenuOpen(v => !v)} style={{
+                  width: 36, height: 36, borderRadius: "50%", border: "none", cursor: "pointer",
+                  background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontWeight: 800, color: "#fff", fontSize: 14,
+                }}>P</button>
+                {menuOpen && (
+                  <div style={{
+                    position: "absolute", top: 44, right: 0, zIndex: 200,
+                    background: "#fff", borderRadius: 12, border: "1px solid rgba(15,23,42,0.1)",
+                    boxShadow: "0 8px 32px rgba(15,23,42,0.16)", padding: 6, minWidth: 180,
+                  }}>
+                    <div style={{ padding: "8px 12px", fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>LAB Marie Curie</div>
+                    <hr style={{ border: "none", borderTop: "1px solid #f1f5f9", margin: "4px 0" }} />
+                    <a href="/import" onClick={() => setMenuOpen(false)} style={{
+                      display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 8,
+                      textDecoration: "none", fontSize: "0.875rem", fontWeight: 500, color: "#334155",
+                    }}>📥 Import</a>
+                    <a href="/auth/logout" style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "9px 12px", borderRadius: 8,
+                      fontSize: "0.875rem", fontWeight: 600, color: "#ef4444",
+                      textDecoration: "none", cursor: "pointer",
+                    }}>
+                      🚪 Se déconnecter
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Hamburger mobile */}
+            {isMobile && (
+              <button onClick={() => setMobileNavOpen(v => !v)} style={{
+                border: "none", background: "transparent", cursor: "pointer",
+                padding: "6px 10px", borderRadius: 8, fontSize: 20, color: "#0f172a",
               }}>
-                🚪 Déconnexion
-              </a>
+                {mobileNavOpen ? "✕" : "☰"}
+              </button>
             )}
           </div>
 
-          {/* LIGNE 2 : tous les onglets nav */}
+          {/* LIGNE 2 : tous les onglets nav (desktop) */}
           {!isMobile && (
             <nav style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, paddingBottom: 6 }}>
               {NAV_ITEMS.map(item => {
@@ -125,49 +169,6 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
             </nav>
           )}
 
-          {/* Hamburger mobile */}
-          {isMobile && (
-            <div style={{ flex: 1 }}>
-              <button onClick={() => setMobileNavOpen(v => !v)} style={{
-                border: "none", background: "transparent", cursor: "pointer",
-                padding: "6px 10px", borderRadius: 8, fontSize: 20, color: "#0f172a",
-              }}>
-                {mobileNavOpen ? "✕" : "☰"}
-              </button>
-            </div>
-          )}
-
-          {/* AVATAR */}
-          <div ref={avatarRef} style={{ position: "relative", flexShrink: 0, marginLeft: 12 }}>
-            <button onClick={() => setMenuOpen(v => !v)} style={{
-              width: 36, height: 36, borderRadius: "50%", border: "none", cursor: "pointer",
-              background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontWeight: 800, color: "#fff", fontSize: 14,
-            }}>P</button>
-            {menuOpen && (
-              <div style={{
-                position: "absolute", top: 44, right: 0, zIndex: 200,
-                background: "#fff", borderRadius: 12, border: "1px solid rgba(15,23,42,0.1)",
-                boxShadow: "0 8px 32px rgba(15,23,42,0.16)", padding: 6, minWidth: 180,
-              }}>
-                <div style={{ padding: "8px 12px", fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>LAB Marie Curie</div>
-                <hr style={{ border: "none", borderTop: "1px solid #f1f5f9", margin: "4px 0" }} />
-                <a href="/import" onClick={() => setMenuOpen(false)} style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 8,
-                  textDecoration: "none", fontSize: "0.875rem", fontWeight: 500, color: "#334155",
-                }}>📥 Import</a>
-                <a href="/auth/logout" style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "9px 12px", borderRadius: 8,
-                  fontSize: "0.875rem", fontWeight: 600, color: "#ef4444",
-                  textDecoration: "none", cursor: "pointer",
-                }}>
-                  🚪 Se déconnecter
-                </a>
-              </div>
-            )}
-          </div>
         </div>
       </header>
 

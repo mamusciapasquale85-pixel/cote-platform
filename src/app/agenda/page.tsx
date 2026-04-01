@@ -801,7 +801,7 @@ export default function AgendaPage() {
             position: "fixed",
             inset: 0,
             background: "rgba(15,23,42,0.48)",
-            zIndex: 90,
+            zIndex: 200,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
