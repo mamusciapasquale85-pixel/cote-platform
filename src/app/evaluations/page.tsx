@@ -107,6 +107,14 @@ const SUBJECTS: SubjectDef[] = [
     ],
   },
 ];
+const COMPETENCES_FWB = [
+  { id: "audition", label: "Compreh. a l audition" },
+  { id: "lecture", label: "Compreh. a la lecture" },
+  { id: "expression_ecrite", label: "Expression ecrite" },
+  { id: "orale_sans", label: "Expression orale (sans interaction)" },
+  { id: "orale_avec", label: "Expression orale (avec interaction)" },
+];
+
 
 type CotationType = "points" | "nisbttb";
 const COTATION_OPTIONS: { id: CotationType; label: string; desc: string }[] = [
@@ -139,6 +147,7 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
   const [apprentissageId, setApprentissageId] = useState<UUID | "">("");
   const [selectedSubject, setSelectedSubject] = useState<SubjectDef>(SUBJECTS[0]);
   const [typeExercice, setTypeExercice] = useState(SUBJECTS[0].types[0].id);
+  const [competenceFWB, setCompetenceFWB] = useState(COMPETENCES_FWB[0].id);
   const [niveau, setNiveau] = useState(SUBJECTS[0].niveaux[0]);
   const [iaSource, setIaSource] = useState<IaSource>("pure");
   const [coursProf, setCoursProf] = useState("");
@@ -217,6 +226,7 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
           subject: selectedSubject.id,
           langue: selectedSubject.id,
           type_exercice: typeExercice,
+          competence_fwb: competenceFWB,
           niveau,
           theme,
           classe: classId ? classes.find(c => c.id === classId)?.name ?? "" : "",
@@ -366,7 +376,15 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
             <input style={{ ...inp, height: 44 }} placeholder="Ex: Vocabulaire — De familie" value={title} onChange={e => setTitle(e.target.value)} autoFocus />
           </div>
 
-          {/* 4. Niveau + Type d'exercice */}
+          {/* 4. Competence FWB */}
+          <div>
+            <div style={lbl}>Competence FWB</div>
+            <select style={sel} value={competenceFWB} onChange={e => setCompetenceFWB(e.target.value)}>
+              {COMPETENCES_FWB.map(c2 => <option key={c2.id} value={c2.id}>{c2.label}</option>)}
+            </select>
+          </div>
+
+          {/* 4b. Niveau + Type d'exercice */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
               <div style={lbl}>Niveau</div>
