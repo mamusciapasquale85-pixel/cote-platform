@@ -69,37 +69,52 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
         borderBottom: "1px solid rgba(15,23,42,0.08)",
         boxShadow: "0 1px 0 rgba(15,23,42,0.06)",
       }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px", height: 58, display: "flex", alignItems: "center" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px" }}>
 
-          {/* LOGO */}
-          <a href="/dashboard" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10, marginRight: 32, flexShrink: 0 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 10,
-              background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 4px 12px rgba(10,132,255,0.3)",
-            }}>
-              <span style={{ fontSize: 16, color: "#fff" }}>✦</span>
-            </div>
-            <span style={{ fontSize: "1.1rem", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.03em" }}>
-              Klasbook
-            </span>
-          </a>
+          {/* LIGNE 1 : Logo + Déconnexion */}
+          <div style={{ height: 52, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <a href="/dashboard" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 10,
+                background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 4px 12px rgba(10,132,255,0.3)",
+              }}>
+                <span style={{ fontSize: 16, color: "#fff" }}>✦</span>
+              </div>
+              <span style={{ fontSize: "1.1rem", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.03em" }}>
+                Klasbook
+              </span>
+            </a>
 
-          {/* NAV desktop */}
+            {!isMobile && (
+              <a href="/auth/logout" style={{
+                flexShrink: 0,
+                display: "flex", alignItems: "center", gap: 5,
+                padding: "6px 10px", borderRadius: 8,
+                textDecoration: "none", fontSize: "0.82rem",
+                fontWeight: 500, color: "#ef4444",
+                whiteSpace: "nowrap",
+              }}>
+                🚪 Déconnexion
+              </a>
+            )}
+          </div>
+
+          {/* LIGNE 2 : tous les onglets nav */}
           {!isMobile && (
-            <nav style={{ display: "flex", alignItems: "center", gap: 2, flex: 1, overflowX: "auto" }}>
+            <nav style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, paddingBottom: 6 }}>
               {NAV_ITEMS.map(item => {
                 const active = isActive(item.href);
                 return (
                   <a key={item.href} href={item.href} style={{
                     display: "flex", alignItems: "center", gap: 5,
-                    padding: "6px 10px", borderRadius: 8,
+                    padding: "5px 10px", borderRadius: 8,
                     textDecoration: "none", fontSize: "0.82rem",
                     fontWeight: active ? 700 : 500,
                     color: active ? "#0f172a" : "#64748b",
                     background: active ? "rgba(15,23,42,0.07)" : "transparent",
-                    whiteSpace: "nowrap", flexShrink: 0,
+                    whiteSpace: "nowrap",
                     borderBottom: active ? "2px solid #0A84FF" : "2px solid transparent",
                   }}>
                     <span style={{ fontSize: 13 }}>{item.icon}</span>
@@ -108,20 +123,6 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
                 );
               })}
             </nav>
-          )}
-
-          {/* Déconnexion directe — visible toujours */}
-          {!isMobile && (
-            <a href="/auth/logout" style={{
-              marginLeft: 12, flexShrink: 0,
-              display: "flex", alignItems: "center", gap: 5,
-              padding: "6px 10px", borderRadius: 8,
-              textDecoration: "none", fontSize: "0.82rem",
-              fontWeight: 500, color: "#ef4444",
-              whiteSpace: "nowrap",
-            }}>
-              🚪 Déconnexion
-            </a>
           )}
 
           {/* Hamburger mobile */}
