@@ -11,13 +11,14 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Absences",      icon: "📋", href: "/absences" },
   { label: "Classes",       icon: "👥", href: "/classe" },
   { label: "Évaluations",   icon: "📝", href: "/evaluations" },
+  { label: "Vocal 🆕",        icon: "🎙", href: "/vocal" },
   { label: "Compétences",   icon: "🎯", href: "/competences" },
   { label: "Bulletins",     icon: "📄", href: "/bulletins" },
   { label: "Remédiations",  icon: "🩺", href: "/remediations" },
   { label: "Outils",        icon: "🎲", href: "/outils" },
   { label: "Générateur IA", icon: "✨", href: "/generateur" },
   { label: "Historique",    icon: "📚", href: "/historique" },
-  { label: "Vocal",         icon: "🎙", href: "/vocal" },
+
 ];
 
 export default function ProfShell({ children }: { children: React.ReactNode }) {
