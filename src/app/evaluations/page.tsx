@@ -729,10 +729,14 @@ function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext;
     async function load() {
       const { data: enr } = await ctx.supabase
         .from("student_enrollments")
-        .select("student_id, students(id, display_name)")
+        .select("student_id, students(id, first_name, last_name)")
         .eq("class_group_id", a.class_group_id)
         .eq("academic_year_id", ctx.academicYearId);
-      const studs = (enr ?? []).map((e: any) => e.students).filter(Boolean) as Array<{ id: UUID; display_name: string }>;
+      const studs = (enr ?? []).map((e: any) => {
+        const s = e.students;
+        if (!s) return null;
+        return { id: s.id, display_name: `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim() };
+      }).filter(Boolean) as Array<{ id: UUID; display_name: string }>;
       setStudents(studs);
 
       const existing = await listResultsForAssessment({ ctx, assessmentId: a.id });
