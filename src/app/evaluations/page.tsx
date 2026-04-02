@@ -730,8 +730,7 @@ function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext;
       const { data: enr } = await ctx.supabase
         .from("student_enrollments")
         .select("student_id, students(id, first_name, last_name)")
-        .eq("class_group_id", a.class_group_id)
-        .eq("academic_year_id", ctx.academicYearId);
+        .eq("class_group_id", a.class_group_id);
       const studs = (enr ?? []).map((e: any) => {
         const s = e.students;
         if (!s) return null;
