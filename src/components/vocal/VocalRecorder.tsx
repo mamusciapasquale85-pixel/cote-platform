@@ -32,14 +32,31 @@ type Status = "idle" | "requesting" | "recording" | "processing" | "error";
 const MAX_DURATION_MS = 10_000; // 10 secondes max
 
 
-// Conversion WebM -> WAV PCM 16kHz (requis par Azure Speech REST API)
+// Conversion WebM/mp4 -> WAV PCM 16kHz (requis par Azure Speech REST API)
+// Utilise OfflineAudioContext pour garantir un resampling exact à 16000 Hz.
+// AudioContext({ sampleRate: 16000 }) est un simple "hint" ignoré par certains
+// browsers (Safari, Chrome) qui décodent à 44100/48000 Hz — résultat : WAV header
+// dit 16000 mais les échantillons sont à 48000 → Azure reçoit de l'audio 3× trop
+// rapide, reconnaît le texte mais PronunciationAssessment retourne 0.
 async function convertToWav(blob: Blob): Promise<Blob> {
   const ab = await blob.arrayBuffer();
-  const ctx = new AudioContext({ sampleRate: 16000 });
-  const decoded = await ctx.decodeAudioData(ab);
-  const wav = encodeWav (decoded);
-  await ctx.close();
-  return new Blob([wav], { type: "audio/wav" });
+
+  // 1. Décoder à la fréquence native du browser
+  const decodeCtx = new AudioContext();
+  const decoded = await decodeCtx.decodeAudioData(ab);
+  await decodeCtx.close();
+
+  // 2. Resampler vers exactement 16000 Hz via OfflineAudioContext
+  const TARGET_RATE = 16000;
+  const numFrames = Math.ceil(decoded.duration * TARGET_RATE);
+  const offlineCtx = new OfflineAudioContext(1, numFrames, TARGET_RATE);
+  const src = offlineCtx.createBufferSource();
+  src.buffer = decoded;
+  src.connect(offlineCtx.destination);
+  src.start(0);
+  const resampled = await offlineCtx.startRendering();
+
+  return new Blob([encodeWav(resampled)], { type: "audio/wav" });
 }
 
 function encodeWav(buf: AudioBuffer): ArrayBuffer {
@@ -93,7 +110,13 @@ export default function VocalRecorder({
       setStatus("recording");
 
       chunksRef.current = [];
-      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      // Safari ne supporte pas audio/webm → fallback sur audio/mp4 ou défaut browser
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "";
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mr;
 
       mr.ondataavailable = (e) => {
