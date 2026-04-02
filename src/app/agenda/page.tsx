@@ -254,6 +254,16 @@ export default function AgendaPage() {
     }
     return map;
   }, [weekAssessments]);
+  // Pastilles pour cellules taguees "eval" depuis agenda
+  const taggedEvalDates = useMemo(() => {
+    const s = new Set<string>();
+    for (const row of slotsRows) {
+      if (normalizeTag(row.tag) === "eval" || (row.details ?? "").toLowerCase().includes("[eval]")) {
+        s.add(row.date);
+      }
+    }
+    return s;
+  }, [slotsRows]);
 
   const ideaTags = useMemo(() => {
     const tags = new Set<string>();
@@ -323,6 +333,15 @@ export default function AgendaPage() {
     void loadStudents(modalClassGroupId).catch((e: unknown) => setModalError(toNiceError(e)));
   }, [modal?.open, modalClassGroupId, ctx]);
 
+  useEffect(() => {
+    const handleVisible = () => {
+      if (document.visibilityState === "visible" && ctx) {
+        void loadGrid(ctx, weekDays[0], weekDays[4]);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisible);
+    return () => document.removeEventListener("visibilitychange", handleVisible);
+  }, [ctx, weekDays]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const direct = window.localStorage.getItem(QUICK_NOTE_STORAGE_KEY);
@@ -561,10 +580,11 @@ export default function AgendaPage() {
                 </th>
                 {weekDays.map((date, idx) => {
                   const dayAssessments = assessmentsByDate.get(date) ?? [];
+                  const hasEvalTag = taggedEvalDates.has(date);
                   return (
                     <th key={date} style={{ textAlign: "left", padding: 8, fontWeight: 900, verticalAlign: "top" }}>
                       <div>{WEEKDAY_LABELS[idx]} {formatDateShortFR(date)}</div>
-                      {dayAssessments.length > 0 && (
+                      {(dayAssessments.length > 0 || hasEvalTag) && (
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
                           {dayAssessments.map(a => (
                             <div
@@ -581,6 +601,13 @@ export default function AgendaPage() {
                               }}
                             />
                           ))}
+                            {hasEvalTag && (
+                              <div
+                                title="Evaluation (tag agenda)"
+                                onClick={() => router.push(`/evaluations?date=${date}`)}
+                                style={{ background: "#FF9500", borderRadius: "50%", width: 10, height: 10, cursor: "pointer", flexShrink: 0 }}
+                              />
+                            )}
                         </div>
                       )}
                     </th>
