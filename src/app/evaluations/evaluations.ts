@@ -49,6 +49,8 @@ export type Assessment = {
   updated_at: string;
   fichier_path: string | null;
   fichier_nom: string | null;
+  cotation_type: "points" | "nisbttb";
+  competences_evaluees: string[];
 };
 
 export type ParsedAssessmentCsvRow = {
@@ -1098,12 +1100,16 @@ export async function createAssessment(params: {
   class_group_id: UUID | null;
   course_id: UUID | null;
   apprentissage_id: UUID | null;
+  cotation_type?: "points" | "nisbttb";
+  competences_evaluees?: string[];
 }): Promise<Assessment> {
-  const { ctx, apprentissage_id, ...rest } = params;
+  const { ctx, apprentissage_id, cotation_type, competences_evaluees, ...rest } = params;
 
   const basePayload = {
     school_id: ctx.schoolId,
     teacher_user_id: ctx.teacherUserId,
+    cotation_type: cotation_type ?? "points",
+    competences_evaluees: competences_evaluees ?? [],
     ...rest,
   };
   const payloadWithApp = apprentissage_id ? { ...basePayload, apprentissage_id } : basePayload;
@@ -1190,4 +1196,41 @@ export async function deleteAssessment(params: { ctx: TeacherContext; assessment
     .eq("teacher_user_id", ctx.teacherUserId);
 
   if (error) throw error;
+}
+
+// Resultats par competence
+export async function upsertResult(params: {
+  ctx: TeacherContext;
+  assessmentId: UUID;
+  studentId: UUID;
+  value: number | null;
+  competencyScores: Record<string, string | number>;
+}): Promise<void> {
+  const { ctx, assessmentId, studentId, value, competencyScores } = params;
+  const { error } = await ctx.supabase
+    .from("resultats")
+    .upsert({
+      school_id: ctx.schoolId,
+      academic_year_id: ctx.academicYearId,
+      teacher_id: ctx.teacherUserId,
+      student_id: studentId,
+      assessment_id: assessmentId,
+      value: value,
+      competency_scores: competencyScores,
+    }, { onConflict: "student_id,assessment_id" });
+  if (error) throw error;
+}
+
+export async function listResultsForAssessment(params: {
+  ctx: TeacherContext;
+  assessmentId: UUID;
+}): Promise<Array<{ student_id: UUID; value: number | null; competency_scores: Record<string, string | number> }>> {
+  const { ctx, assessmentId } = params;
+  const { data, error } = await ctx.supabase
+    .from("resultats")
+    .select("student_id, value, competency_scores")
+    .eq("assessment_id", assessmentId)
+    .eq("school_id", ctx.schoolId);
+  if (error) throw error;
+  return (data ?? []) as any[];
 }

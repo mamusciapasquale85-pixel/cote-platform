@@ -10,6 +10,7 @@ import {
   getTeacherContext, listClassGroups, listCourses, listApprentissages, listAssessments,
   parseAssessmentsCsv, parseAssessmentResultsCsv, importAssessmentsCsv, importAssessmentResultsCsv,
   createAssessment, updateAssessment, deleteAssessment,
+  upsertResult, listResultsForAssessment,
 } from "./evaluations";
 
 function toNiceError(e: unknown): string {
@@ -148,6 +149,7 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
   const [selectedSubject, setSelectedSubject] = useState<SubjectDef>(SUBJECTS[0]);
   const [typeExercice, setTypeExercice] = useState(SUBJECTS[0].types[0].id);
   const [competenceFWB, setCompetenceFWB] = useState(COMPETENCES_FWB[0].id);
+  const [competencesEvaluees, setCompetencesEvaluees] = useState<string[]>([]);
   const [niveau, setNiveau] = useState(SUBJECTS[0].niveaux[0]);
   const [iaSource, setIaSource] = useState<IaSource>("pure");
   const [coursProf, setCoursProf] = useState("");
@@ -209,6 +211,7 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
         max_points: cotation === "points" ? (Number(maxPoints) || 20) : null, weight: null, status,
         parent_visible: parentVisible, instructions: instructions.trim() || null,
         class_group_id: classId, course_id: courseId, apprentissage_id: apprentissageId || null,
+        cotation_type: cotation, competences_evaluees: competencesEvaluees,
       });
       onCreated(); onClose();
     } catch (e) { setErr(toNiceError(e)); } finally { setSaving(false); }
@@ -434,6 +437,25 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
             </div>
           </div>
 
+          {/* 6b. Competences evaluees */}
+          {cotation === "nisbttb" && (
+            <div>
+              <div style={lbl}>Competences evaluees</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {COMPETENCES_FWB.map(comp => (
+                  <label key={comp.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, cursor: "pointer",
+                    padding: "5px 10px", borderRadius: 8,
+                    background: competencesEvaluees.includes(comp.id) ? "#EFF6FF" : "#F9FAFB",
+                    border: competencesEvaluees.includes(comp.id) ? "1.5px solid #0A84FF" : "1px solid #E5E7EB" }}>
+                    <input type="checkbox" checked={competencesEvaluees.includes(comp.id)}
+                      onChange={ev => setCompetencesEvaluees(prev => ev.target.checked ? [...prev, comp.id] : prev.filter(x => x !== comp.id))} />
+                    {comp.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 7. Date + Points + Statut */}
           <div style={{ display: "grid", gridTemplateColumns: cotation === "points" ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10 }}>
             <div>
@@ -548,12 +570,13 @@ function CreateModal({ ctx, classes, courses, apprentissages, onCreated, onClose
 }
 
 // ── Card évaluation ──────────────────────────────────────────────────────────
-function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus, onArchive, onDelete, onRefresh }: {
+function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus, onArchive, onDelete, onRefresh, ctx }: {
   a: Assessment; apprentissageNameById: Map<string, string>; highlighted: boolean;
   onToggleStatus: (a: Assessment) => void; onArchive: (a: Assessment) => void; onDelete: (id: UUID) => void;
-  onRefresh: () => void;
+  onRefresh: () => void; ctx: TeacherContext;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [resultsModalOpen, setResultsModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -596,6 +619,7 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
     : { bg: "#F5F3FF", text: "#6D28D9", border: "#DDD6FE" };
 
   return (
+    <>
     <div id={`card-${a.id}`} style={{
       background: "#FFF", borderRadius: 14,
       border: highlighted ? "2px solid #0A84FF" : "1px solid #E5E7EB",
@@ -669,6 +693,10 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
               🗄 Archiver
             </button>
           )}
+          <button onClick={() => setResultsModalOpen(true)}
+            style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #A7F3D0", background: "#ECFDF5", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#065F46" }}>
+            📊 Résultats
+          </button>
           {!confirmDelete ? (
             <button onClick={() => setConfirmDelete(true)}
               style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #FECACA", background: "#FEF2F2", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>
@@ -680,6 +708,124 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
               <button onClick={() => setConfirmDelete(false)} style={{ height: 30, padding: "0 8px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontSize: 11 }}>×</button>
             </div>
           )}
+        </div>
+      </div>
+    </div>
+    {resultsModalOpen && <ResultsModal a={a} ctx={ctx} onClose={() => setResultsModalOpen(false)} />}
+    </>
+  );
+}
+
+// ── ResultsModal ─────────────────────────────────────────────────────────────
+const NISBTTB_OPTS = ["NI", "I", "S", "B", "TB"];
+
+function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext; onClose: () => void }) {
+  const [students, setStudents] = useState<Array<{ id: UUID; display_name: string }>>([]);
+  const [scores, setScores] = useState<Record<UUID, { value: string; competencyScores: Record<string, string> }>>({});
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      const { data: enr } = await ctx.supabase
+        .from("student_enrollments")
+        .select("student_id, students(id, display_name)")
+        .eq("class_group_id", a.class_group_id)
+        .eq("academic_year_id", ctx.academicYearId);
+      const studs = (enr ?? []).map((e: any) => e.students).filter(Boolean) as Array<{ id: UUID; display_name: string }>;
+      setStudents(studs);
+
+      const existing = await listResultsForAssessment({ ctx, assessmentId: a.id });
+      const init: typeof scores = {};
+      for (const s of studs) {
+        const ex = existing.find(r => r.student_id === s.id);
+        const cs: Record<string, string> = {};
+        for (const comp of (a.competences_evaluees ?? [])) {
+          cs[comp] = ex?.competency_scores?.[comp] != null ? String(ex.competency_scores[comp]) : "";
+        }
+        init[s.id] = { value: ex?.value != null ? String(ex.value) : "", competencyScores: cs };
+      }
+      setScores(init);
+    }
+    load();
+  }, []);
+
+  async function handleSave() {
+    setSaving(true); setMsg(null);
+    try {
+      for (const s of students) {
+        const row = scores[s.id];
+        if (!row) continue;
+        const val = row.value !== "" ? Number(row.value) : null;
+        const cs: Record<string, string | number> = {};
+        for (const [k, v] of Object.entries(row.competencyScores)) {
+          if (v !== "") cs[k] = a.cotation_type === "nisbttb" ? v : Number(v);
+        }
+        await upsertResult({ ctx, assessmentId: a.id, studentId: s.id, value: val, competencyScores: cs });
+      }
+      setMsg("✅ Résultats sauvegardés");
+    } catch (e) {
+      setMsg("❌ " + (e instanceof Error ? e.message : "Erreur"));
+    } finally { setSaving(false); }
+  }
+
+  const hasComps = (a.competences_evaluees ?? []).length > 0;
+  const compLabels: Record<string, string> = { audition: "Audition", lecture: "Lecture", expression_ecrite: "Écrite", orale_sans: "Orale (sans)", orale_avec: "Orale (avec)" };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 16, padding: 28, minWidth: 520, maxWidth: 800, maxHeight: "85vh", overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>📊 Résultats — {a.title}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>×</button>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: "#F9FAFB" }}>
+              <th style={{ textAlign: "left", padding: "6px 10px", borderBottom: "1px solid #E5E7EB" }}>Élève</th>
+              {!hasComps && <th style={{ padding: "6px 10px", borderBottom: "1px solid #E5E7EB" }}>Note</th>}
+              {hasComps && (a.competences_evaluees ?? []).map(c => (
+                <th key={c} style={{ padding: "6px 8px", borderBottom: "1px solid #E5E7EB", textAlign: "center" }}>{compLabels[c] ?? c}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {students.map(s => (
+              <tr key={s.id} style={{ borderBottom: "1px solid #F3F4F6" }}>
+                <td style={{ padding: "5px 10px" }}>{s.display_name}</td>
+                {!hasComps && (
+                  <td style={{ padding: "5px 10px", textAlign: "center" }}>
+                    <input type="number" value={scores[s.id]?.value ?? ""}
+                      onChange={e => setScores(prev => ({ ...prev, [s.id]: { ...prev[s.id], value: e.target.value } }))}
+                      style={{ width: 60, textAlign: "center", border: "1px solid #D1D5DB", borderRadius: 6, padding: "3px 6px" }} />
+                  </td>
+                )}
+                {hasComps && (a.competences_evaluees ?? []).map(c => (
+                  <td key={c} style={{ padding: "5px 8px", textAlign: "center" }}>
+                    {a.cotation_type === "nisbttb" ? (
+                      <select value={scores[s.id]?.competencyScores?.[c] ?? ""}
+                        onChange={e => setScores(prev => ({ ...prev, [s.id]: { ...prev[s.id], competencyScores: { ...prev[s.id]?.competencyScores, [c]: e.target.value } } }))}
+                        style={{ border: "1px solid #D1D5DB", borderRadius: 6, padding: "2px 4px", fontSize: 12 }}>
+                        <option value="">—</option>
+                        {NISBTTB_OPTS.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : (
+                      <input type="number" value={scores[s.id]?.competencyScores?.[c] ?? ""}
+                        onChange={e => setScores(prev => ({ ...prev, [s.id]: { ...prev[s.id], competencyScores: { ...prev[s.id]?.competencyScores, [c]: e.target.value } } }))}
+                        style={{ width: 55, textAlign: "center", border: "1px solid #D1D5DB", borderRadius: 6, padding: "3px 4px" }} />
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "center" }}>
+          <button onClick={handleSave} disabled={saving}
+            style={{ padding: "8px 20px", borderRadius: 8, background: "#6D28D9", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+            {saving ? "Sauvegarde…" : "💾 Sauvegarder"}
+          </button>
+          {msg && <span style={{ fontSize: 13 }}>{msg}</span>}
         </div>
       </div>
     </div>
@@ -915,7 +1061,7 @@ export default function EvaluationsPage() {
             <AssessmentCard key={a.id} a={a} apprentissageNameById={apprentissageNameById}
               highlighted={a.id === highlightedId}
               onToggleStatus={onToggleStatus} onArchive={onArchive} onDelete={onDelete}
-              onRefresh={() => ctx && refresh(ctx)} />
+              onRefresh={() => ctx && refresh(ctx)} ctx={ctx!} />
           ))
         )}
       </div>
