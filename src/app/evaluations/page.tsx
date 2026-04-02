@@ -1068,7 +1068,8 @@ export default function EvaluationsPage() {
 
       {showCreateModal && ctx && (
         <CreateModal ctx={ctx} classes={classes} courses={courses} apprentissages={apprentissages}
-          onCreated={() => ctx && refresh(ctx)} onClose={() => setShowCreateModal(false)} />
+          onCreated={() => { setFilterClassId(""); setFilterCourseId(""); setShowCreateModal(false); }}
+          onClose={() => setShowCreateModal(false)} />
       )}
     </div>
   );
