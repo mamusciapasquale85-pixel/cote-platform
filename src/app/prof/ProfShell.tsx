@@ -9,6 +9,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Classes",        icon: "👥", href: "/classe" },
   { label: "Agenda",         icon: "📅", href: "/agenda" },
   { label: "Évaluations",    icon: "📝", href: "/evaluations" },
+  { label: "Outil vocal",    icon: "🎙️", href: "/vocal" },
   { label: "Résultats",      icon: "📊", href: "/resultats" },
   { label: "Remédiations",   icon: "🩺", href: "/remediations" },
   { label: "Bulletins",      icon: "📄", href: "/bulletins" },

@@ -143,17 +143,17 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* 4 CADRES ÉGAUX */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 14 }}>
+      {/* 4 CADRES SYMMETRIQUES */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
 
-        {/* Cadre 1 : Jauges */}
-        <div style={{ ...card, alignSelf: "start", display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ fontSize: 13, fontWeight: 900, opacity: 0.5, marginBottom: 8, letterSpacing: 0.3 }}>APERÇU</div>
-          <div style={{ display: "flex", gap: 20, justifyContent: "center" }}>
+        {/* Cadre 1 : Aperçu */}
+        <div style={{ ...card, display: "flex", flexDirection: "column", minHeight: 200 }}>
+          <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.45, marginBottom: 14, letterSpacing: 0.5, textTransform: "uppercase" }}>Aperçu</div>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flex: 1, alignItems: "center" }}>
             <MiniGauge
               pct={stats.taux_remediation}
               color={stats.taux_remediation >= 70 ? "#22C55E" : stats.taux_remediation >= 40 ? "#F59E0B" : "#EF4444"}
-              label="Remédiations terminées"
+              label="Reméd. terminées"
             />
             <MiniGauge
               pct={100 - tauxNI}
@@ -161,130 +161,76 @@ export default function DashboardPage() {
               label="Élèves sans NI"
             />
           </div>
-        </div>
-
-        {/* Cadre 2 : Élèves en difficulté */}
-        <div style={card}>
-          <div style={sectionTitle}>
-            🚨 Élèves en difficulté
-            <span style={{ ...badge, background: "rgba(255,59,48,0.1)", border: "1px solid rgba(255,59,48,0.25)", color: "#991B1B", marginLeft: "auto" }}>
-              {eleves_en_difficulte.length}
-            </span>
-          </div>
-          {eleves_en_difficulte.length === 0 ? (
-            <div style={{ opacity: 0.6, fontSize: 13 }}>Aucun élève avec des NI 🎉</div>
-          ) : (
-            <div style={{ display: "grid", gap: 8 }}>
-              {eleves_en_difficulte.map((e) => (
-                <Link key={e.id} href={`/eleves/${e.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-                  <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    border: "1px solid rgba(255,59,48,0.12)", borderRadius: 12,
-                    padding: "10px 14px", cursor: "pointer", transition: "background 0.15s",
-                    background: "rgba(255,59,48,0.02)",
-                  }}
-                    onMouseEnter={(el) => (el.currentTarget.style.background = "rgba(255,59,48,0.06)")}
-                    onMouseLeave={(el) => (el.currentTarget.style.background = "rgba(255,59,48,0.02)")}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
-                        background: "linear-gradient(135deg,#FF3B30,#FF9F0A)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        color: "#fff", fontWeight: 900, fontSize: 13,
-                      }}>
-                        {e.prenom[0]}{e.nom[0]}
-                      </div>
-                      <div style={{ fontWeight: 800, fontSize: 14 }}>{e.prenom} {e.nom}</div>
-                    </div>
-                    <span style={{ ...badge, background: "rgba(255,59,48,0.12)", border: "1px solid rgba(255,59,48,0.3)", color: "#991B1B" }}>
-                      {e.nb_ni} NI
-                    </span>
-                  </div>
-                </Link>
-              ))}
+          <Link href="/resultats" style={{ textDecoration: "none" }}>
+            <div style={{ marginTop: 14, padding: "8px 0", borderRadius: 10, background: "rgba(15,23,42,0.04)", textAlign: "center", fontSize: 12, fontWeight: 700, color: "#475569", cursor: "pointer" }}>
+              Voir les résultats →
             </div>
-          )}
+          </Link>
         </div>
 
-        {/* Cadre 3 : Notes à l'élève */}
-        <div style={card}>
-          <div style={sectionTitle}>📋 Notes à l'élève</div>
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            <Link href="/discipline?type=pedagogique" style={{ textDecoration: "none", flex: 1 }}>
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                padding: "10px 8px", borderRadius: 12, cursor: "pointer",
-                background: "rgba(10,132,255,0.08)", border: "1px solid rgba(10,132,255,0.25)",
-                fontWeight: 800, fontSize: 12, color: "#0A63BF",
-              }}>
-                📝 Pédagogique
+        {/* Cadre 2 : Notes à l'élève */}
+        <div style={{ ...card, display: "flex", flexDirection: "column", minHeight: 200 }}>
+          <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.45, marginBottom: 14, letterSpacing: 0.5, textTransform: "uppercase" }}>Notes à l'élève</div>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 12, background: "rgba(10,132,255,0.06)", border: "1px solid rgba(10,132,255,0.18)" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#0A63BF" }}>📝 Pédagogiques</span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: "#0A84FF" }}>{notes_recentes.filter(n => !(n as any).type || (n as any).type === "pedagogique").length}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 12, background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.18)" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#991B1B" }}>🔴 Disciplinaires</span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: "#EF4444" }}>{notes_recentes.filter(n => (n as any).type === "disciplinaire").length}</span>
+            </div>
+          </div>
+          <Link href="/discipline" style={{ textDecoration: "none" }}>
+            <div style={{ marginTop: 14, padding: "8px 0", borderRadius: 10, background: "rgba(10,132,255,0.07)", textAlign: "center", fontSize: 12, fontWeight: 700, color: "#0A63BF", cursor: "pointer" }}>
+              ＋ Nouvelle note →
+            </div>
+          </Link>
+        </div>
+
+        {/* Cadre 3 : Convocations parents */}
+        <div style={{ ...card, display: "flex", flexDirection: "column", minHeight: 200 }}>
+          <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.45, marginBottom: 14, letterSpacing: 0.5, textTransform: "uppercase" }}>Convocations parents</div>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12, background: "rgba(124,58,237,0.06)", border: "1px solid rgba(124,58,237,0.18)" }}>
+              <span style={{ fontSize: 28 }}>📨</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#5B21B6" }}>Convoquer un parent</div>
+                <div style={{ fontSize: 11, color: "#7C3AED", opacity: 0.8 }}>Générer une convocation écrite</div>
               </div>
-            </Link>
-            <Link href="/discipline?type=disciplinaire" style={{ textDecoration: "none", flex: 1 }}>
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                padding: "10px 8px", borderRadius: 12, cursor: "pointer",
-                background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.25)",
-                fontWeight: 800, fontSize: 12, color: "#991B1B",
-              }}>
-                🔴 Disciplinaire
-              </div>
-            </Link>
-          </div>
-          {notes_recentes.length === 0 ? (
-            <div style={{ opacity: 0.6, fontSize: 13 }}>Aucune note récente</div>
-          ) : (
-            <div style={{ display: "grid", gap: 6 }}>
-              {notes_recentes.map((n) => (
-                <Link key={n.id} href="/discipline" style={{ textDecoration: "none", color: "inherit" }}>
-                  <div style={{
-                    border: "1px solid rgba(15,23,42,0.08)", borderRadius: 10, padding: "8px 12px", cursor: "pointer",
-                  }}
-                    onMouseEnter={(el) => (el.currentTarget.style.background = "rgba(15,23,42,0.02)")}
-                    onMouseLeave={(el) => (el.currentTarget.style.background = "transparent")}
-                  >
-                    <div style={{ fontWeight: 800, fontSize: 13 }}>{n.eleve_nom}</div>
-                    <div style={{ fontSize: 11, opacity: 0.65, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {n.note} · {formatDateFR(n.created_at)}
-                    </div>
-                  </div>
-                </Link>
-              ))}
             </div>
-          )}
+          </div>
+          <Link href="/discipline?type=convocation" style={{ textDecoration: "none" }}>
+            <div style={{ marginTop: 14, padding: "8px 0", borderRadius: 10, background: "rgba(124,58,237,0.07)", textAlign: "center", fontSize: 12, fontWeight: 700, color: "#5B21B6", cursor: "pointer" }}>
+              ＋ Nouvelle convocation →
+            </div>
+          </Link>
         </div>
 
-        {/* Cadre 4 : Remédiations récentes */}
-        <div style={card}>
-          <div style={{ ...sectionTitle, justifyContent: "space-between" }}>
-            <span>🔧 Remédiations en cours</span>
-            <Link href="/remediations" style={{ fontSize: 12, fontWeight: 700, color: "#0A84FF", textDecoration: "none" }}>Voir tout →</Link>
-          </div>
-          {rem_recentes.length === 0 ? (
-            <div style={{ opacity: 0.6, fontSize: 13 }}>Aucune remédiation active</div>
-          ) : (
-            <div style={{ display: "grid", gap: 8 }}>
-              {rem_recentes.map((r) => (
-                <Link key={r.id} href={`/eleves/${r.eleve_id}`} style={{ textDecoration: "none", color: "inherit" }}>
-                  <div style={{
-                    border: "1px solid rgba(15,23,42,0.08)", borderRadius: 12, padding: "10px 12px", cursor: "pointer",
-                  }}
-                    onMouseEnter={(el) => (el.currentTarget.style.background = "rgba(15,23,42,0.02)")}
-                    onMouseLeave={(el) => (el.currentTarget.style.background = "transparent")}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                      <span style={{ fontWeight: 800, fontSize: 13 }}>{r.eleve_nom}</span>
-                      <StatutBadge statut={r.statut} />
-                    </div>
-                    <div style={{ fontSize: 12, opacity: 0.65 }}>
-                      {r.attendu ?? r.type_remediation ?? "—"} · {formatDateFR(r.created_at)}
-                    </div>
+        {/* Cadre 4 : Évaluations à venir */}
+        <div style={{ ...card, display: "flex", flexDirection: "column", minHeight: 200 }}>
+          <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.45, marginBottom: 14, letterSpacing: 0.5, textTransform: "uppercase" }}>Prochaines évaluations</div>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+            {evals_recentes.length === 0 ? (
+              <div style={{ opacity: 0.5, fontSize: 13, textAlign: "center", marginTop: 16 }}>Aucune évaluation prévue</div>
+            ) : (
+              evals_recentes.slice(0, 3).map(ev => (
+                <Link key={ev.id} href="/evaluations" style={{ textDecoration: "none", color: "inherit" }}>
+                  <div style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid rgba(15,23,42,0.08)", cursor: "pointer" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(15,23,42,0.02)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    <div style={{ fontWeight: 800, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.title}</div>
+                    <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>{ev.type ?? "—"} · {ev.date ? formatDateFR(ev.date) : "Sans date"}</div>
                   </div>
                 </Link>
-              ))}
+              ))
+            )}
+          </div>
+          <Link href="/evaluations" style={{ textDecoration: "none" }}>
+            <div style={{ marginTop: 14, padding: "8px 0", borderRadius: 10, background: "rgba(255,159,10,0.08)", textAlign: "center", fontSize: 12, fontWeight: 700, color: "#B45309", cursor: "pointer" }}>
+              Voir toutes les évaluations →
             </div>
-          )}
+          </Link>
         </div>
 
       </div>
