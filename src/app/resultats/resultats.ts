@@ -654,6 +654,151 @@ export async function listStudentsForClasses(
   return out;
 }
 
+// ─── Types étendus pour la page Résultats ────────────────────────────────────
+
+export type AssessmentFull = {
+  id: UUID;
+  title: string;
+  type: string | null;
+  date: string | null;
+  max_points: number | null;
+  class_group_id: UUID | null;
+  competences_evaluees: string[] | null;
+  cotation_type: "points" | "nisbttb" | null;
+  apprentissage_id: UUID | null;
+};
+
+export type ResultatFull = {
+  id: UUID;
+  student_id: UUID;
+  assessment_id: UUID;
+  value: number | null;
+  level: string | null;
+  competency_scores: Record<string, number | string> | null;
+};
+
+export type Apprentissage = {
+  id: UUID;
+  name: string;
+  order_index: number;
+};
+
+// Retourne toutes les évaluations de l'école (optionnellement filtrées par classe).
+// PAS de filtre academic_year_id : les évaluations n'ont pas cette colonne.
+export async function listAssessmentsFull(
+  ctx: TeacherContext,
+  classGroupId?: UUID
+): Promise<AssessmentFull[]> {
+  let query = ctx.supabase
+    .from(T.ASSESSMENTS)
+    .select("id,title,type,date,max_points,class_group_id,competences_evaluees,cotation_type,apprentissage_id")
+    .eq("school_id", ctx.schoolId)
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (classGroupId) {
+    query = query.eq("class_group_id", classGroupId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as AssessmentFull[];
+}
+
+// Retourne tous les résultats d'une évaluation (avec student_id pour jointure).
+// PAS de filtre academic_year_id sur la table resultats.
+export async function listResultatsForAssessmentFull(
+  ctx: TeacherContext,
+  assessmentId: UUID
+): Promise<ResultatFull[]> {
+  const { data, error } = await ctx.supabase
+    .from(T.RESULTATS)
+    .select("id,student_id,assessment_id,value,level,competency_scores")
+    .eq("school_id", ctx.schoolId)
+    .eq("assessment_id", assessmentId);
+
+  if (error) throw error;
+  return (data ?? []) as ResultatFull[];
+}
+
+// Retourne tous les résultats des élèves d'une classe.
+// Récupère d'abord les student_ids inscrits dans la classe, puis leurs résultats.
+// PAS de filtre academic_year_id sur resultats.
+export async function listResultatsForClassFull(
+  ctx: TeacherContext,
+  classGroupId: UUID
+): Promise<{ students: Student[]; assessments: AssessmentFull[]; resultats: ResultatFull[] }> {
+  // 1. Élèves inscrits dans la classe
+  const students = await listStudentsInClass(ctx, classGroupId);
+  const studentIds = students.map(s => s.id);
+  if (studentIds.length === 0) return { students: [], assessments: [], resultats: [] };
+
+  // 2. Évaluations de la classe
+  const assessments = await listAssessmentsFull(ctx, classGroupId);
+  const assessmentIds = assessments.map(a => a.id);
+  if (assessmentIds.length === 0) return { students, assessments: [], resultats: [] };
+
+  // 3. Résultats sans filtre academic_year_id
+  const { data, error } = await ctx.supabase
+    .from(T.RESULTATS)
+    .select("id,student_id,assessment_id,value,level,competency_scores")
+    .eq("school_id", ctx.schoolId)
+    .in("student_id", studentIds)
+    .in("assessment_id", assessmentIds);
+
+  if (error) throw error;
+  return { students, assessments, resultats: (data ?? []) as ResultatFull[] };
+}
+
+// Retourne tous les résultats d'un élève (sans filtre academic_year_id).
+export async function listResultatsForStudentFull(
+  ctx: TeacherContext,
+  studentId: UUID
+): Promise<{ resultats: ResultatFull[]; assessments: AssessmentFull[] }> {
+  const { data: res, error: resErr } = await ctx.supabase
+    .from(T.RESULTATS)
+    .select("id,student_id,assessment_id,value,level,competency_scores")
+    .eq("school_id", ctx.schoolId)
+    .eq("student_id", studentId)
+    .order("assessment_id");
+
+  if (resErr) throw resErr;
+  const resultats = (res ?? []) as ResultatFull[];
+
+  const assessmentIds = Array.from(new Set(resultats.map(r => r.assessment_id)));
+  if (assessmentIds.length === 0) return { resultats: [], assessments: [] };
+
+  const { data: asmt, error: asmtErr } = await ctx.supabase
+    .from(T.ASSESSMENTS)
+    .select("id,title,type,date,max_points,class_group_id,competences_evaluees,cotation_type,apprentissage_id")
+    .eq("school_id", ctx.schoolId)
+    .in("id", assessmentIds)
+    .order("date", { ascending: false });
+
+  if (asmtErr) throw asmtErr;
+  return { resultats, assessments: (asmt ?? []) as AssessmentFull[] };
+}
+
+// Retourne les apprentissages de l'école pour l'année scolaire courante.
+export async function listApprentissages(ctx: TeacherContext): Promise<Apprentissage[]> {
+  const { data, error } = await ctx.supabase
+    .from("apprentissages")
+    .select("id,name,order_index")
+    .eq("school_id", ctx.schoolId)
+    .eq("active", true)
+    .order("order_index", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) {
+    // Table peut ne pas exister encore — mode dégradé
+    if (String(error.message).toLowerCase().includes("does not exist")) return [];
+    throw error;
+  }
+  return (data ?? []) as Apprentissage[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function listAttendanceForDate(
   ctx: TeacherContext,
   params: { date: string; classGroupIds?: UUID[] }
