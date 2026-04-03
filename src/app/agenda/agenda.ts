@@ -1469,7 +1469,6 @@ export async function listAssessmentsForAgenda(params: {
     .from(T.ASSESSMENTS)
     .select("id,title,type,status,date,class_group_id,course_id")
     .eq("school_id", ctx.schoolId)
-    .eq("teacher_user_id", ctx.teacherId)
     .gte("date", dateFrom)
     .lte("date", dateTo)
     .order("date", { ascending: true })
