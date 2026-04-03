@@ -5,18 +5,17 @@ import { usePathname } from "next/navigation";
 type NavItem = { label: string; icon: string; href: string };
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Accueil",       icon: "🏠", href: "/dashboard" },
-  { label: "Agenda",        icon: "📅", href: "/agenda" },
-  { label: "Absences",      icon: "📋", href: "/absences" },
-  { label: "Classes",       icon: "👥", href: "/classe" },
-  { label: "Évaluations",   icon: "📝", href: "/evaluations" },
-  { label: "Vocal 🆕",      icon: "🎙", href: "/vocal" },
-  { label: "Compétences",   icon: "🎯", href: "/competences" },
-  { label: "Bulletins",     icon: "📄", href: "/bulletins" },
-  { label: "Remédiations",  icon: "🩺", href: "/remediations" },
-  { label: "Outils",        icon: "🎲", href: "/outils" },
-  { label: "Générateur IA", icon: "✨", href: "/generateur" },
-  { label: "Historique",    icon: "📚", href: "/historique" },
+  { label: "Accueil",        icon: "🏠", href: "/dashboard" },
+  { label: "Classes",        icon: "👥", href: "/classe" },
+  { label: "Agenda",         icon: "📅", href: "/agenda" },
+  { label: "Évaluations",    icon: "📝", href: "/evaluations" },
+  { label: "Résultats",      icon: "📊", href: "/resultats" },
+  { label: "Remédiations",   icon: "🩺", href: "/remediations" },
+  { label: "Bulletins",      icon: "📄", href: "/bulletins" },
+  { label: "Compétences",    icon: "🎯", href: "/competences" },
+  { label: "Outils",         icon: "🎲", href: "/outils" },
+  { label: "Générateur IA",  icon: "✨", href: "/generateur" },
+  { label: "Historique",     icon: "📚", href: "/historique" },
 ];
 
 export default function ProfShell({ children }: { children: React.ReactNode }) {
