@@ -577,6 +577,8 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [resultsModalOpen, setResultsModalOpen] = useState(false);
+  const [gridModalOpen, setGridModalOpen] = useState(false);
+  const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -693,6 +695,14 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
               🗄 Archiver
             </button>
           )}
+          <button onClick={() => setGridModalOpen(true)}
+            style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #FDE68A", background: "#FFFBEB", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#92400E" }}>
+            📋 Grille
+          </button>
+          <button onClick={() => setCorrectionModalOpen(true)}
+            style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #BAE6FD", background: "#F0F9FF", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#0C4A6E" }}>
+            📷 Corriger
+          </button>
           <button onClick={() => setResultsModalOpen(true)}
             style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #A7F3D0", background: "#ECFDF5", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#065F46" }}>
             📊 Résultats
@@ -712,7 +722,314 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
       </div>
     </div>
     {resultsModalOpen && <ResultsModal a={a} ctx={ctx} onClose={() => setResultsModalOpen(false)} />}
+    {gridModalOpen && <GridEditorModal a={a} ctx={ctx} onClose={() => setGridModalOpen(false)} />}
+    {correctionModalOpen && <CorrectionModal a={a} ctx={ctx} onClose={() => setCorrectionModalOpen(false)} />}
     </>
+  );
+}
+
+// ── GridEditorModal ───────────────────────────────────────────────────────────
+type GridQuestion = {
+  id: string; num: number; text: string;
+  type: "qcm" | "open" | "fill" | "points";
+  points: number; competence: string; expected_answer: string; options: string;
+};
+
+const COMP_LABELS: Record<string, string> = {
+  "": "—", audition: "Audition", lecture: "Lecture",
+  expression_ecrite: "Écrite", orale_sans: "Orale (sans)", orale_avec: "Orale (avec)"
+};
+
+function newQuestion(num: number): GridQuestion {
+  return { id: `q${Date.now()}`, num, text: "", type: "open", points: 1, competence: "", expected_answer: "", options: "" };
+}
+
+function GridEditorModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext; onClose: () => void }) {
+  const [questions, setQuestions] = useState<GridQuestion[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/evaluations/grid?assessment_id=${a.id}`)
+      .then(r => r.json())
+      .then(d => { setQuestions((d.questions ?? []) as GridQuestion[]); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  function addQ() { setQuestions(prev => [...prev, newQuestion(prev.length + 1)]); }
+  function removeQ(id: string) { setQuestions(prev => prev.filter(q => q.id !== id).map((q, i) => ({ ...q, num: i + 1 }))); }
+  function updateQ(id: string, patch: Partial<GridQuestion>) {
+    setQuestions(prev => prev.map(q => q.id === id ? { ...q, ...patch } : q));
+  }
+
+  async function save() {
+    setSaving(true); setMsg(null);
+    try {
+      const res = await fetch("/api/evaluations/grid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assessment_id: a.id, questions }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error);
+      setMsg("✅ Grille sauvegardée");
+      setTimeout(onClose, 1200);
+    } catch (e) { setMsg("❌ " + (e instanceof Error ? e.message : "Erreur")); }
+    finally { setSaving(false); }
+  }
+
+  const totalPts = questions.reduce((s, q) => s + Number(q.points || 0), 0);
+  const inp: React.CSSProperties = { border: "1px solid #E5E7EB", borderRadius: 6, padding: "4px 8px", fontSize: 12, width: "100%" };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 16, padding: 28, width: 820, maxHeight: "88vh", overflowY: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.2)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>📋 Grille de correction — {a.title}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>×</button>
+        </div>
+        {!loaded ? <div style={{ padding: 20, textAlign: "center", color: "#9CA3AF" }}>Chargement…</div> : (
+          <>
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 14 }}>
+              Définis les questions, les réponses attendues et les points. Ces informations serviront à la correction automatique des copies scannées.
+            </div>
+            {questions.map((q, i) => (
+              <div key={q.id} style={{ border: "1px solid #E5E7EB", borderRadius: 10, padding: "12px 14px", marginBottom: 10, background: "#FAFAFA" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#6D28D9", minWidth: 24 }}>Q{i + 1}</span>
+                  <input value={q.text} onChange={e => updateQ(q.id, { text: e.target.value })}
+                    placeholder="Texte de la question…" style={{ ...inp, flex: 3 }} />
+                  <select value={q.type} onChange={e => updateQ(q.id, { type: e.target.value as GridQuestion["type"] })}
+                    style={{ ...inp, flex: 1 }}>
+                    <option value="open">Ouverte</option>
+                    <option value="qcm">QCM</option>
+                    <option value="fill">Texte à trous</option>
+                    <option value="points">Points libres</option>
+                  </select>
+                  <input type="number" value={q.points} onChange={e => updateQ(q.id, { points: Number(e.target.value) })}
+                    min={0} step={0.5} style={{ ...inp, width: 60 }} placeholder="pts" />
+                  <select value={q.competence} onChange={e => updateQ(q.id, { competence: e.target.value })}
+                    style={{ ...inp, flex: 1 }}>
+                    {Object.entries(COMP_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                  <button onClick={() => removeQ(q.id)} style={{ background: "none", border: "none", color: "#EF4444", fontSize: 16, cursor: "pointer", fontWeight: 800 }}>×</button>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input value={q.expected_answer} onChange={e => updateQ(q.id, { expected_answer: e.target.value })}
+                    placeholder="Réponse attendue (ex: Brussel / V / 42)" style={{ ...inp, flex: 2 }} />
+                  {q.type === "qcm" && (
+                    <input value={q.options} onChange={e => updateQ(q.id, { options: e.target.value })}
+                      placeholder="Options séparées par | (ex: Brussel|Amsterdam|Paris)" style={{ ...inp, flex: 3 }} />
+                  )}
+                </div>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center" }}>
+              <button onClick={addQ} style={{ padding: "7px 16px", borderRadius: 8, border: "1px solid #6D28D9", background: "#F5F3FF", color: "#6D28D9", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                + Ajouter une question
+              </button>
+              <span style={{ flex: 1 }} />
+              <span style={{ fontSize: 13, color: "#6B7280", fontWeight: 600 }}>Total : {totalPts} pt{totalPts > 1 ? "s" : ""}</span>
+              <button onClick={save} disabled={saving || !questions.length}
+                style={{ padding: "8px 22px", borderRadius: 8, background: "#6D28D9", color: "#fff", border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                {saving ? "Sauvegarde…" : "💾 Sauvegarder la grille"}
+              </button>
+            </div>
+            {msg && <div style={{ marginTop: 10, fontSize: 13 }}>{msg}</div>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── CorrectionModal ───────────────────────────────────────────────────────────
+type QuestionExtraction = {
+  question_id: string; student_answer: string;
+  suggested_score: number; max_score: number;
+  needs_review: boolean; note?: string;
+};
+type StudentExtraction = {
+  name: string; page_hint?: string;
+  answers: QuestionExtraction[];
+  total_suggested: number; total_max: number;
+};
+
+function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext; onClose: () => void }) {
+  const [step, setStep] = useState<"upload" | "processing" | "review" | "saving" | "done">("upload");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [extractions, setExtractions] = useState<StudentExtraction[]>([]);
+  const [overrides, setOverrides] = useState<Record<string, Record<string, number>>>({});
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  function setScore(studentName: string, qId: string, val: number) {
+    setOverrides(prev => ({ ...prev, [studentName]: { ...(prev[studentName] ?? {}), [qId]: val } }));
+  }
+  function getScore(studentName: string, qId: string, def: number) {
+    return overrides[studentName]?.[qId] ?? def;
+  }
+
+  async function startCorrection() {
+    if (!pdfFile) return;
+    setStep("processing"); setErrorMsg(null);
+    try {
+      const form = new FormData();
+      form.append("pdf", pdfFile);
+      form.append("assessment_id", a.id);
+      const res = await fetch("/api/evaluations/correct", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erreur serveur");
+      setExtractions(data.students ?? []);
+      setStep("review");
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "Erreur");
+      setStep("upload");
+    }
+  }
+
+  async function saveAll() {
+    setStep("saving");
+    try {
+      // Associer chaque élève à son student_id via la DB
+      const { data: enr } = await ctx.supabase
+        .from("student_enrollments")
+        .select("student_id, students(id, first_name, last_name)")
+        .eq("class_group_id", a.class_group_id ?? "");
+
+      const studMap: Record<string, string> = {};
+      for (const e of enr ?? []) {
+        const s = (e as any).students;
+        if (s) studMap[`${s.first_name} ${s.last_name}`.toLowerCase()] = s.id;
+      }
+
+      for (const stud of extractions) {
+        const nameKey = stud.name.toLowerCase();
+        const studentId = Object.keys(studMap).find(k => nameKey.includes(k) || k.includes(nameKey))
+          ? studMap[Object.keys(studMap).find(k => nameKey.includes(k) || k.includes(nameKey))!]
+          : null;
+        if (!studentId) continue;
+
+        const total = stud.answers.reduce((s, ans) => s + getScore(stud.name, ans.question_id, ans.suggested_score), 0);
+        const competencyScores: Record<string, number> = {};
+        // Si l'assessment a des compétences évaluées, calculer les scores par compétence
+        await upsertResult({ ctx, assessmentId: a.id, studentId, value: total, competencyScores });
+      }
+      setStep("done");
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "Erreur lors de la sauvegarde");
+      setStep("review");
+    }
+  }
+
+  const overlayStyle: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center" };
+  const boxStyle: React.CSSProperties = { background: "#fff", borderRadius: 16, padding: 28, width: 900, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.2)" };
+
+  if (step === "done") return (
+    <div style={overlayStyle}><div style={{ ...boxStyle, textAlign: "center" }}>
+      <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
+      <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Résultats enregistrés !</div>
+      <div style={{ fontSize: 14, color: "#6B7280", marginBottom: 20 }}>{extractions.length} élève(s) enregistré(s).</div>
+      <button onClick={onClose} style={{ padding: "10px 28px", borderRadius: 10, background: "#6D28D9", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Fermer</button>
+    </div></div>
+  );
+
+  return (
+    <div style={overlayStyle}>
+      <div style={boxStyle}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>📷 Correction automatique — {a.title}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }}>×</button>
+        </div>
+
+        {(step === "upload" || step === "processing") && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "24px 0" }}>
+            <div style={{ fontSize: 13, color: "#6B7280", textAlign: "center", maxWidth: 500 }}>
+              Upload un PDF multi-pages contenant les copies de tous les élèves. L'IA identifiera chaque élève, lira ses réponses et proposera une note.
+            </div>
+            <div onClick={() => fileRef.current?.click()}
+              style={{ border: "2px dashed #D1D5DB", borderRadius: 12, padding: "32px 48px", cursor: "pointer", textAlign: "center", background: pdfFile ? "#F0FDF4" : "#FAFAFA", transition: "all .2s" }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>{pdfFile ? "📄" : "☁️"}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: pdfFile ? "#166534" : "#374151" }}>
+                {pdfFile ? pdfFile.name : "Cliquer pour sélectionner le PDF des copies"}
+              </div>
+              {pdfFile && <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>{(pdfFile.size / 1024 / 1024).toFixed(1)} MB</div>}
+            </div>
+            <input ref={fileRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={e => setPdfFile(e.target.files?.[0] ?? null)} />
+            {errorMsg && <div style={{ color: "#B91C1C", fontSize: 13, background: "#FEF2F2", padding: "8px 14px", borderRadius: 8 }}>{errorMsg}</div>}
+            <button onClick={startCorrection} disabled={!pdfFile || step === "processing"}
+              style={{ padding: "10px 28px", borderRadius: 10, background: step === "processing" ? "#9CA3AF" : "#0C4A6E", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+              {step === "processing" ? "⏳ L'IA analyse les copies…" : "🚀 Lancer la correction"}
+            </button>
+            {step === "processing" && <div style={{ fontSize: 12, color: "#9CA3AF" }}>Selon le nombre de copies, cela peut prendre 30–90 secondes…</div>}
+          </div>
+        )}
+
+        {step === "review" && (
+          <>
+            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 14 }}>
+              Vérifie et ajuste les scores. Les <span style={{ color: "#D97706", fontWeight: 700 }}>questions ouvertes</span> nécessitent ta validation. Clique sur un score pour le modifier.
+            </div>
+            {extractions.map(stud => {
+              const total = stud.answers.reduce((s, ans) => s + getScore(stud.name, ans.question_id, ans.suggested_score), 0);
+              return (
+                <div key={stud.name} style={{ border: "1px solid #E5E7EB", borderRadius: 10, marginBottom: 14, overflow: "hidden" }}>
+                  <div style={{ background: "#F3F4F6", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 700, fontSize: 14 }}>{stud.name}</span>
+                    {stud.page_hint && <span style={{ fontSize: 11, color: "#9CA3AF" }}>{stud.page_hint}</span>}
+                    <span style={{ fontWeight: 800, fontSize: 15, color: "#6D28D9" }}>{total.toFixed(1)} / {stud.total_max}</span>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead><tr style={{ background: "#FAFAFA" }}>
+                      <th style={{ textAlign: "left", padding: "5px 10px", borderBottom: "1px solid #E5E7EB" }}>Q</th>
+                      <th style={{ textAlign: "left", padding: "5px 10px", borderBottom: "1px solid #E5E7EB" }}>Réponse élève</th>
+                      <th style={{ padding: "5px 10px", borderBottom: "1px solid #E5E7EB" }}>Score</th>
+                      <th style={{ padding: "5px 10px", borderBottom: "1px solid #E5E7EB" }}>Max</th>
+                    </tr></thead>
+                    <tbody>
+                      {stud.answers.map(ans => (
+                        <tr key={ans.question_id} style={{ borderBottom: "1px solid #F3F4F6", background: ans.needs_review ? "#FFFBEB" : undefined }}>
+                          <td style={{ padding: "5px 10px", fontWeight: 700, color: "#6D28D9" }}>{ans.question_id}</td>
+                          <td style={{ padding: "5px 10px", maxWidth: 300 }}>
+                            {ans.student_answer || <em style={{ color: "#9CA3AF" }}>Non répondu</em>}
+                            {ans.note && <div style={{ fontSize: 11, color: "#D97706" }}>💬 {ans.note}</div>}
+                            {ans.needs_review && <span style={{ fontSize: 10, background: "#FDE68A", color: "#92400E", borderRadius: 4, padding: "1px 5px", marginLeft: 4 }}>À valider</span>}
+                          </td>
+                          <td style={{ padding: "5px 10px", textAlign: "center" }}>
+                            <input type="number" min={0} max={ans.max_score} step={0.5}
+                              value={getScore(stud.name, ans.question_id, ans.suggested_score)}
+                              onChange={e => setScore(stud.name, ans.question_id, Number(e.target.value))}
+                              style={{ width: 52, textAlign: "center", border: "1px solid #D1D5DB", borderRadius: 6, padding: "2px 4px" }} />
+                          </td>
+                          <td style={{ padding: "5px 10px", textAlign: "center", color: "#9CA3AF" }}>{ans.max_score}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })}
+            {errorMsg && <div style={{ color: "#B91C1C", fontSize: 13, marginBottom: 10 }}>{errorMsg}</div>}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 }}>
+              <button onClick={() => setStep("upload")} style={{ padding: "8px 18px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                ← Recommencer
+              </button>
+              <button onClick={saveAll}
+                style={{ padding: "9px 24px", borderRadius: 8, background: "#166534", color: "#fff", border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                ✅ Valider et enregistrer tous les résultats
+              </button>
+            </div>
+          </>
+        )}
+
+        {step === "saving" && (
+          <div style={{ textAlign: "center", padding: "32px 0" }}>
+            <div style={{ fontSize: 32, marginBottom: 8 }}>⏳</div>
+            <div style={{ fontSize: 14, color: "#6B7280" }}>Enregistrement des résultats…</div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
