@@ -82,7 +82,10 @@ function LevelBadge({ level }: { level: Level | null }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const LS_KEY = "klasbook_apprentissage_label";
+
 export default function CompetencesPage() {
+  const [pageLabel, setPageLabel] = useState<"Apprentissages" | "Périodes">("Apprentissages");
   const [ctx, setCtx] = useState<TeacherContext | null>(null);
   const [classes, setClasses] = useState<ClassGroup[]>([]);
   const [selectedClass, setSelectedClass] = useState<ClassGroup | null>(null);
@@ -95,6 +98,19 @@ export default function CompetencesPage() {
   const [loading, setLoading] = useState(true);
   const [loadingClass, setLoadingClass] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Label toggle (Apprentissages / Périodes)
+  useEffect(() => {
+    const saved = localStorage.getItem(LS_KEY) as "Apprentissages" | "Périodes" | null;
+    if (saved === "Apprentissages" || saved === "Périodes") setPageLabel(saved);
+  }, []);
+
+  function toggleLabel() {
+    const next = pageLabel === "Apprentissages" ? "Périodes" : "Apprentissages";
+    setPageLabel(next);
+    localStorage.setItem(LS_KEY, next);
+    window.dispatchEvent(new StorageEvent("storage", { key: LS_KEY, newValue: next }));
+  }
 
   // Init
   useEffect(() => {
@@ -291,6 +307,19 @@ export default function CompetencesPage() {
 
   return (
     <div>
+        {/* Titre + toggle label */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+          <h1 style={{ fontSize: "1.4rem", fontWeight: 900, color: "#0f172a", margin: 0 }}>
+            🎯 {pageLabel}
+          </h1>
+          <button
+            onClick={toggleLabel}
+            title={`Basculer vers "${pageLabel === "Apprentissages" ? "Périodes" : "Apprentissages"}"`}
+            style={{ padding: "6px 14px", borderRadius: 20, border: "1.5px solid #e2e8f0", background: "#f8fafc", fontSize: 12, fontWeight: 700, color: "#475569", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            🔄 Renommer en « {pageLabel === "Apprentissages" ? "Périodes" : "Apprentissages"} »
+          </button>
+        </div>
+
         {error && (
           <div style={{ background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.25)", borderRadius: 12, padding: "12px 16px", marginBottom: 20, color: "#991B1B" }}>
             Erreur : {error}

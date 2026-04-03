@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 
 type NavItem = { label: string; icon: string; href: string };
 
-const NAV_ITEMS: NavItem[] = [
+const BASE_NAV_ITEMS: NavItem[] = [
   { label: "Accueil",        icon: "🏠", href: "/dashboard" },
   { label: "Classes",        icon: "👥", href: "/classe" },
   { label: "Agenda",         icon: "📅", href: "/agenda" },
@@ -13,16 +13,19 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Résultats",      icon: "📊", href: "/resultats" },
   { label: "Remédiations",   icon: "🩺", href: "/remediations" },
   { label: "Bulletins",      icon: "📄", href: "/bulletins" },
-  { label: "Compétences",    icon: "🎯", href: "/competences" },
+  { label: "Apprentissages", icon: "🎯", href: "/competences" },
   { label: "Outils",         icon: "🎲", href: "/outils" },
   { label: "Générateur IA",  icon: "✨", href: "/generateur" },
   { label: "Historique",     icon: "📚", href: "/historique" },
 ];
 
+const LS_KEY = "klasbook_apprentissage_label";
+
 export default function ProfShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [loggingOut, setLoggingOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [apprentissageLabel, setApprentissageLabel] = useState<string>("Apprentissages");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
@@ -33,6 +36,21 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  // Label "Apprentissages" / "Périodes" — synchronisé avec localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(LS_KEY);
+    if (saved) setApprentissageLabel(saved);
+    const handler = (e: StorageEvent) => {
+      if (e.key === LS_KEY && e.newValue) setApprentissageLabel(e.newValue);
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+
+  const NAV_ITEMS = BASE_NAV_ITEMS.map(item =>
+    item.href === "/competences" ? { ...item, label: apprentissageLabel } : item
+  );
 
   useEffect(() => {
     if (!menuOpen) return;

@@ -621,31 +621,65 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
     ? { bg: "#EFF6FF", text: "#1D4ED8", border: "#BFDBFE" }
     : { bg: "#F5F3FF", text: "#6D28D9", border: "#DDD6FE" };
 
+  // Style commun pour les boutons d'action
+  const abtn = (bg: string, color: string, border: string): React.CSSProperties => ({
+    height: 28, padding: "0 10px", borderRadius: 8, border: `1px solid ${border}`,
+    background: bg, cursor: "pointer", fontSize: 11, fontWeight: 700, color,
+    whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4,
+  });
+
   return (
     <>
     <div id={`card-${a.id}`} style={{
       background: "#FFF", borderRadius: 14,
       border: highlighted ? "2px solid #0A84FF" : "1px solid #E5E7EB",
       boxShadow: highlighted ? "0 0 0 4px rgba(10,132,255,.1)" : "0 1px 3px rgba(0,0,0,.05)",
-      padding: "16px 18px", transition: "box-shadow .3s",
+      padding: "14px 16px", transition: "box-shadow .3s",
       opacity: isArchived ? 0.7 : 1,
+      display: "flex", flexDirection: "column", gap: 12,
     }}>
-      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-        <div style={{ width: 42, height: 42, borderRadius: 12, background: typeColor.bg, border: `1px solid ${typeColor.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+
+      {/* ── BARRE D'ACTIONS HORIZONTALE (haut) ── */}
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+        {/* Status publier/brouillon/restaurer */}
+        {!isArchived && (
+          <button onClick={() => onToggleStatus(a)} style={abtn(isPublished ? "#FFFBEB" : "#F0FDF4", isPublished ? "#92400E" : "#166534", isPublished ? "#FDE68A" : "#BBF7D0")}>
+            {isPublished ? "↩ Brouillon" : "✓ Publier"}
+          </button>
+        )}
+        {isArchived && (
+          <button onClick={() => onToggleStatus(a)} style={abtn("#F0FDF4", "#166534", "#BBF7D0")}>
+            ↩ Restaurer
+          </button>
+        )}
+        {/* Séparateur */}
+        {!isArchived && <div style={{ width: 1, height: 20, background: "#E5E7EB", margin: "0 2px" }} />}
+        <button onClick={() => setGridModalOpen(true)} style={abtn("#FFFBEB", "#92400E", "#FDE68A")}>📋 Grille</button>
+        <button onClick={() => setCorrectionModalOpen(true)} style={abtn("#F0F9FF", "#0C4A6E", "#BAE6FD")}>📷 Corriger</button>
+        <button onClick={() => setResultsModalOpen(true)} style={abtn("#ECFDF5", "#065F46", "#A7F3D0")}>📊 Résultats</button>
+
+        {/* Badges statut à droite */}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 5, alignItems: "center" }}>
+          {isPublished && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>✓ Publiée</span>}
+          {a.status === "draft" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#FFFBEB", color: "#92400E", border: "1px solid #FDE68A" }}>Brouillon</span>}
+          {isArchived && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#F3F4F6", color: "#6B7280", border: "1px solid #E5E7EB" }}>Archivée</span>}
+          {a.parent_visible && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>👪 Parents</span>}
+        </div>
+      </div>
+
+      {/* ── CORPS DE LA CARD ── */}
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <div style={{ width: 40, height: 40, borderRadius: 11, background: typeColor.bg, border: `1px solid ${typeColor.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
           {isFormative ? "📊" : "🎓"}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: typeColor.bg, color: typeColor.text, border: `1px solid ${typeColor.border}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: typeColor.bg, color: typeColor.text, border: `1px solid ${typeColor.border}` }}>
               {isFormative ? "Formative" : "Sommative"}
             </span>
-            {isPublished && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>✓ Publiée</span>}
-            {a.status === "draft" && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#FFFBEB", color: "#92400E", border: "1px solid #FDE68A" }}>Brouillon</span>}
-            {isArchived && <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#F3F4F6", color: "#6B7280", border: "1px solid #E5E7EB" }}>Archivée</span>}
-            {a.parent_visible && <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>👪 Parents</span>}
           </div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", marginBottom: 5 }}>{a.title}</div>
-          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, color: "#6B7280", fontWeight: 500 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", marginBottom: 4 }}>{a.title}</div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: "#6B7280", fontWeight: 500 }}>
             {a.date && <span>📅 {formatDateFR(a.date)}</span>}
             {a.max_points && <span>🎯 {a.max_points} pts</span>}
             {a.apprentissage_id && apprentissageNameById.get(a.apprentissage_id) && (
@@ -653,74 +687,58 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
             )}
           </div>
           {a.instructions && (
-            <div style={{ marginTop: 7, fontSize: 12, color: "#6B7280", background: "#F9FAFB", borderRadius: 8, padding: "5px 9px", fontStyle: "italic" }}>
+            <div style={{ marginTop: 6, fontSize: 12, color: "#6B7280", background: "#F9FAFB", borderRadius: 8, padding: "4px 8px", fontStyle: "italic" }}>
               {a.instructions}
             </div>
           )}
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 8 }}>
             <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.png,.jpg" style={{ display: "none" }}
               onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); e.target.value = ""; }} />
             {a.fichier_path ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0" }}>
-                <span style={{ fontSize: 16 }}>📎</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 9px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0" }}>
+                <span style={{ fontSize: 14 }}>📎</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: "#166534", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.fichier_nom}</span>
                 <button onClick={handleDownload} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, border: "1px solid #BBF7D0", background: "#DCFCE7", color: "#166534", cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>⬇ Ouvrir</button>
                 <button onClick={handleDeleteFile} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 6, border: "1px solid #FECACA", background: "#FEF2F2", color: "#B91C1C", cursor: "pointer", fontWeight: 600 }}>✕</button>
               </div>
             ) : (
               <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 8, border: "1.5px dashed #D1D5DB", background: uploading ? "#F9FAFB" : "#FFF", color: "#9CA3AF", fontSize: 12, cursor: uploading ? "not-allowed" : "pointer", fontWeight: 500 }}>
-                <span>📎</span>
-                {uploading ? "Upload en cours…" : "Joindre un fichier PDF / Word"}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 8, border: "1.5px dashed #D1D5DB", background: uploading ? "#F9FAFB" : "#FFF", color: "#9CA3AF", fontSize: 12, cursor: uploading ? "not-allowed" : "pointer", fontWeight: 500 }}>
+                <span>📎</span>{uploading ? "Upload en cours…" : "Joindre un fichier PDF / Word"}
               </button>
             )}
-            {uploadMsg && <div style={{ fontSize: 11, marginTop: 4, color: uploadMsg.startsWith("✅") ? "#166534" : "#B91C1C" }}>{uploadMsg}</div>}
+            {uploadMsg && <div style={{ fontSize: 11, marginTop: 3, color: uploadMsg.startsWith("✅") ? "#166534" : "#B91C1C" }}>{uploadMsg}</div>}
           </div>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
-          {!isArchived && (
-            <button onClick={() => onToggleStatus(a)}
-              style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #E5E7EB", background: isPublished ? "#FFFBEB" : "#F0FDF4", cursor: "pointer", fontSize: 11, fontWeight: 700, color: isPublished ? "#92400E" : "#166534", whiteSpace: "nowrap" }}>
-              {isPublished ? "↩ Brouillon" : "✓ Publier"}
-            </button>
-          )}
-          {isArchived && (
-            <button onClick={() => onToggleStatus(a)}
-              style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #BBF7D0", background: "#F0FDF4", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#166534" }}>
-              ↩ Restaurer
-            </button>
-          )}
-          {!isArchived && (
-            <button onClick={() => onArchive(a)}
-              style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#6B7280" }}>
-              🗄 Archiver
-            </button>
-          )}
-          <button onClick={() => setGridModalOpen(true)}
-            style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #FDE68A", background: "#FFFBEB", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#92400E" }}>
-            📋 Grille
-          </button>
-          <button onClick={() => setCorrectionModalOpen(true)}
-            style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #BAE6FD", background: "#F0F9FF", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#0C4A6E" }}>
-            📷 Corriger
-          </button>
-          <button onClick={() => setResultsModalOpen(true)}
-            style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #A7F3D0", background: "#ECFDF5", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#065F46" }}>
-            📊 Résultats
-          </button>
-          {!confirmDelete ? (
-            <button onClick={() => setConfirmDelete(true)}
-              style={{ height: 30, padding: "0 10px", borderRadius: 8, border: "1px solid #FECACA", background: "#FEF2F2", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>
-              🗑 Supprimer
-            </button>
-          ) : (
-            <div style={{ display: "flex", gap: 3 }}>
-              <button onClick={() => onDelete(a.id)} style={{ height: 30, padding: "0 8px", borderRadius: 8, border: "1px solid #F87171", background: "#FEF2F2", cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#B91C1C" }}>Confirmer</button>
-              <button onClick={() => setConfirmDelete(false)} style={{ height: 30, padding: "0 8px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontSize: 11 }}>×</button>
-            </div>
-          )}
-        </div>
       </div>
+
+      {/* ── BARRE INFÉRIEURE : Archiver + Supprimer ── */}
+      <div style={{ display: "flex", gap: 8, paddingTop: 10, borderTop: "1px solid #F3F4F6" }}>
+        {!isArchived && (
+          <button onClick={() => onArchive(a)}
+            style={{ flex: 1, height: 32, borderRadius: 9, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#6B7280", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+            🗄 Archiver
+          </button>
+        )}
+        {!confirmDelete ? (
+          <button onClick={() => setConfirmDelete(true)}
+            style={{ flex: 1, height: 32, borderRadius: 9, border: "1px solid #FECACA", background: "#FEF2F2", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#B91C1C", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+            🗑 Supprimer
+          </button>
+        ) : (
+          <div style={{ flex: 1, display: "flex", gap: 5 }}>
+            <button onClick={() => onDelete(a.id)}
+              style={{ flex: 1, height: 32, borderRadius: 9, border: "1px solid #F87171", background: "#FEF2F2", cursor: "pointer", fontSize: 12, fontWeight: 800, color: "#B91C1C" }}>
+              ✓ Confirmer suppression
+            </button>
+            <button onClick={() => setConfirmDelete(false)}
+              style={{ height: 32, width: 32, borderRadius: 9, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#6B7280" }}>
+              ×
+            </button>
+          </div>
+        )}
+      </div>
+
     </div>
     {resultsModalOpen && <ResultsModal a={a} ctx={ctx} onClose={() => setResultsModalOpen(false)} />}
     {gridModalOpen && <GridEditorModal a={a} ctx={ctx} onClose={() => setGridModalOpen(false)} />}
