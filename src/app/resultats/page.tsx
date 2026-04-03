@@ -305,10 +305,15 @@ function VueEleve({ ctx, classes }: { ctx: TeacherContext; classes: ClassGroup[]
 
 // ─── VUE PAR ÉVALUATION ───────────────────────────────────────────────────────
 
-function VueEvaluation({ ctx, classes }: { ctx: TeacherContext; classes: ClassGroup[] }) {
-  const [classId, setClassId] = useState<string>("");
+function VueEvaluation({ ctx, classes, initialClassId, initialAssessmentId }: {
+  ctx: TeacherContext;
+  classes: ClassGroup[];
+  initialClassId?: string | null;
+  initialAssessmentId?: string | null;
+}) {
+  const [classId, setClassId] = useState<string>(initialClassId ?? "");
   const [assessments, setAssessments] = useState<AssessmentFull[]>([]);
-  const [assessmentId, setAssessmentId] = useState<string>("");
+  const [assessmentId, setAssessmentId] = useState<string>(initialAssessmentId ?? "");
   const [students, setStudents] = useState<Student[]>([]);
   const [resultats, setResultats] = useState<ResultatFull[]>([]);
   const [loading, setLoading] = useState(false);
@@ -539,8 +544,19 @@ export default function ResultatsPage() {
   const [apprentissages, setApprentissages] = useState<Apprentissage[]>([]);
   const [tab, setTab] = useState<Tab>("classe");
   const [initError, setInitError] = useState<string | null>(null);
+  const [urlClassId, setUrlClassId] = useState<string | null>(null);
+  const [urlAssessmentId, setUrlAssessmentId] = useState<string | null>(null);
 
   useEffect(() => {
+    // Lire les paramètres URL pour pré-sélectionner la vue/classe/évaluation
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get("view") as Tab | null;
+    const cid = params.get("classId");
+    const aid = params.get("assessmentId");
+    if (view) setTab(view);
+    if (cid) setUrlClassId(cid);
+    if (aid) setUrlAssessmentId(aid);
+
     getTeacherContext()
       .then(async (c) => {
         setCtx(c);
@@ -613,7 +629,7 @@ export default function ResultatsPage() {
       {/* Contenu */}
       {tab === "classe"        && <VueClasse        ctx={ctx} classes={classes} />}
       {tab === "eleve"         && <VueEleve         ctx={ctx} classes={classes} />}
-      {tab === "evaluation"    && <VueEvaluation    ctx={ctx} classes={classes} />}
+      {tab === "evaluation"    && <VueEvaluation    ctx={ctx} classes={classes} initialClassId={urlClassId} initialAssessmentId={urlAssessmentId} />}
       {tab === "apprentissage" && <VueApprentissage ctx={ctx} classes={classes} apprentissages={apprentissages} />}
     </div>
   );

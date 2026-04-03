@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { formatDateFR } from "@/lib/date";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -856,6 +857,7 @@ type StudentExtraction = {
 };
 
 function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext; onClose: () => void }) {
+  const router = useRouter();
   const [step, setStep] = useState<"upload" | "processing" | "review" | "saving" | "done">("upload");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [extractions, setExtractions] = useState<StudentExtraction[]>([]);
@@ -929,8 +931,15 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
     <div style={overlayStyle}><div style={{ ...boxStyle, textAlign: "center" }}>
       <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
       <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Résultats enregistrés !</div>
-      <div style={{ fontSize: 14, color: "#6B7280", marginBottom: 20 }}>{extractions.length} élève(s) enregistré(s).</div>
-      <button onClick={onClose} style={{ padding: "10px 28px", borderRadius: 10, background: "#6D28D9", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Fermer</button>
+      <div style={{ fontSize: 14, color: "#6B7280", marginBottom: 24 }}>{extractions.length} élève(s) enregistré(s).</div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+        <button onClick={onClose} style={{ padding: "10px 22px", borderRadius: 10, background: "#F3F4F6", color: "#374151", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>Fermer</button>
+        <button
+          onClick={() => { onClose(); router.push(`/resultats?view=evaluation&classId=${a.class_group_id ?? ""}&assessmentId=${a.id}`); }}
+          style={{ padding: "10px 22px", borderRadius: 10, background: "#0C4A6E", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+          📊 Voir dans Résultats
+        </button>
+      </div>
     </div></div>
   );
 
@@ -1037,6 +1046,7 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
 const NISBTTB_OPTS = ["NI", "I", "S", "B", "TB"];
 
 function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext; onClose: () => void }) {
+  const router = useRouter();
   const [students, setStudents] = useState<Array<{ id: UUID; display_name: string }>>([]);
   const [scores, setScores] = useState<Record<UUID, { value: string; competencyScores: Record<string, string> }>>({});
   const [saving, setSaving] = useState(false);
@@ -1140,12 +1150,19 @@ function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext;
             ))}
           </tbody>
         </table>
-        <div style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 10, marginTop: 18, alignItems: "center", flexWrap: "wrap" }}>
           <button onClick={handleSave} disabled={saving}
             style={{ padding: "8px 20px", borderRadius: 8, background: "#6D28D9", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
             {saving ? "Sauvegarde…" : "💾 Sauvegarder"}
           </button>
           {msg && <span style={{ fontSize: 13 }}>{msg}</span>}
+          {msg?.startsWith("✅") && (
+            <button
+              onClick={() => { onClose(); router.push(`/resultats?view=evaluation&classId=${a.class_group_id ?? ""}&assessmentId=${a.id}`); }}
+              style={{ padding: "8px 18px", borderRadius: 8, background: "#0C4A6E", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+              📊 Voir dans Résultats
+            </button>
+          )}
         </div>
       </div>
     </div>

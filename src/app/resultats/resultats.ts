@@ -797,6 +797,23 @@ export async function listApprentissages(ctx: TeacherContext): Promise<Apprentis
   return (data ?? []) as Apprentissage[];
 }
 
+// Retire un élève d'une classe (supprime l'inscription, pas l'élève lui-même).
+export async function removeStudentFromClass(
+  ctx: TeacherContext,
+  classGroupId: UUID,
+  studentId: UUID
+): Promise<void> {
+  const { error } = await ctx.supabase
+    .from(T.STUDENT_ENROLLMENTS)
+    .delete()
+    .eq("school_id", ctx.schoolId)
+    .eq("academic_year_id", ctx.academicYearId)
+    .eq("class_group_id", classGroupId)
+    .eq("student_id", studentId);
+
+  if (error) throw error;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function listAttendanceForDate(
