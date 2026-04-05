@@ -18,6 +18,7 @@ type Eval = { id: string; title: string; date: string | null; type: string | nul
 type NoteRecente = { id: string; eleve_nom: string; note: string; created_at: string };
 
 type DashboardData = {
+  teacher_first_name?: string;
   stats: Stats;
   eleves_en_difficulte: EleveNI[];
   rem_recentes: Rem[];
@@ -105,7 +106,7 @@ export default function DashboardPage() {
   );
 
   if (!data) return null;
-  const { stats, eleves_en_difficulte, rem_recentes, notes_recentes = [], evals_recentes } = data;
+  const { teacher_first_name, stats, eleves_en_difficulte, rem_recentes, notes_recentes = [], evals_recentes } = data;
   const tauxNI = stats.nb_eleves > 0 ? Math.round((stats.nb_ni / stats.nb_eleves) * 100) : 0;
 
   return (
@@ -118,7 +119,7 @@ export default function DashboardPage() {
         padding: "28px 28px 24px", color: "#fff",
         boxShadow: "0 8px 30px rgba(255,59,48,0.25)",
       }}>
-        <div style={{ fontSize: 26, fontWeight: 900 }}>Bonjour 👋</div>
+        <div style={{ fontSize: 26, fontWeight: 900 }}>Bonjour{teacher_first_name ? ` ${teacher_first_name}` : ""} 👋</div>
         <div style={{ marginTop: 6, opacity: 0.88, fontSize: 15 }}>
           Voici un aperçu de ta classe au {new Date().toLocaleDateString("fr-BE", { weekday: "long", day: "numeric", month: "long" })}.
         </div>

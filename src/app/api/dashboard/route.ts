@@ -121,7 +121,13 @@ export async function GET() {
     const rt = remTerminees ?? 0;
     const ra = remActives ?? 0;
 
+    // Prénom du prof depuis user_metadata ou email
+    const meta = userData.user.user_metadata ?? {};
+    const teacherFirstName: string =
+      meta.first_name ?? meta.given_name ?? meta.name?.split(" ")[0] ?? userData.user.email?.split("@")[0] ?? "";
+
     return NextResponse.json({
+      teacher_first_name: teacherFirstName,
       stats: {
         nb_eleves: nbEleves ?? 0,
         nb_classes: nbClasses ?? 0,

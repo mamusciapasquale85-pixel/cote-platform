@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 
 type NavItem = { label: string; icon: string; href: string };
 
+// Items principaux (toujours visibles dans la nav)
 const BASE_NAV_ITEMS: NavItem[] = [
   { label: "Accueil",        icon: "🏠", href: "/dashboard" },
   { label: "Classes",        icon: "👥", href: "/classe" },
@@ -14,9 +15,13 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { label: "Remédiations",   icon: "🩺", href: "/remediations" },
   { label: "Bulletins",      icon: "📄", href: "/bulletins" },
   { label: "Apprentissages", icon: "🎯", href: "/competences" },
-  { label: "Outils",         icon: "🎲", href: "/outils" },
-  { label: "Générateur IA",  icon: "✨", href: "/generateur" },
-  { label: "Historique",     icon: "📚", href: "/historique" },
+];
+
+// Items secondaires (dans le menu "⋯ Plus")
+const MORE_NAV_ITEMS: NavItem[] = [
+  { label: "Outils",        icon: "🎲", href: "/outils" },
+  { label: "Générateur IA", icon: "✨", href: "/generateur" },
+  { label: "Historique",    icon: "📚", href: "/historique" },
 ];
 
 const LS_KEY = "klasbook_apprentissage_label";
@@ -25,10 +30,12 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [loggingOut, setLoggingOut] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [apprentissageLabel, setApprentissageLabel] = useState<string>("Apprentissages");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 900);
@@ -52,16 +59,17 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
     item.href === "/competences" ? { ...item, label: apprentissageLabel } : item
   );
 
+  const ALL_ITEMS = [...NAV_ITEMS, ...MORE_NAV_ITEMS];
+
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !moreOpen) return;
     function handleOutsideClick(e: MouseEvent) {
-      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
+      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
     }
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [menuOpen]);
+  }, [menuOpen, moreOpen]);
 
   function handleLogout() {
     setLoggingOut(true);
@@ -73,7 +81,8 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
     return pathname === href || (href !== "/" && pathname?.startsWith(href));
   }
 
-  const currentPage = NAV_ITEMS.find(i => isActive(i.href));
+  const currentPage = ALL_ITEMS.find(i => isActive(i.href));
+  const moreActive = MORE_NAV_ITEMS.some(i => isActive(i.href));
 
   return (
     <div style={{ minHeight: "100vh", background: "#F7F8FC", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
@@ -163,27 +172,66 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* LIGNE 2 : tous les onglets nav (desktop) */}
+          {/* LIGNE 2 : nav principale + menu "⋯ Plus" (desktop) */}
           {!isMobile && (
-            <nav style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 2, paddingBottom: 6 }}>
+            <nav style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 1, paddingBottom: 6, overflow: "hidden" }}>
               {NAV_ITEMS.map(item => {
                 const active = isActive(item.href);
                 return (
                   <a key={item.href} href={item.href} style={{
-                    display: "flex", alignItems: "center", gap: 5,
-                    padding: "5px 10px", borderRadius: 8,
-                    textDecoration: "none", fontSize: "0.82rem",
+                    display: "flex", alignItems: "center", gap: 4,
+                    padding: "5px 9px", borderRadius: 8,
+                    textDecoration: "none", fontSize: "0.80rem",
                     fontWeight: active ? 700 : 500,
                     color: active ? "#0f172a" : "#64748b",
                     background: active ? "rgba(15,23,42,0.07)" : "transparent",
                     whiteSpace: "nowrap",
                     borderBottom: active ? "2px solid #0A84FF" : "2px solid transparent",
+                    flexShrink: 0,
                   }}>
-                    <span style={{ fontSize: 13 }}>{item.icon}</span>
+                    <span style={{ fontSize: 12 }}>{item.icon}</span>
                     {item.label}
                   </a>
                 );
               })}
+
+              {/* Menu "⋯ Plus" pour les items secondaires */}
+              <div ref={moreRef} style={{ position: "relative", flexShrink: 0, marginLeft: 2 }}>
+                <button onClick={() => setMoreOpen(v => !v)} style={{
+                  display: "flex", alignItems: "center", gap: 4,
+                  padding: "5px 9px", borderRadius: 8,
+                  background: moreActive ? "rgba(15,23,42,0.07)" : moreOpen ? "rgba(15,23,42,0.05)" : "transparent",
+                  border: "none", cursor: "pointer", fontSize: "0.80rem",
+                  fontWeight: moreActive ? 700 : 500,
+                  color: moreActive ? "#0f172a" : "#64748b",
+                  whiteSpace: "nowrap",
+                  borderBottom: moreActive ? "2px solid #0A84FF" : "2px solid transparent",
+                }}>
+                  ⋯ Plus
+                </button>
+                {moreOpen && (
+                  <div style={{
+                    position: "absolute", top: 36, left: 0, zIndex: 300,
+                    background: "#fff", borderRadius: 12, border: "1px solid rgba(15,23,42,0.1)",
+                    boxShadow: "0 8px 32px rgba(15,23,42,0.14)", padding: 6, minWidth: 160,
+                  }}>
+                    {MORE_NAV_ITEMS.map(item => {
+                      const active = isActive(item.href);
+                      return (
+                        <a key={item.href} href={item.href} onClick={() => setMoreOpen(false)} style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          padding: "9px 12px", borderRadius: 8, textDecoration: "none",
+                          fontSize: "0.875rem", fontWeight: active ? 700 : 500,
+                          color: active ? "#0f172a" : "#334155",
+                          background: active ? "rgba(10,132,255,0.07)" : "transparent",
+                        }}>
+                          <span>{item.icon}</span>{item.label}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </nav>
           )}
 
@@ -198,7 +246,7 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
           boxShadow: "0 8px 24px rgba(15,23,42,0.12)",
           padding: "8px 12px 12px",
         }}>
-          {NAV_ITEMS.map(item => {
+          {ALL_ITEMS.map(item => {
             const active = isActive(item.href);
             return (
               <a key={item.href} href={item.href} onClick={() => setMobileNavOpen(false)} style={{
