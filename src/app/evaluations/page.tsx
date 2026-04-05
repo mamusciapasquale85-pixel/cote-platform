@@ -866,28 +866,36 @@ function GridEditorModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
 type QuestionExtraction = {
   question_id: string; student_answer: string;
   suggested_score: number; max_score: number;
-  needs_review: boolean; note?: string;
+  needs_review: boolean; illegible?: boolean; note?: string;
 };
 type StudentExtraction = {
   name: string; page_hint?: string;
   answers: QuestionExtraction[];
   total_suggested: number; total_max: number;
+  score_sur_10?: number;
 };
 
 function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext; onClose: () => void }) {
   const router = useRouter();
   const [step, setStep] = useState<"upload" | "processing" | "review" | "saving" | "done">("upload");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [correctionKeyFile, setCorrectionKeyFile] = useState<File | null>(null);
   const [extractions, setExtractions] = useState<StudentExtraction[]>([]);
   const [overrides, setOverrides] = useState<Record<string, Record<string, number>>>({});
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const keyRef = useRef<HTMLInputElement | null>(null);
 
   function setScore(studentName: string, qId: string, val: number) {
     setOverrides(prev => ({ ...prev, [studentName]: { ...(prev[studentName] ?? {}), [qId]: val } }));
   }
   function getScore(studentName: string, qId: string, def: number) {
     return overrides[studentName]?.[qId] ?? def;
+  }
+  function getTotal10(stud: StudentExtraction) {
+    const total = stud.answers.reduce((s, ans) => s + getScore(stud.name, ans.question_id, ans.suggested_score), 0);
+    const tm = stud.total_max || 1;
+    return Math.round((total / tm) * 100) / 10;
   }
 
   async function startCorrection() {
@@ -897,6 +905,7 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
       const form = new FormData();
       form.append("pdf", pdfFile);
       form.append("assessment_id", a.id);
+      if (correctionKeyFile) form.append("correction_key", correctionKeyFile);
       const res = await fetch("/api/evaluations/correct", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Erreur serveur");
@@ -911,7 +920,6 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
   async function saveAll() {
     setStep("saving");
     try {
-      // Associer chaque élève à son student_id via la DB
       const { data: enr } = await ctx.supabase
         .from("student_enrollments")
         .select("student_id, students(id, first_name, last_name)")
@@ -925,14 +933,12 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
 
       for (const stud of extractions) {
         const nameKey = stud.name.toLowerCase();
-        const studentId = Object.keys(studMap).find(k => nameKey.includes(k) || k.includes(nameKey))
-          ? studMap[Object.keys(studMap).find(k => nameKey.includes(k) || k.includes(nameKey))!]
-          : null;
+        const matchKey = Object.keys(studMap).find(k => nameKey.includes(k) || k.includes(nameKey));
+        const studentId = matchKey ? studMap[matchKey] : null;
         if (!studentId) continue;
 
         const total = stud.answers.reduce((s, ans) => s + getScore(stud.name, ans.question_id, ans.suggested_score), 0);
         const competencyScores: Record<string, number> = {};
-        // Si l'assessment a des compétences évaluées, calculer les scores par compétence
         await upsertResult({ ctx, assessmentId: a.id, studentId, value: total, competencyScores });
       }
       setStep("done");
@@ -943,7 +949,7 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
   }
 
   const overlayStyle: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center" };
-  const boxStyle: React.CSSProperties = { background: "#fff", borderRadius: 16, padding: 28, width: 900, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.2)" };
+  const boxStyle: React.CSSProperties = { background: "#fff", borderRadius: 16, padding: 28, width: 960, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 8px 40px rgba(0,0,0,0.2)" };
 
   if (step === "done") return (
     <div style={overlayStyle}><div style={{ ...boxStyle, textAlign: "center" }}>
@@ -970,57 +976,107 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
         </div>
 
         {(step === "upload" || step === "processing") && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "24px 0" }}>
-            <div style={{ fontSize: 13, color: "#6B7280", textAlign: "center", maxWidth: 500 }}>
-              Upload un PDF multi-pages contenant les copies de tous les élèves. L'IA identifiera chaque élève, lira ses réponses et proposera une note.
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "12px 0" }}>
+            <div style={{ fontSize: 13, color: "#6B7280", textAlign: "center" }}>
+              L'IA compare les copies des élèves avec ton corrigé et propose une note. Les écritures illisibles sont signalées automatiquement.
             </div>
-            <div onClick={() => fileRef.current?.click()}
-              style={{ border: "2px dashed #D1D5DB", borderRadius: 12, padding: "32px 48px", cursor: "pointer", textAlign: "center", background: pdfFile ? "#F0FDF4" : "#FAFAFA", transition: "all .2s" }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>{pdfFile ? "📄" : "☁️"}</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: pdfFile ? "#166534" : "#374151" }}>
-                {pdfFile ? pdfFile.name : "Cliquer pour sélectionner le PDF des copies"}
+
+            {/* Corrigé officiel (optionnel mais recommandé) */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                📋 Corrigé officiel <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(recommandé — améliore la précision)</span>
               </div>
-              {pdfFile && <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4 }}>{(pdfFile.size / 1024 / 1024).toFixed(1)} MB</div>}
+              <div onClick={() => keyRef.current?.click()}
+                style={{ border: `2px dashed ${correctionKeyFile ? "#16A34A" : "#D1D5DB"}`, borderRadius: 10, padding: "16px 24px", cursor: "pointer", textAlign: "center", background: correctionKeyFile ? "#F0FDF4" : "#FAFAFA" }}>
+                <div style={{ fontSize: 22, marginBottom: 4 }}>{correctionKeyFile ? "📄" : "☁️"}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: correctionKeyFile ? "#166534" : "#6B7280" }}>
+                  {correctionKeyFile ? correctionKeyFile.name : "Cliquer pour ajouter le corrigé (PDF)"}
+                </div>
+                {correctionKeyFile && <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{(correctionKeyFile.size / 1024 / 1024).toFixed(1)} MB</div>}
+              </div>
+              <input ref={keyRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={e => setCorrectionKeyFile(e.target.files?.[0] ?? null)} />
             </div>
-            <input ref={fileRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={e => setPdfFile(e.target.files?.[0] ?? null)} />
+
+            {/* Copies des élèves (obligatoire) */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                📚 Copies des élèves <span style={{ color: "#B91C1C", fontWeight: 400 }}>*</span>
+                <span style={{ color: "#9CA3AF", fontWeight: 400 }}> (PDF multi-pages, toutes les copies ensemble)</span>
+              </div>
+              <div onClick={() => fileRef.current?.click()}
+                style={{ border: `2px dashed ${pdfFile ? "#2563EB" : "#D1D5DB"}`, borderRadius: 10, padding: "20px 24px", cursor: "pointer", textAlign: "center", background: pdfFile ? "#EFF6FF" : "#FAFAFA" }}>
+                <div style={{ fontSize: 28, marginBottom: 6 }}>{pdfFile ? "📄" : "☁️"}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: pdfFile ? "#1D4ED8" : "#374151" }}>
+                  {pdfFile ? pdfFile.name : "Cliquer pour sélectionner le PDF des copies"}
+                </div>
+                {pdfFile && <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{(pdfFile.size / 1024 / 1024).toFixed(1)} MB</div>}
+              </div>
+              <input ref={fileRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={e => setPdfFile(e.target.files?.[0] ?? null)} />
+            </div>
+
             {errorMsg && <div style={{ color: "#B91C1C", fontSize: 13, background: "#FEF2F2", padding: "8px 14px", borderRadius: 8 }}>{errorMsg}</div>}
-            <button onClick={startCorrection} disabled={!pdfFile || step === "processing"}
-              style={{ padding: "10px 28px", borderRadius: 10, background: step === "processing" ? "#9CA3AF" : "#0C4A6E", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-              {step === "processing" ? "⏳ L'IA analyse les copies…" : "🚀 Lancer la correction"}
-            </button>
-            {step === "processing" && <div style={{ fontSize: 12, color: "#9CA3AF" }}>Selon le nombre de copies, cela peut prendre 30–90 secondes…</div>}
+
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <button onClick={startCorrection} disabled={!pdfFile || step === "processing"}
+                style={{ padding: "11px 32px", borderRadius: 10, background: step === "processing" ? "#9CA3AF" : "#0C4A6E", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: !pdfFile || step === "processing" ? "not-allowed" : "pointer" }}>
+                {step === "processing" ? "⏳ L'IA analyse les copies…" : "🚀 Lancer la correction IA"}
+              </button>
+              {step === "processing" && <div style={{ fontSize: 12, color: "#9CA3AF" }}>Cela peut prendre 30–90 secondes selon le nombre de copies…</div>}
+            </div>
           </div>
         )}
 
         {step === "review" && (
           <>
-            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 14 }}>
-              Vérifie et ajuste les scores. Les <span style={{ color: "#D97706", fontWeight: 700 }}>questions ouvertes</span> nécessitent ta validation. Clique sur un score pour le modifier.
+            {/* Légende */}
+            <div style={{ display: "flex", gap: 14, marginBottom: 14, flexWrap: "wrap", fontSize: 12 }}>
+              <span style={{ background: "#FEF3C7", color: "#92400E", borderRadius: 6, padding: "3px 8px", fontWeight: 600 }}>🟡 À valider — question ouverte</span>
+              <span style={{ background: "#FEE2E2", color: "#991B1B", borderRadius: 6, padding: "3px 8px", fontWeight: 600 }}>⚠ Écriture illisible — à vérifier par le prof</span>
+              <span style={{ color: "#6B7280" }}>Clique sur un score pour le modifier.</span>
             </div>
+
             {extractions.map(stud => {
               const total = stud.answers.reduce((s, ans) => s + getScore(stud.name, ans.question_id, ans.suggested_score), 0);
+              const sur10 = getTotal10(stud);
+              const hasIllegible = stud.answers.some(a => a.illegible);
               return (
                 <div key={stud.name} style={{ border: "1px solid #E5E7EB", borderRadius: 10, marginBottom: 14, overflow: "hidden" }}>
-                  <div style={{ background: "#F3F4F6", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ background: "#F3F4F6", padding: "8px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                     <span style={{ fontWeight: 700, fontSize: 14 }}>{stud.name}</span>
                     {stud.page_hint && <span style={{ fontSize: 11, color: "#9CA3AF" }}>{stud.page_hint}</span>}
-                    <span style={{ fontWeight: 800, fontSize: 15, color: "#6D28D9" }}>{total.toFixed(1)} / {stud.total_max}</span>
+                    {hasIllegible && <span style={{ fontSize: 11, background: "#FEE2E2", color: "#991B1B", borderRadius: 6, padding: "2px 7px", fontWeight: 700 }}>⚠ illisible(s)</span>}
+                    <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: "#6B7280" }}>{total.toFixed(1)} / {stud.total_max}</span>
+                      <span style={{
+                        fontWeight: 900, fontSize: 16, color: "#fff",
+                        background: sur10 >= 7 ? "#166534" : sur10 >= 5 ? "#D97706" : "#DC2626",
+                        borderRadius: 8, padding: "3px 10px",
+                      }}>{sur10.toFixed(1)} / 10</span>
+                    </div>
                   </div>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                     <thead><tr style={{ background: "#FAFAFA" }}>
-                      <th style={{ textAlign: "left", padding: "5px 10px", borderBottom: "1px solid #E5E7EB" }}>Q</th>
+                      <th style={{ textAlign: "left", padding: "5px 10px", borderBottom: "1px solid #E5E7EB", width: 40 }}>Q</th>
                       <th style={{ textAlign: "left", padding: "5px 10px", borderBottom: "1px solid #E5E7EB" }}>Réponse élève</th>
-                      <th style={{ padding: "5px 10px", borderBottom: "1px solid #E5E7EB" }}>Score</th>
-                      <th style={{ padding: "5px 10px", borderBottom: "1px solid #E5E7EB" }}>Max</th>
+                      <th style={{ padding: "5px 10px", borderBottom: "1px solid #E5E7EB", width: 70 }}>Score</th>
+                      <th style={{ padding: "5px 10px", borderBottom: "1px solid #E5E7EB", width: 50 }}>Max</th>
                     </tr></thead>
                     <tbody>
                       {stud.answers.map(ans => (
-                        <tr key={ans.question_id} style={{ borderBottom: "1px solid #F3F4F6", background: ans.needs_review ? "#FFFBEB" : undefined }}>
+                        <tr key={ans.question_id} style={{ borderBottom: "1px solid #F3F4F6", background: ans.illegible ? "#FEF2F2" : ans.needs_review ? "#FFFBEB" : undefined }}>
                           <td style={{ padding: "5px 10px", fontWeight: 700, color: "#6D28D9" }}>{ans.question_id}</td>
-                          <td style={{ padding: "5px 10px", maxWidth: 300 }}>
-                            {ans.student_answer || <em style={{ color: "#9CA3AF" }}>Non répondu</em>}
-                            {ans.note && <div style={{ fontSize: 11, color: "#D97706" }}>💬 {ans.note}</div>}
-                            {ans.needs_review && <span style={{ fontSize: 10, background: "#FDE68A", color: "#92400E", borderRadius: 4, padding: "1px 5px", marginLeft: 4 }}>À valider</span>}
+                          <td style={{ padding: "5px 10px", maxWidth: 320 }}>
+                            {ans.illegible ? (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#FEE2E2", color: "#991B1B", borderRadius: 6, padding: "2px 8px", fontWeight: 700, fontSize: 11 }}>
+                                ⚠ Écriture illisible — à vérifier
+                              </span>
+                            ) : ans.student_answer ? (
+                              <span>{ans.student_answer}</span>
+                            ) : (
+                              <em style={{ color: "#9CA3AF" }}>Non répondu</em>
+                            )}
+                            {ans.note && !ans.illegible && <div style={{ fontSize: 11, color: "#D97706", marginTop: 2 }}>💬 {ans.note}</div>}
+                            {ans.needs_review && !ans.illegible && <span style={{ fontSize: 10, background: "#FDE68A", color: "#92400E", borderRadius: 4, padding: "1px 5px", marginLeft: 4 }}>À valider</span>}
                           </td>
                           <td style={{ padding: "5px 10px", textAlign: "center" }}>
                             <input type="number" min={0} max={ans.max_score} step={0.5}

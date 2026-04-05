@@ -22,7 +22,8 @@ export type QuestionExtraction = {
   student_answer: string;
   suggested_score: number;
   max_score: number;
-  needs_review: boolean; // true pour les questions ouvertes
+  needs_review: boolean;
+  illegible?: boolean; // true si l'écriture est illisible → doit être vérifié par le prof
   note?: string;
 };
 
@@ -32,6 +33,7 @@ export type StudentExtraction = {
   answers: QuestionExtraction[];
   total_suggested: number;
   total_max: number;
+  score_sur_10?: number; // total_suggested / total_max * 10
 };
 
 export type CorrectionResult = {
@@ -51,8 +53,9 @@ export async function POST(req: Request) {
     if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY manquante" }, { status: 500 });
 
     const form = await req.formData();
-    const pdfFile     = form.get("pdf") as File | null;
-    const assessmentId = form.get("assessment_id") as string | null;
+    const pdfFile        = form.get("pdf") as File | null;
+    const correctionKey  = form.get("correction_key") as File | null;
+    const assessmentId   = form.get("assessment_id") as string | null;
 
     if (!pdfFile || !assessmentId) {
       return NextResponse.json({ error: "pdf + assessment_id requis" }, { status: 400 });
@@ -77,13 +80,20 @@ export async function POST(req: Request) {
       .eq("id", assessmentId)
       .maybeSingle();
 
-    // ── Encoder le PDF en base64 ──────────────────────────────────────────────
+    // ── Encoder les PDFs en base64 ────────────────────────────────────────────
     const pdfBuffer = await pdfFile.arrayBuffer();
+    if (pdfBuffer.byteLength > 32 * 1024 * 1024) {
+      return NextResponse.json({ error: "PDF copies trop volumineux (max 32 MB)" }, { status: 413 });
+    }
     const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
 
-    // Vérification taille (32 MB max pour Claude)
-    if (pdfBuffer.byteLength > 32 * 1024 * 1024) {
-      return NextResponse.json({ error: "PDF trop volumineux (max 32 MB)" }, { status: 413 });
+    let correctionKeyBase64: string | null = null;
+    if (correctionKey) {
+      const ckBuffer = await correctionKey.arrayBuffer();
+      if (ckBuffer.byteLength > 32 * 1024 * 1024) {
+        return NextResponse.json({ error: "PDF corrigé trop volumineux (max 32 MB)" }, { status: 413 });
+      }
+      correctionKeyBase64 = Buffer.from(ckBuffer).toString("base64");
     }
 
     // ── Construire la grille en texte pour le prompt ──────────────────────────
@@ -93,20 +103,35 @@ export async function POST(req: Request) {
 
     const totalMax = questions.reduce((s, q) => s + q.points, 0);
 
-    // ── Appel Claude Vision ───────────────────────────────────────────────────
+    // ── Construire le prompt ──────────────────────────────────────────────────
+    const correctionKeyNote = correctionKeyBase64
+      ? `Je te fournis également le CORRIGÉ OFFICIEL (document 1). Utilise-le comme référence principale pour évaluer les réponses des élèves.`
+      : `Utilise la grille de correction ci-dessous comme référence.`;
+
     const prompt = `Tu es un assistant de correction d'évaluations scolaires en Fédération Wallonie-Bruxelles.
 
-Je te fournis un PDF multi-pages contenant les copies d'élèves pour l'évaluation "${assessment?.title ?? ""}".
+${correctionKeyNote}
+
+${correctionKeyBase64 ? `Le document suivant contient les COPIES DES ÉLÈVES (document 2).` : `Le document contient les copies des élèves.`}
+
+ÉVALUATION: "${assessment?.title ?? ""}"
 
 GRILLE DE CORRECTION (total: ${totalMax} points):
 ${gridText}
 
-INSTRUCTIONS:
+INSTRUCTIONS DE CORRECTION:
 1. Identifie chaque copie d'élève dans le PDF (nom généralement en haut de page ou sur une page de garde)
 2. Pour chaque élève, extrait ses réponses question par question
-3. Pour les QCM et textes à trous: score automatique (correct = max points, incorrect = 0, partiellement correct = points proportionnels)
-4. Pour les questions ouvertes: propose un score suggéré et marque needs_review: true pour que le prof valide
-5. Si tu ne peux pas lire une réponse clairement, mets needs_review: true
+3. Questions QCM et textes à trous: score automatique basé sur la correspondance exacte avec la réponse attendue (correct = max points, incorrect = 0, partiellement correct = points proportionnels)
+4. Questions ouvertes: évalue en te basant sur les concepts-clés de la réponse attendue et du corrigé officiel. Marque needs_review: true pour que le prof valide ton évaluation.
+5. ÉCRITURE ILLISIBLE: si tu ne peux PAS lire la réponse d'un élève à une question (écriture illisible, rature excessive, réponse absente mais espace rempli), alors:
+   - Mets illegible: true
+   - Mets needs_review: true
+   - Mets student_answer: "⚠ ILLISIBLE"
+   - Mets suggested_score: 0
+   - Mets note: "Écriture illisible — à vérifier par le professeur"
+   NE TENTE PAS d'interpréter une écriture illisible.
+6. Si l'élève n'a rien écrit du tout, mets student_answer: "" et suggested_score: 0
 
 Retourne UNIQUEMENT un JSON valide avec cette structure exacte:
 {
@@ -121,17 +146,38 @@ Retourne UNIQUEMENT un JSON valide avec cette structure exacte:
           "suggested_score": 1.5,
           "max_score": 2,
           "needs_review": false,
+          "illegible": false,
           "note": "explication si nécessaire"
         }
       ],
       "total_suggested": 15.5,
-      "total_max": ${totalMax}
+      "total_max": ${totalMax},
+      "score_sur_10": 7.75
     }
   ]
 }
 
+Important: total_suggested / total_max * 10, arrondi à 1 décimale = score_sur_10.
 Si tu ne trouves pas de nom pour un élève, utilise "Élève inconnu (page X)".`;
 
+    // ── Construire le contenu du message Claude ───────────────────────────────
+    const messageContent: Array<{ type: string; source?: object; text?: string }> = [];
+
+    if (correctionKeyBase64) {
+      messageContent.push({
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: correctionKeyBase64 },
+      });
+    }
+
+    messageContent.push({
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
+    });
+
+    messageContent.push({ type: "text", text: prompt });
+
+    // ── Appel Claude Vision ───────────────────────────────────────────────────
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -142,20 +188,7 @@ Si tu ne trouves pas de nom pour un élève, utilise "Élève inconnu (page X)".
       body: JSON.stringify({
         model: "claude-opus-4-5",
         max_tokens: 8192,
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: pdfBase64,
-              },
-            },
-            { type: "text", text: prompt },
-          ],
-        }],
+        messages: [{ role: "user", content: messageContent }],
       }),
     });
 
@@ -178,6 +211,14 @@ Si tu ne trouves pas de nom pour un élève, utilise "Élève inconnu (page X)".
         error: "L'IA n'a pas retourné un JSON valide. Réessaie ou vérifie que le PDF est lisible.",
         raw: rawText.slice(0, 500),
       }, { status: 422 });
+    }
+
+    // ── Calculer score_sur_10 si absent ──────────────────────────────────────
+    for (const stud of result.students) {
+      if (stud.score_sur_10 === undefined || stud.score_sur_10 === null) {
+        const tm = stud.total_max || totalMax;
+        stud.score_sur_10 = tm > 0 ? Math.round((stud.total_suggested / tm) * 100) / 10 : 0;
+      }
     }
 
     // ── Sauvegarder la session de correction ──────────────────────────────────
