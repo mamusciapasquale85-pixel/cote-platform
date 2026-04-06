@@ -69,8 +69,10 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     const questions: GridQuestion[] = (gridRow?.questions ?? []) as GridQuestion[];
-    if (!questions.length) {
-      return NextResponse.json({ error: "Aucune grille définie pour cette évaluation. Crée d'abord la grille." }, { status: 400 });
+    const hasGrid = questions.length > 0;
+    // Sans grille ET sans corrigé : impossible de corriger
+    if (!hasGrid && !correctionKey) {
+      return NextResponse.json({ error: "Aucune grille définie. Fournis un corrigé officiel pour que l'IA puisse corriger." }, { status: 400 });
     }
 
     // ── Charger le titre de l'évaluation ─────────────────────────────────────
@@ -97,18 +99,20 @@ export async function POST(req: Request) {
     }
 
     // ── Construire la grille en texte pour le prompt ──────────────────────────
-    const gridText = questions.map(q =>
+    const gridText = hasGrid ? questions.map(q =>
       `Q${q.num} [${q.type.toUpperCase()}] (${q.points} pt${q.points > 1 ? "s" : ""}): ${q.text}\n   → Réponse attendue: ${q.expected_answer}${q.options ? `\n   Options: ${q.options.join(" / ")}` : ""}`
-    ).join("\n\n");
+    ).join("\n\n") : "";
 
-    const totalMax = questions.reduce((s, q) => s + q.points, 0);
+    const totalMax = hasGrid ? questions.reduce((s, q) => s + q.points, 0) : 0;
 
     // ── Construire le prompt ──────────────────────────────────────────────────
-    const correctionKeyNote = correctionKeyBase64
-      ? `Je te fournis également le CORRIGÉ OFFICIEL (document 1). Utilise-le comme référence principale pour évaluer les réponses des élèves.`
-      : `Utilise la grille de correction ci-dessous comme référence.`;
+    let prompt: string;
+    if (hasGrid) {
+      const correctionKeyNote = correctionKeyBase64
+        ? `Je te fournis également le CORRIGÉ OFFICIEL (document 1). Utilise-le comme référence principale pour évaluer les réponses des élèves.`
+        : `Utilise la grille de correction ci-dessous comme référence.`;
 
-    const prompt = `Tu es un assistant de correction d'évaluations scolaires en Fédération Wallonie-Bruxelles.
+      prompt = `Tu es un assistant de correction d'évaluations scolaires en Fédération Wallonie-Bruxelles.
 
 ${correctionKeyNote}
 
@@ -124,13 +128,7 @@ INSTRUCTIONS DE CORRECTION:
 2. Pour chaque élève, extrait ses réponses question par question
 3. Questions QCM et textes à trous: score automatique basé sur la correspondance exacte avec la réponse attendue (correct = max points, incorrect = 0, partiellement correct = points proportionnels)
 4. Questions ouvertes: évalue en te basant sur les concepts-clés de la réponse attendue et du corrigé officiel. Marque needs_review: true pour que le prof valide ton évaluation.
-5. ÉCRITURE ILLISIBLE: si tu ne peux PAS lire la réponse d'un élève à une question (écriture illisible, rature excessive, réponse absente mais espace rempli), alors:
-   - Mets illegible: true
-   - Mets needs_review: true
-   - Mets student_answer: "⚠ ILLISIBLE"
-   - Mets suggested_score: 0
-   - Mets note: "Écriture illisible — à vérifier par le professeur"
-   NE TENTE PAS d'interpréter une écriture illisible.
+5. ÉCRITURE ILLISIBLE: si tu ne peux PAS lire la réponse d'un élève à une question, mets illegible: true, needs_review: true, student_answer: "⚠ ILLISIBLE", suggested_score: 0, note: "Écriture illisible — à vérifier par le professeur". NE TENTE PAS d'interpréter une écriture illisible.
 6. Si l'élève n'a rien écrit du tout, mets student_answer: "" et suggested_score: 0
 
 Retourne UNIQUEMENT un JSON valide avec cette structure exacte:
@@ -159,6 +157,49 @@ Retourne UNIQUEMENT un JSON valide avec cette structure exacte:
 
 Important: total_suggested / total_max * 10, arrondi à 1 décimale = score_sur_10.
 Si tu ne trouves pas de nom pour un élève, utilise "Élève inconnu (page X)".`;
+    } else {
+      // Mode sans grille : Claude extrait les questions depuis le corrigé
+      prompt = `Tu es un assistant de correction d'évaluations scolaires en Fédération Wallonie-Bruxelles.
+
+Le DOCUMENT 1 est le CORRIGÉ OFFICIEL. Le DOCUMENT 2 contient les COPIES DES ÉLÈVES.
+
+ÉVALUATION: "${assessment?.title ?? ""}"
+
+MODE SANS GRILLE PRÉDÉFINIE : commence par analyser le corrigé officiel pour identifier toutes les questions et leur barème (si visible). Ensuite, pour chaque copie d'élève :
+1. Identifie le nom de l'élève (haut de page ou page de garde)
+2. Pour chaque question identifiée dans le corrigé, évalue la réponse de l'élève
+3. Attribue un score cohérent avec le barème du corrigé (ou proportionnel si barème absent)
+4. Marque needs_review: true pour toutes les questions — le prof doit valider
+5. ÉCRITURE ILLISIBLE: illegible: true, student_answer: "⚠ ILLISIBLE", suggested_score: 0, needs_review: true
+6. Utilise question_id: "q1", "q2"... dans l'ordre d'apparition dans le corrigé
+
+Retourne UNIQUEMENT un JSON valide:
+{
+  "students": [
+    {
+      "name": "NOM Prénom",
+      "page_hint": "pages 1-3",
+      "answers": [
+        {
+          "question_id": "q1",
+          "student_answer": "réponse copiée",
+          "suggested_score": 3,
+          "max_score": 5,
+          "needs_review": true,
+          "illegible": false,
+          "note": "justification du score"
+        }
+      ],
+      "total_suggested": 12,
+      "total_max": 20,
+      "score_sur_10": 6.0
+    }
+  ]
+}
+
+Important: score_sur_10 = total_suggested / total_max * 10, arrondi à 1 décimale.
+Si pas de nom: "Élève inconnu (page X)".`;
+    }
 
     // ── Construire le contenu du message Claude ───────────────────────────────
     const messageContent: Array<{ type: string; source?: object; text?: string }> = [];
@@ -216,7 +257,7 @@ Si tu ne trouves pas de nom pour un élève, utilise "Élève inconnu (page X)".
     // ── Calculer score_sur_10 si absent ──────────────────────────────────────
     for (const stud of result.students) {
       if (stud.score_sur_10 === undefined || stud.score_sur_10 === null) {
-        const tm = stud.total_max || totalMax;
+        const tm = stud.total_max > 0 ? stud.total_max : (totalMax > 0 ? totalMax : 20);
         stud.score_sur_10 = tm > 0 ? Math.round((stud.total_suggested / tm) * 100) / 10 : 0;
       }
     }
