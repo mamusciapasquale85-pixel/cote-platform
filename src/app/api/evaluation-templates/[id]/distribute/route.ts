@@ -11,16 +11,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (userErr || !user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
   const body = await req.json() as {
-    classe_ids: string[];
-    date: string;
+    classesWithDates: { classe_id: string; date: string }[];
     statut: string;
     course_id?: string;
-    academic_year_id?: string;
     school_id?: string;
   };
 
-  if (!body.classe_ids?.length) return NextResponse.json({ error: "classe_ids requis" }, { status: 400 });
-  if (!body.date) return NextResponse.json({ error: "date requise" }, { status: 400 });
+  if (!body.classesWithDates?.length) return NextResponse.json({ error: "classesWithDates requis" }, { status: 400 });
+  if (body.classesWithDates.some(x => !x.date)) return NextResponse.json({ error: "date requise pour chaque classe" }, { status: 400 });
 
   // Récupérer le modèle
   const { data: tpl, error: tplErr } = await supabase
@@ -32,13 +30,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   if (tplErr || !tpl) return NextResponse.json({ error: "Modèle introuvable" }, { status: 404 });
 
-  // Créer une évaluation par classe
-  const assessments = body.classe_ids.map((classe_id: string) => ({
+  // Créer une évaluation par classe avec sa date propre
+  const assessments = body.classesWithDates.map(({ classe_id, date }) => ({
     school_id: tpl.school_id ?? body.school_id ?? null,
     teacher_user_id: user.id,
     title: tpl.titre,
     type: tpl.type,
-    date: body.date,
+    date,
     max_points: tpl.cotation_type === "points" ? (tpl.points_max ?? 20) : null,
     weight: null,
     status: body.statut ?? "draft",

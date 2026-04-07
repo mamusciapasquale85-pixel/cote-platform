@@ -1263,17 +1263,25 @@ function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext;
 }
 
 // ── Modal Distribuer ─────────────────────────────────────────────────────────
+function getTomorrow() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return toISODate(d);
+}
+
 function DistributeModal({ tpl, classes, ctx, onDone, onClose }: {
   tpl: EvaluationTemplate; classes: ClassGroup[]; ctx: TeacherContext;
   onDone: (count: number) => void; onClose: () => void;
 }) {
+  const tomorrow = getTomorrow();
   const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set(classes.map(c => c.id)));
-  const [date, setDate] = useState(toISODate(new Date()));
+  const [classDates, setClassDates] = useState<Record<string, string>>(
+    () => Object.fromEntries(classes.map(c => [c.id, tomorrow]))
+  );
   const [statut, setStatut] = useState<"draft" | "published">("published");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 9, border: "1px solid #E5E7EB", fontSize: 14, width: "100%", boxSizing: "border-box" };
   const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" };
   function pillStyle(active: boolean): React.CSSProperties {
     return { flex: 1, padding: "8px 0", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 700,
@@ -1289,23 +1297,16 @@ function DistributeModal({ tpl, classes, ctx, onDone, onClose }: {
     });
   }
 
-  // Trouver le cours associé à la matière du modèle
   async function onSubmit() {
     if (selectedClasses.size === 0) return setErr("Sélectionne au moins une classe.");
-    if (!date) return setErr("Date obligatoire.");
+    const classesWithDates = Array.from(selectedClasses).map(id => ({ classe_id: id, date: classDates[id] ?? tomorrow }));
+    if (classesWithDates.some(x => !x.date)) return setErr("Toutes les classes doivent avoir une date.");
     setSaving(true); setErr(null);
     try {
-      // Trouver un course_id depuis le contexte si dispo
       const res = await fetch(`/api/evaluation-templates/${tpl.id}/distribute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          classe_ids: Array.from(selectedClasses),
-          date,
-          statut,
-          school_id: ctx.schoolId,
-          academic_year_id: ctx.academicYearId,
-        }),
+        body: JSON.stringify({ classesWithDates, statut, school_id: ctx.schoolId }),
       });
       const data = await res.json() as { ok?: boolean; count?: number; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Erreur");
@@ -1316,35 +1317,42 @@ function DistributeModal({ tpl, classes, ctx, onDone, onClose }: {
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(15,23,42,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
-      <div style={{ width: "min(500px,96vw)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(15,23,42,.28)", overflow: "hidden", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+      <div style={{ width: "min(520px,96vw)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(15,23,42,.28)", overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "90vh" }} onClick={e => e.stopPropagation()}>
 
-        <div style={{ background: "linear-gradient(135deg,#7C3AED,#0A84FF)", padding: "18px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ background: "linear-gradient(135deg,#7C3AED,#0A84FF)", padding: "18px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <div style={{ color: "#fff", fontSize: 16, fontWeight: 900 }}>→ Distribuer &ldquo;{tpl.titre}&rdquo;</div>
           <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(255,255,255,.35)", background: "rgba(255,255,255,.15)", color: "#fff", fontSize: 16, cursor: "pointer", fontWeight: 700 }}>×</button>
         </div>
 
-        <div style={{ padding: 20, display: "grid", gap: 14 }}>
+        <div style={{ padding: 20, display: "grid", gap: 14, overflowY: "auto" }}>
           {err && <div style={{ padding: "9px 14px", borderRadius: 9, background: "rgba(220,38,38,.08)", border: "1px solid rgba(220,38,38,.25)", color: "#991B1B", fontSize: 13 }}>{err}</div>}
 
           <div>
-            <div style={lbl}>Classes *</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <div style={lbl}>Classes &amp; dates *</div>
+            <div style={{ display: "grid", gap: 6 }}>
               {classes.map(c => (
-                <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer",
-                  padding: "6px 12px", borderRadius: 9,
+                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10,
+                  padding: "8px 12px", borderRadius: 10,
                   background: selectedClasses.has(c.id) ? "#EDE9FE" : "#F9FAFB",
-                  border: selectedClasses.has(c.id) ? "1.5px solid #7C3AED" : "1px solid #E5E7EB",
-                  fontWeight: selectedClasses.has(c.id) ? 700 : 500 }}>
-                  <input type="checkbox" checked={selectedClasses.has(c.id)} onChange={() => toggleClass(c.id)} />
-                  {c.name}
-                </label>
+                  border: selectedClasses.has(c.id) ? "1.5px solid #7C3AED" : "1px solid #E5E7EB" }}>
+                  <input type="checkbox" checked={selectedClasses.has(c.id)} onChange={() => toggleClass(c.id)}
+                    style={{ width: 15, height: 15, cursor: "pointer", flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: selectedClasses.has(c.id) ? 700 : 500,
+                    color: selectedClasses.has(c.id) ? "#5B21B6" : "#374151" }}>
+                    {c.name}
+                  </span>
+                  <input type="date"
+                    value={classDates[c.id] ?? tomorrow}
+                    onChange={e => setClassDates(prev => ({ ...prev, [c.id]: e.target.value }))}
+                    disabled={!selectedClasses.has(c.id)}
+                    style={{ height: 32, padding: "0 8px", borderRadius: 8,
+                      border: "1px solid #DDD6FE", fontSize: 13,
+                      background: selectedClasses.has(c.id) ? "#fff" : "#F3F4F6",
+                      color: selectedClasses.has(c.id) ? "#111827" : "#9CA3AF",
+                      cursor: selectedClasses.has(c.id) ? "pointer" : "default" }} />
+                </div>
               ))}
             </div>
-          </div>
-
-          <div>
-            <div style={lbl}>Date de l&apos;évaluation *</div>
-            <input type="date" style={inp} value={date} onChange={e => setDate(e.target.value)} />
           </div>
 
           <div>
