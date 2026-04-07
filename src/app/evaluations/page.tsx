@@ -600,8 +600,23 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
   const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+  const [editingDate, setEditingDate] = useState(false);
+  const [dateValue, setDateValue] = useState(a.date);
+  const [savingDate, setSavingDate] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isFormative = a.type === "formative";
+
+  async function commitDate() {
+    if (!dateValue || dateValue === a.date) { setEditingDate(false); return; }
+    setSavingDate(true);
+    try {
+      await updateAssessment({ ctx, assessmentId: a.id, patch: { date: dateValue } });
+      onRefresh();
+    } finally {
+      setSavingDate(false);
+      setEditingDate(false);
+    }
+  }
 
   async function handleUpload(file: File) {
     setUploading(true); setUploadMsg(null);
@@ -698,8 +713,32 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
             </span>
           </div>
           <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", marginBottom: 4 }}>{a.title}</div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: "#6B7280", fontWeight: 500 }}>
-            {a.date && <span>📅 {formatDateFR(a.date)}</span>}
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: "#6B7280", fontWeight: 500, alignItems: "center" }}>
+            {a.date && (
+              editingDate ? (
+                <input
+                  type="date"
+                  value={dateValue}
+                  autoFocus
+                  disabled={savingDate}
+                  onChange={e => setDateValue(e.target.value)}
+                  onBlur={() => void commitDate()}
+                  onKeyDown={e => { if (e.key === "Enter") void commitDate(); if (e.key === "Escape") { setDateValue(a.date); setEditingDate(false); } }}
+                  style={{ height: 26, padding: "0 8px", borderRadius: 7, border: "1.5px solid #0A84FF", fontSize: 12, outline: "none", background: "#EFF6FF" }}
+                />
+              ) : (
+                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  📅 {formatDateFR(a.date)}
+                  <button
+                    onClick={() => { setDateValue(a.date); setEditingDate(true); }}
+                    title="Modifier la date"
+                    style={{ height: 18, width: 18, borderRadius: 5, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", color: "#9CA3AF", padding: 0 }}
+                  >
+                    ✏
+                  </button>
+                </span>
+              )
+            )}
             {a.max_points && <span>🎯 {a.max_points} pts</span>}
             {a.apprentissage_id && apprentissageNameById.get(a.apprentissage_id) && (
               <span>📖 {apprentissageNameById.get(a.apprentissage_id)}</span>
