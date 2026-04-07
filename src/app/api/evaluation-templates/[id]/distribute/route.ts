@@ -35,7 +35,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // Créer une évaluation par classe
   const assessments = body.classe_ids.map((classe_id: string) => ({
     school_id: tpl.school_id ?? body.school_id ?? null,
-    academic_year_id: body.academic_year_id ?? null,
     teacher_user_id: user.id,
     title: tpl.titre,
     type: tpl.type,

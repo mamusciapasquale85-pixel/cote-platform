@@ -1382,8 +1382,10 @@ function CreateTemplateModal({ ctx, onCreated, onClose }: {
   const [cotation, setCotation] = useState<CotationType>("points");
   const [maxPoints, setMaxPoints] = useState("20");
   const [instructions, setInstructions] = useState("");
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 9, border: "1px solid #E5E7EB", fontSize: 14, width: "100%", boxSizing: "border-box" };
   const sel: React.CSSProperties = { ...inp, cursor: "pointer", background: "#FFF" };
@@ -1404,6 +1406,20 @@ function CreateTemplateModal({ ctx, onCreated, onClose }: {
     if (!titre.trim()) return setErr("Titre obligatoire.");
     setSaving(true); setErr(null);
     try {
+      // Upload fichier si sélectionné
+      let fichierPath: string | null = null;
+      let fichierNom: string | null = null;
+      if (pendingFile) {
+        const safeName = pendingFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const path = `${ctx.teacherUserId}/template-${Date.now()}/${safeName}`;
+        const { error: upErr } = await ctx.supabase.storage
+          .from("evaluations")
+          .upload(path, pendingFile, { upsert: true, contentType: pendingFile.type });
+        if (upErr) throw new Error(`Upload : ${upErr.message}`);
+        fichierPath = path;
+        fichierNom = pendingFile.name;
+      }
+
       const res = await fetch("/api/evaluation-templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1417,6 +1433,8 @@ function CreateTemplateModal({ ctx, onCreated, onClose }: {
           points_max: cotation === "points" ? (Number(maxPoints) || 20) : null,
           instructions: instructions.trim() || null,
           school_id: ctx.schoolId,
+          fichier_path: fichierPath,
+          fichier_nom: fichierNom,
         }),
       });
       const data = await res.json() as { template?: unknown; error?: string };
@@ -1500,6 +1518,25 @@ function CreateTemplateModal({ ctx, onCreated, onClose }: {
           <div>
             <div style={lbl}>Instructions / Consignes (optionnel)</div>
             <textarea style={{ ...inp, height: 68, resize: "vertical", paddingTop: 9 }} placeholder="Ex: Vocabulaire de la famille, mots de liaison…" value={instructions} onChange={e => setInstructions(e.target.value)} />
+          </div>
+
+          {/* Upload PDF */}
+          <div>
+            <div style={lbl}>Fichier PDF / Word (optionnel)</div>
+            <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx" style={{ display: "none" }}
+              onChange={e => setPendingFile(e.target.files?.[0] ?? null)} />
+            {pendingFile ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 9, background: "#F0FDF4", border: "1px solid #BBF7D0" }}>
+                <span style={{ fontSize: 13, color: "#166534", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>📎 {pendingFile.name}</span>
+                <button onClick={() => { setPendingFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                  style={{ height: 26, width: 26, borderRadius: 7, border: "1px solid #FCA5A5", background: "#FEF2F2", cursor: "pointer", color: "#B91C1C", fontSize: 14, fontWeight: 700 }}>×</button>
+              </div>
+            ) : (
+              <button onClick={() => fileInputRef.current?.click()}
+                style={{ height: 40, width: "100%", borderRadius: 9, border: "1.5px dashed #DDD6FE", background: "#FAFAF9", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#7C3AED" }}>
+                📎 Joindre un fichier
+              </button>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
