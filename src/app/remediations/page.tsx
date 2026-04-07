@@ -206,6 +206,8 @@ export default function RemediationsPage() {
   const [planifierEleveId, setPlanifierEleveId] = useState<string | null>(null);
   const [planifierAttendu, setPlanifierAttendu] = useState<string | null>(null);
   const [genererRemediation, setGenererRemediation] = useState<GenererRemediationState | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const classOptions = useMemo(() => {
     const byId = new Map<string, string>();
@@ -256,6 +258,22 @@ export default function RemediationsPage() {
       setErrorMsg(toNiceError(error));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function deleteRemediation(remediationId: string) {
+    setDeletingId(remediationId);
+    setErrorMsg(null);
+    try {
+      const response = await fetch(`/api/remediations/${remediationId}`, { method: "DELETE" });
+      const payload = await response.json() as { ok?: boolean; error?: string };
+      if (!response.ok) throw new Error(payload.error || "Impossible de supprimer.");
+      setRows((prev) => prev.filter((row) => row.id !== remediationId));
+    } catch (error: unknown) {
+      setErrorMsg(toNiceError(error));
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
     }
   }
 
@@ -433,21 +451,50 @@ export default function RemediationsPage() {
                           gap: 8,
                         }}
                       >
-                        <div
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            alignSelf: "start",
-                            borderRadius: 999,
-                            padding: "4px 10px",
-                            fontSize: 12,
-                            fontWeight: 800,
-                            background: meta.bg,
-                            color: meta.color,
-                            border: `1px solid ${meta.border}`,
-                          }}
-                        >
-                          {meta.label}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                          <div
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              borderRadius: 999,
+                              padding: "4px 10px",
+                              fontSize: 12,
+                              fontWeight: 800,
+                              background: meta.bg,
+                              color: meta.color,
+                              border: `1px solid ${meta.border}`,
+                            }}
+                          >
+                            {meta.label}
+                          </div>
+                          {confirmDeleteId === item.id ? (
+                            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                              <button
+                                type="button"
+                                disabled={deletingId === item.id}
+                                onClick={() => void deleteRemediation(item.id)}
+                                style={{ height: 26, padding: "0 10px", borderRadius: 8, border: "1px solid #F87171", background: "#FEF2F2", cursor: "pointer", fontSize: 11, fontWeight: 800, color: "#B91C1C" }}
+                              >
+                                {deletingId === item.id ? "…" : "✓ Confirmer"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteId(null)}
+                                style={{ height: 26, width: 26, borderRadius: 8, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#6B7280" }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(item.id)}
+                              style={{ height: 26, width: 26, borderRadius: 8, border: "1px solid #FECACA", background: "#FEF2F2", cursor: "pointer", fontSize: 13, color: "#B91C1C", display: "flex", alignItems: "center", justifyContent: "center" }}
+                              title="Supprimer"
+                            >
+                              🗑
+                            </button>
+                          )}
                         </div>
 
                         <div style={{ display: "grid", gap: 4, fontSize: 13 }}>
