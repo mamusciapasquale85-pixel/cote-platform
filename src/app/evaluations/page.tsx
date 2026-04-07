@@ -23,13 +23,31 @@ function toNiceError(e: unknown): string {
 function pad2(n: number) { return n < 10 ? `0${n}` : `${n}`; }
 function toISODate(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 
-type Tab = "toutes" | "formative" | "summative" | "archived";
+type Tab = "toutes" | "formative" | "summative" | "archived" | "modeles";
 const TAB_CONFIG: { id: Tab; label: string; emoji: string }[] = [
   { id: "toutes",    label: "Toutes",     emoji: "📋" },
   { id: "formative", label: "Formatives", emoji: "📊" },
   { id: "summative", label: "Sommatives", emoji: "🎓" },
   { id: "archived",  label: "Archivées",  emoji: "🗄" },
+  { id: "modeles",   label: "Modèles",    emoji: "📚" },
 ];
+
+// ── Type modèle ───────────────────────────────────────────────────────────────
+type EvaluationTemplate = {
+  id: string;
+  titre: string;
+  type: string;
+  matiere: string;
+  niveau: string | null;
+  type_exercice: string | null;
+  points_max: number | null;
+  cotation_type: string;
+  fichier_path: string | null;
+  fichier_nom: string | null;
+  grille: unknown;
+  instructions: string | null;
+  created_at: string;
+};
 
 const NIVEAUX = ["1S (A2.2)", "2S (B1.1)", "3S (B1.2)", "4S (B2.1)", "A1", "A2", "B1", "B2", "Autre"];
 
@@ -664,6 +682,7 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
           {a.status === "draft" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#FFFBEB", color: "#92400E", border: "1px solid #FDE68A" }}>Brouillon</span>}
           {isArchived && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#F3F4F6", color: "#6B7280", border: "1px solid #E5E7EB" }}>Archivée</span>}
           {a.parent_visible && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>👪 Parents</span>}
+          {a.template_id && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#EDE9FE", color: "#5B21B6", border: "1px solid #DDD6FE" }}>📚 Modèle</span>}
         </div>
       </div>
 
@@ -1243,6 +1262,365 @@ function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext;
   );
 }
 
+// ── Modal Distribuer ─────────────────────────────────────────────────────────
+function DistributeModal({ tpl, classes, ctx, onDone, onClose }: {
+  tpl: EvaluationTemplate; classes: ClassGroup[]; ctx: TeacherContext;
+  onDone: (count: number) => void; onClose: () => void;
+}) {
+  const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set(classes.map(c => c.id)));
+  const [date, setDate] = useState(toISODate(new Date()));
+  const [statut, setStatut] = useState<"draft" | "published">("published");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 9, border: "1px solid #E5E7EB", fontSize: 14, width: "100%", boxSizing: "border-box" };
+  const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" };
+  function pillStyle(active: boolean): React.CSSProperties {
+    return { flex: 1, padding: "8px 0", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 700,
+      border: active ? "2px solid #0A84FF" : "1.5px solid #E5E7EB",
+      background: active ? "#EFF6FF" : "#FFF", color: active ? "#0A63BF" : "#374151" };
+  }
+
+  function toggleClass(id: string) {
+    setSelectedClasses(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  // Trouver le cours associé à la matière du modèle
+  async function onSubmit() {
+    if (selectedClasses.size === 0) return setErr("Sélectionne au moins une classe.");
+    if (!date) return setErr("Date obligatoire.");
+    setSaving(true); setErr(null);
+    try {
+      // Trouver un course_id depuis le contexte si dispo
+      const res = await fetch(`/api/evaluation-templates/${tpl.id}/distribute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classe_ids: Array.from(selectedClasses),
+          date,
+          statut,
+          school_id: ctx.schoolId,
+          academic_year_id: ctx.academicYearId,
+        }),
+      });
+      const data = await res.json() as { ok?: boolean; count?: number; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Erreur");
+      onDone(data.count ?? selectedClasses.size);
+      onClose();
+    } catch (e) { setErr(toNiceError(e)); } finally { setSaving(false); }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(15,23,42,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
+      <div style={{ width: "min(500px,96vw)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(15,23,42,.28)", overflow: "hidden", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+
+        <div style={{ background: "linear-gradient(135deg,#7C3AED,#0A84FF)", padding: "18px 22px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ color: "#fff", fontSize: 16, fontWeight: 900 }}>→ Distribuer &ldquo;{tpl.titre}&rdquo;</div>
+          <button onClick={onClose} style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(255,255,255,.35)", background: "rgba(255,255,255,.15)", color: "#fff", fontSize: 16, cursor: "pointer", fontWeight: 700 }}>×</button>
+        </div>
+
+        <div style={{ padding: 20, display: "grid", gap: 14 }}>
+          {err && <div style={{ padding: "9px 14px", borderRadius: 9, background: "rgba(220,38,38,.08)", border: "1px solid rgba(220,38,38,.25)", color: "#991B1B", fontSize: 13 }}>{err}</div>}
+
+          <div>
+            <div style={lbl}>Classes *</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {classes.map(c => (
+                <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer",
+                  padding: "6px 12px", borderRadius: 9,
+                  background: selectedClasses.has(c.id) ? "#EDE9FE" : "#F9FAFB",
+                  border: selectedClasses.has(c.id) ? "1.5px solid #7C3AED" : "1px solid #E5E7EB",
+                  fontWeight: selectedClasses.has(c.id) ? 700 : 500 }}>
+                  <input type="checkbox" checked={selectedClasses.has(c.id)} onChange={() => toggleClass(c.id)} />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={lbl}>Date de l&apos;évaluation *</div>
+            <input type="date" style={inp} value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+
+          <div>
+            <div style={lbl}>Statut</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setStatut("draft")} style={pillStyle(statut === "draft")}>Brouillon</button>
+              <button onClick={() => setStatut("published")} style={pillStyle(statut === "published")}>✓ Publiée</button>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
+            <button onClick={onClose} style={{ height: 38, padding: "0 14px", borderRadius: 9, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Annuler</button>
+            <button onClick={onSubmit} disabled={saving || selectedClasses.size === 0}
+              style={{ height: 42, padding: "0 20px", borderRadius: 9, border: "none",
+                background: saving || selectedClasses.size === 0 ? "#9CA3AF" : "linear-gradient(135deg,#7C3AED,#0A84FF)",
+                color: "#fff", fontWeight: 700, fontSize: 14, cursor: saving || selectedClasses.size === 0 ? "not-allowed" : "pointer" }}>
+              {saving ? "Création…" : `✓ Créer ${selectedClasses.size > 0 ? selectedClasses.size : ""} évaluation${selectedClasses.size > 1 ? "s" : ""}`}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal Créer un modèle ─────────────────────────────────────────────────────
+function CreateTemplateModal({ ctx, onCreated, onClose }: {
+  ctx: TeacherContext; onCreated: () => void; onClose: () => void;
+}) {
+  const [titre, setTitre] = useState("");
+  const [type, setType] = useState<"formative" | "summative">("summative");
+  const [selectedSubject, setSelectedSubject] = useState<SubjectDef>(SUBJECTS[0]);
+  const [typeExercice, setTypeExercice] = useState(SUBJECTS[0].types[0].id);
+  const [niveau, setNiveau] = useState(SUBJECTS[0].niveaux[0]);
+  const [cotation, setCotation] = useState<CotationType>("points");
+  const [maxPoints, setMaxPoints] = useState("20");
+  const [instructions, setInstructions] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const inp: React.CSSProperties = { height: 40, padding: "0 12px", borderRadius: 9, border: "1px solid #E5E7EB", fontSize: 14, width: "100%", boxSizing: "border-box" };
+  const sel: React.CSSProperties = { ...inp, cursor: "pointer", background: "#FFF" };
+  const lbl: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: "#9CA3AF", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" };
+  function pillStyle(active: boolean): React.CSSProperties {
+    return { flex: 1, padding: "8px 0", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 700,
+      border: active ? "2px solid #7C3AED" : "1.5px solid #E5E7EB",
+      background: active ? "#EDE9FE" : "#FFF", color: active ? "#5B21B6" : "#374151" };
+  }
+
+  function handleSubjectChange(subj: SubjectDef) {
+    setSelectedSubject(subj);
+    setTypeExercice(subj.types[0].id);
+    setNiveau(subj.niveaux[0]);
+  }
+
+  async function onSubmit() {
+    if (!titre.trim()) return setErr("Titre obligatoire.");
+    setSaving(true); setErr(null);
+    try {
+      const res = await fetch("/api/evaluation-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          titre: titre.trim(),
+          type,
+          matiere: selectedSubject.id,
+          niveau,
+          type_exercice: typeExercice,
+          cotation_type: cotation,
+          points_max: cotation === "points" ? (Number(maxPoints) || 20) : null,
+          instructions: instructions.trim() || null,
+          school_id: ctx.schoolId,
+        }),
+      });
+      const data = await res.json() as { template?: unknown; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Erreur");
+      onCreated();
+      onClose();
+    } catch (e) { setErr(toNiceError(e)); } finally { setSaving(false); }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(15,23,42,.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
+      <div style={{ width: "min(680px,96vw)", background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(15,23,42,.28)", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+
+        <div style={{ background: "linear-gradient(135deg,#7C3AED,#5B21B6)", padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+          <div style={{ color: "#fff", fontSize: 17, fontWeight: 900 }}>📚 Nouveau modèle</div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(255,255,255,.35)", background: "rgba(255,255,255,.15)", color: "#fff", fontSize: 16, cursor: "pointer", fontWeight: 700 }}>×</button>
+        </div>
+
+        <div style={{ padding: 22, display: "grid", gap: 12, overflowY: "auto" }}>
+          {err && <div style={{ padding: "9px 14px", borderRadius: 9, background: "rgba(220,38,38,.08)", border: "1px solid rgba(220,38,38,.25)", color: "#991B1B", fontSize: 13 }}>{err}</div>}
+
+          <div>
+            <div style={lbl}>Type d&apos;évaluation</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setType("summative")} style={pillStyle(type === "summative")}>🎓 Sommative</button>
+              <button onClick={() => setType("formative")} style={pillStyle(type === "formative")}>📊 Formative</button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <div style={lbl}>Matière *</div>
+              <select style={sel} value={selectedSubject.id}
+                onChange={e => { const s = SUBJECTS.find(s => s.id === e.target.value); if (s) handleSubjectChange(s); }}>
+                {SUBJECTS.map(s => <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={lbl}>Niveau</div>
+              <select style={sel} value={niveau} onChange={e => setNiveau(e.target.value)}>
+                {selectedSubject.niveaux.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div style={lbl}>Titre / Thème *</div>
+            <input style={{ ...inp, height: 44 }} placeholder="Ex: QCM Flashcards 1" value={titre} onChange={e => setTitre(e.target.value)} autoFocus />
+          </div>
+
+          <div>
+            <div style={lbl}>Type d&apos;exercice</div>
+            <select style={sel} value={typeExercice} onChange={e => setTypeExercice(e.target.value)}>
+              {selectedSubject.types.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <div style={lbl}>Système de cotation</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {COTATION_OPTIONS.map(opt => (
+                <button key={opt.id} onClick={() => setCotation(opt.id)}
+                  style={{ flex: 1, padding: "8px 10px", borderRadius: 9, cursor: "pointer", fontSize: 12, fontWeight: 700,
+                    border: cotation === opt.id ? "2px solid #7C3AED" : "1.5px solid #E5E7EB",
+                    background: cotation === opt.id ? "#EDE9FE" : "#FFF", color: cotation === opt.id ? "#5B21B6" : "#374151",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                  <span>{opt.label}</span>
+                  <span style={{ fontSize: 10, fontWeight: 500, color: "#9CA3AF" }}>{opt.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {cotation === "points" && (
+            <div>
+              <div style={lbl}>Points max</div>
+              <input style={inp} value={maxPoints} onChange={e => setMaxPoints(e.target.value)} inputMode="numeric" placeholder="20" />
+            </div>
+          )}
+
+          <div>
+            <div style={lbl}>Instructions / Consignes (optionnel)</div>
+            <textarea style={{ ...inp, height: 68, resize: "vertical", paddingTop: 9 }} placeholder="Ex: Vocabulaire de la famille, mots de liaison…" value={instructions} onChange={e => setInstructions(e.target.value)} />
+          </div>
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 4 }}>
+            <button onClick={onClose} style={{ height: 38, padding: "0 14px", borderRadius: 9, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>Annuler</button>
+            <button onClick={onSubmit} disabled={saving}
+              style={{ height: 42, padding: "0 20px", borderRadius: 9, border: "none",
+                background: saving ? "#9CA3AF" : "linear-gradient(135deg,#7C3AED,#5B21B6)",
+                color: "#fff", fontWeight: 700, fontSize: 14, cursor: saving ? "not-allowed" : "pointer" }}>
+              {saving ? "Enregistrement…" : "💾 Créer le modèle"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Carte modèle ──────────────────────────────────────────────────────────────
+function TemplateCard({ tpl, classes, ctx, onDistributed, onDelete }: {
+  tpl: EvaluationTemplate; classes: ClassGroup[]; ctx: TeacherContext;
+  onDistributed: (count: number) => void; onDelete: () => void;
+}) {
+  const [distributeOpen, setDistributeOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [gridOpen, setGridOpen] = useState(false);
+
+  const matiere = SUBJECTS.find(s => s.id === tpl.matiere);
+  const abtn = (bg: string, color: string, border: string): React.CSSProperties => ({
+    height: 28, padding: "0 10px", borderRadius: 8, border: `1px solid ${border}`,
+    background: bg, cursor: "pointer", fontSize: 11, fontWeight: 700, color,
+    whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 4,
+  });
+
+  async function handleDelete() {
+    const res = await fetch(`/api/evaluation-templates/${tpl.id}`, { method: "DELETE" });
+    if (res.ok) onDelete();
+  }
+
+  // Fake Assessment object pour GridEditorModal (read-only via grille stockée dans template)
+  const fakeAssessment = {
+    id: tpl.id, title: tpl.titre, type: tpl.type as "formative" | "summative",
+    date: "", max_points: tpl.points_max, weight: null, status: "draft" as const,
+    parent_visible: false, instructions: tpl.instructions, class_group_id: null,
+    course_id: null, apprentissage_id: null, created_at: tpl.created_at,
+    updated_at: tpl.created_at, fichier_path: tpl.fichier_path, fichier_nom: tpl.fichier_nom,
+    cotation_type: tpl.cotation_type as "points" | "nisbttb", competences_evaluees: [],
+    template_id: null,
+  };
+
+  return (
+    <>
+    <div style={{
+      background: "#FFF", borderRadius: 14, border: "1px solid #DDD6FE",
+      boxShadow: "0 1px 3px rgba(124,58,237,.08)",
+      padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12,
+    }}>
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+        <button onClick={() => setGridOpen(true)} style={abtn("#FFFBEB", "#92400E", "#FDE68A")}>📋 Grille</button>
+        <button onClick={() => setDistributeOpen(true)} style={abtn("#EDE9FE", "#5B21B6", "#DDD6FE")}>→ Distribuer</button>
+        <div style={{ marginLeft: "auto" }}>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 20, background: "#EDE9FE", color: "#5B21B6", border: "1px solid #DDD6FE" }}>📚 Modèle</span>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <div style={{ width: 40, height: 40, borderRadius: 11, background: "#EDE9FE", border: "1px solid #DDD6FE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>
+          {matiere?.emoji ?? "📋"}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 20, background: "#EDE9FE", color: "#5B21B6", border: "1px solid #DDD6FE" }}>
+              {tpl.type === "formative" ? "Formative" : "Sommative"}
+            </span>
+            {matiere && (
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#9CA3AF" }}>{matiere.emoji} {matiere.label}</span>
+            )}
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", marginBottom: 4 }}>{tpl.titre}</div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: "#6B7280", fontWeight: 500 }}>
+            {tpl.niveau && <span>📐 {tpl.niveau}</span>}
+            {tpl.points_max && tpl.cotation_type === "points" && <span>🎯 /{tpl.points_max} pts</span>}
+            {tpl.type_exercice && <span>📝 {SUBJECTS.flatMap(s => s.types).find(t => t.id === tpl.type_exercice)?.label ?? tpl.type_exercice}</span>}
+          </div>
+          {tpl.instructions && (
+            <div style={{ marginTop: 6, fontSize: 12, color: "#6B7280", background: "#F9FAFB", borderRadius: 8, padding: "4px 8px", fontStyle: "italic" }}>
+              {tpl.instructions}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, paddingTop: 10, borderTop: "1px solid #F3F4F6" }}>
+        {!confirmDelete ? (
+          <button onClick={() => setConfirmDelete(true)}
+            style={{ flex: 1, height: 32, borderRadius: 9, border: "1px solid #FECACA", background: "#FEF2F2", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#B91C1C", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+            🗑 Supprimer
+          </button>
+        ) : (
+          <div style={{ flex: 1, display: "flex", gap: 5 }}>
+            <button onClick={handleDelete}
+              style={{ flex: 1, height: 32, borderRadius: 9, border: "1px solid #F87171", background: "#FEF2F2", cursor: "pointer", fontSize: 12, fontWeight: 800, color: "#B91C1C" }}>
+              ✓ Confirmer suppression
+            </button>
+            <button onClick={() => setConfirmDelete(false)}
+              style={{ height: 32, width: 32, borderRadius: 9, border: "1px solid #E5E7EB", background: "#F9FAFB", cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#6B7280" }}>
+              ×
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+    {gridOpen && <GridEditorModal a={fakeAssessment} ctx={ctx} onClose={() => setGridOpen(false)} />}
+    {distributeOpen && (
+      <DistributeModal tpl={tpl} classes={classes} ctx={ctx}
+        onDone={(count) => onDistributed(count)}
+        onClose={() => setDistributeOpen(false)} />
+    )}
+    </>
+  );
+}
+
 // ── Page principale ──────────────────────────────────────────────────────────
 export default function EvaluationsPage() {
   const [ctx, setCtx] = useState<TeacherContext | null>(null);
@@ -1258,6 +1636,8 @@ export default function EvaluationsPage() {
   const [highlightedId, setHighlightedId] = useState<UUID | "">("");
   const [activeTab, setActiveTab] = useState<Tab>("toutes");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
+  const [templates, setTemplates] = useState<EvaluationTemplate[]>([]);
   const [showImport, setShowImport] = useState(false);
   const csvRef = useRef<HTMLInputElement | null>(null);
   const resCsvRef = useRef<HTMLInputElement | null>(null);
@@ -1305,7 +1685,16 @@ export default function EvaluationsPage() {
     } catch (e) { setErrorMsg(toNiceError(e)); }
   }
 
-  useEffect(() => { boot(); }, []);
+  async function loadTemplates() {
+    try {
+      const res = await fetch("/api/evaluation-templates");
+      const data = await res.json() as { templates?: EvaluationTemplate[]; error?: string };
+      if (res.ok) setTemplates(data.templates ?? []);
+    } catch { /* silencieux */ }
+  }
+
+  useEffect(() => { boot(); void loadTemplates(); }, []);
+  useEffect(() => { if (activeTab === "modeles") void loadTemplates(); }, [activeTab]);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
@@ -1418,11 +1807,20 @@ export default function EvaluationsPage() {
             {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <div style={{ flex: 1 }} />
-          <button style={{ ...btnStyle, color: "#6B7280" }} onClick={() => setShowImport(v => !v)}>📥 Import CSV</button>
-          <button onClick={() => setShowCreateModal(true)} disabled={!ctx}
-            style={{ height: 42, padding: "0 18px", borderRadius: 9, border: "none", background: "linear-gradient(135deg,#FF3B30,#0A84FF)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: ctx ? "pointer" : "not-allowed" }}>
-            + Nouvelle évaluation
-          </button>
+          {activeTab !== "modeles" && (
+            <button style={{ ...btnStyle, color: "#6B7280" }} onClick={() => setShowImport(v => !v)}>📥 Import CSV</button>
+          )}
+          {activeTab === "modeles" ? (
+            <button onClick={() => setShowCreateTemplateModal(true)} disabled={!ctx}
+              style={{ height: 42, padding: "0 18px", borderRadius: 9, border: "none", background: "linear-gradient(135deg,#7C3AED,#5B21B6)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: ctx ? "pointer" : "not-allowed" }}>
+              + Nouveau modèle
+            </button>
+          ) : (
+            <button onClick={() => setShowCreateModal(true)} disabled={!ctx}
+              style={{ height: 42, padding: "0 18px", borderRadius: 9, border: "none", background: "linear-gradient(135deg,#FF3B30,#0A84FF)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: ctx ? "pointer" : "not-allowed" }}>
+              + Nouvelle évaluation
+            </button>
+          )}
         </div>
 
         {showImport && (
@@ -1457,7 +1855,22 @@ export default function EvaluationsPage() {
       </div>
 
       <div style={{ display: "grid", gap: 8 }}>
-        {filteredRows.length === 0 ? (
+        {activeTab === "modeles" ? (
+          templates.length === 0 ? (
+            <div style={{ background: "#FFF", borderRadius: 14, border: "1px solid #DDD6FE", padding: "40px 24px", textAlign: "center", color: "#6B7280" }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>📚</div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>Aucun modèle</div>
+              <div style={{ fontSize: 13, marginTop: 4, opacity: 0.7 }}>Crée un modèle réutilisable pour le distribuer rapidement à plusieurs classes.</div>
+            </div>
+          ) : (
+            templates.map(tpl => (
+              <TemplateCard key={tpl.id} tpl={tpl} classes={classes} ctx={ctx!}
+                onDistributed={(count) => { flash(`${count} évaluation${count > 1 ? "s" : ""} créée${count > 1 ? "s" : ""} avec succès ✅`); if (ctx) void refresh(ctx); }}
+                onDelete={() => { setTemplates(prev => prev.filter(t => t.id !== tpl.id)); flash("Modèle supprimé."); }}
+              />
+            ))
+          )
+        ) : filteredRows.length === 0 ? (
           <div style={{ background: "#FFF", borderRadius: 14, border: "1px solid #E5E7EB", padding: "40px 24px", textAlign: "center", color: "#6B7280" }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>
@@ -1481,6 +1894,11 @@ export default function EvaluationsPage() {
         <CreateModal ctx={ctx} classes={classes} courses={courses} apprentissages={apprentissages}
           onCreated={() => { setFilterClassId(""); setFilterCourseId(""); setShowCreateModal(false); }}
           onClose={() => setShowCreateModal(false)} />
+      )}
+      {showCreateTemplateModal && ctx && (
+        <CreateTemplateModal ctx={ctx}
+          onCreated={() => { setShowCreateTemplateModal(false); void loadTemplates(); }}
+          onClose={() => setShowCreateTemplateModal(false)} />
       )}
     </div>
   );
