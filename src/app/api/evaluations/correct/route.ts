@@ -66,11 +66,12 @@ export async function POST(req: Request) {
     }
 
     // ── Charger la grille depuis la DB ────────────────────────────────────────
-    const { data: gridRow } = await supabase
+    const { data: gridRow, error: gridErr } = await supabase
       .from("evaluation_grids")
       .select("questions, school_id")
       .eq("assessment_id", assessmentId)
       .maybeSingle();
+    if (gridErr) console.error("[correct] evaluation_grids:", gridErr.message);
 
     const questions: GridQuestion[] = (gridRow?.questions ?? []) as GridQuestion[];
     const hasGrid = questions.length > 0;
@@ -80,11 +81,12 @@ export async function POST(req: Request) {
     }
 
     // ── Charger le titre de l'évaluation ─────────────────────────────────────
-    const { data: assessment } = await supabase
+    const { data: assessment, error: assessErr } = await supabase
       .from("assessments")
       .select("title, max_points, school_id")
       .eq("id", assessmentId)
       .maybeSingle();
+    if (assessErr) throw new Error("[assessments] " + assessErr.message);
 
     // ── Encoder les PDFs en base64 ────────────────────────────────────────────
     const pdfBuffer = await pdfFile.arrayBuffer();
