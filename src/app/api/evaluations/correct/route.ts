@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     // ── Charger le titre de l'évaluation ─────────────────────────────────────
     const { data: assessment } = await supabase
       .from("assessments")
-      .select("title, max_points")
+      .select("title, max_points, school_id")
       .eq("id", assessmentId)
       .maybeSingle();
 
@@ -267,7 +267,7 @@ Si pas de nom: "Élève inconnu (page X)".`;
       .from("correction_sessions")
       .insert({
         assessment_id: assessmentId,
-        school_id: gridRow?.school_id ?? "",
+        school_id: gridRow?.school_id ?? assessment?.school_id ?? null,
         teacher_id: user.id,
         status: "reviewing",
         extractions: result.students,
