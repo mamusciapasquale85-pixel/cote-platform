@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import Script from "next/script";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="fr">
       <body className={`${dmSans.variable} antialiased`}>
         {children}
+        <Analytics />
 
         {/* PostHog — analytics produit (chargé uniquement si la clé est configurée) */}
         {POSTHOG_KEY && (
