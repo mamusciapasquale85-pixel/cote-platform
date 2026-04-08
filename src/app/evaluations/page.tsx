@@ -965,8 +965,13 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
       form.append("assessment_id", a.id);
       if (correctionKeyFile) form.append("correction_key", correctionKeyFile);
       const res = await fetch("/api/evaluations/correct", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Erreur serveur");
+      let data: Record<string, unknown>;
+      try { data = await res.json(); }
+      catch {
+        if (res.status === 413) throw new Error("PDF trop volumineux — essaie avec un fichier plus petit (max ~4 MB)");
+        throw new Error(`Erreur serveur ${res.status} — réessaie ou contacte le support`);
+      }
+      if (!res.ok) throw new Error((data?.error as string) ?? "Erreur serveur");
       setExtractions(data.students ?? []);
       setStep("review");
     } catch (e) {
