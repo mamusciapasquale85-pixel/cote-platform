@@ -3,12 +3,13 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-// ─── POST : distribuer un modèle à plusieurs classes ─────────────────────────
+// ??? POST : distribuer un mod�le � plusieurs classes ?????????????????????????
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
+
   const { data: { user }, error: userErr } = await supabase.auth.getUser();
-  if (userErr || !user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  if (userErr || !user) return NextResponse.json({ error: "Non authentifi�" }, { status: 401 });
 
   const body = await req.json() as {
     classesWithDates: { classe_id: string; date: string }[];
@@ -20,17 +21,50 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!body.classesWithDates?.length) return NextResponse.json({ error: "classesWithDates requis" }, { status: 400 });
   if (body.classesWithDates.some(x => !x.date)) return NextResponse.json({ error: "date requise pour chaque classe" }, { status: 400 });
 
-  // Récupérer le modèle
+  // R�cup�rer le mod�le
   const { data: tpl, error: tplErr } = await supabase
     .from("evaluation_templates")
     .select("*")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
+  if (tplErr || !tpl) return NextResponse.json({ error: "Mod�le introuvable" }, { status: 404 });
 
-  if (tplErr || !tpl) return NextResponse.json({ error: "Modèle introuvable" }, { status: 404 });
+  // R�soudre course_id depuis la mati�re du mod�le
+  let courseId: string | null = body.course_id ?? null;
+  if (!courseId && tpl.matiere) {
+    const schoolId = tpl.school_id ?? body.school_id ?? null;
+    // 1. Chercher dans les cours de l'�cole
+    if (schoolId) {
+      const { data: schoolCourse } = await supabase
+        .from("courses")
+        .select("id")
+        .eq("school_id", schoolId)
+        .ilike("name", tpl.matiere)
+        .limit(1)
+        .maybeSingle();
+      courseId = schoolCourse?.id ?? null;
+    }
+    // 2. Fallback : cours standardis�s (sans filtre �cole)
+    if (!courseId) {
+      const { data: fallback } = await supabase
+        .from("courses")
+        .select("id")
+        .ilike("name", tpl.matiere)
+        .limit(1)
+        .maybeSingle();
+      courseId = fallback?.id ?? null;
+    }
+  }
 
-  // Créer une évaluation par classe avec sa date propre
+  if (!courseId) {
+    return NextResponse.json(
+      { error: `Cours introuvable pour la mati�re "${tpl.matiere}". V�rifiez la configuration des cours.` },
+      { status: 400 }
+    );
+  }
+
+  // Cr�er une �valuation par classe avec sa date propre
   const assessments = body.classesWithDates.map(({ classe_id, date }) => ({
     school_id: tpl.school_id ?? body.school_id ?? null,
     teacher_user_id: user.id,
@@ -43,7 +77,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     parent_visible: false,
     instructions: tpl.instructions ?? null,
     class_group_id: classe_id,
-    course_id: body.course_id ?? null,
+    course_id: courseId,
     apprentissage_id: null,
     cotation_type: tpl.cotation_type ?? "points",
     competences_evaluees: [],
@@ -56,7 +90,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .from("assessments")
     .insert(assessments)
     .select("id");
-
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 });
 
   // Copier la grille si elle existe
