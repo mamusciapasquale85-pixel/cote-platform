@@ -60,6 +60,10 @@ export async function POST(req: Request) {
     if (!pdfFile || !assessmentId) {
       return NextResponse.json({ error: "pdf + assessment_id requis" }, { status: 400 });
     }
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(assessmentId)) {
+      return NextResponse.json({ error: "assessment_id invalide: " + assessmentId }, { status: 400 });
+    }
 
     // ── Charger la grille depuis la DB ────────────────────────────────────────
     const { data: gridRow } = await supabase
@@ -263,7 +267,7 @@ Si pas de nom: "Élève inconnu (page X)".`;
     }
 
     // ── Sauvegarder la session de correction ──────────────────────────────────
-    const { data: session } = await supabase
+    const { data: session, error: sessionErr } = await supabase
       .from("correction_sessions")
       .insert({
         assessment_id: assessmentId,
