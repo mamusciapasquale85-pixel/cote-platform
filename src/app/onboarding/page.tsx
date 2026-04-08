@@ -433,7 +433,7 @@ export default function OnboardingPage() {
                       display: "flex", alignItems: "center", gap: "8px",
                       padding: "10px 12px", borderRadius: "10px", cursor: "pointer",
                       border: selected ? `2px solid ${ACCENT}` : "2px solid #e5e7eb",
-                      background: selected ? ACCENT_LIGHT = "white",
+                      background: selected ? ACCENT_LIGHT : "white",
                       fontWeight: selected ? 700 : 500, fontSize: "0.875rem",
                       color: selected ? ACCENT_DARK : "#374151",
                       textAlign: "left", transition: "all 0.12s",
