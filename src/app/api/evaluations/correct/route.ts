@@ -95,7 +95,6 @@ export async function POST(req: Request) {
       .select("title, max_points, answer_key")
       .eq("id", assessmentId)
       .maybeSingle();
-    if (assessErr) throw new Error("[assessments] " + assessErr.message);
 
     const hasAnswerKey = assessment?.answer_key != null;
 
