@@ -960,24 +960,41 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
     if (!pdfFile) return;
     setStep("processing"); setErrorMsg(null);
     try {
+      const ts = Date.now();
+      const { data: { user } } = await ctx.supabase.auth.getUser();
+      if (!user) throw new Error("Non authentifie");
+
+      const copiesPath = user.id + "/" + ts + "-copies.pdf";
+      const { error: upErr1 } = await ctx.supabase.storage
+        .from("correction-uploads")
+        .upload(copiesPath, pdfFile, { contentType: "application/pdf", upsert: true });
+      if (upErr1) throw new Error("Upload copies: " + upErr1.message);
+
+      let corrigePath: string | null = null;
+      if (correctionKeyFile) {
+        corrigePath = user.id + "/" + ts + "-corrige.pdf";
+        const { error: upErr2 } = await ctx.supabase.storage
+          .from("correction-uploads")
+          .upload(corrigePath, correctionKeyFile, { contentType: "application/pdf", upsert: true });
+        if (upErr2) throw new Error("Upload corrige: " + upErr2.message);
+      }
+
       const form = new FormData();
-      form.append("pdf", pdfFile);
       form.append("assessment_id", a.id);
-      if (correctionKeyFile) form.append("correction_key", correctionKeyFile);
+      form.append("pdf_path", copiesPath);
+      if (corrigePath) form.append("correction_key_path", corrigePath);
+
       const res = await fetch("/api/evaluations/correct", { method: "POST", body: form });
       const rawText = await res.text();
       if (!res.ok) {
-        if (res.status === 413 || rawText.includes("Entity Too Large") || rawText.includes("Request En")) {
-          throw new Error("PDF trop volumineux (max ~4 MB par fichier). Compresse ton PDF ou découpe-le en plusieurs parties.");
-        }
-        let errMsg = `Erreur serveur ${res.status}`;
+        let errMsg = "Erreur serveur " + res.status;
         try { errMsg = (JSON.parse(rawText) as Record<string, string>)?.error ?? errMsg; } catch {}
         throw new Error(errMsg);
       }
       let data: Record<string, unknown>;
       try { data = JSON.parse(rawText); }
-      catch { throw new Error("Réponse serveur invalide"); }
-      setExtractions(data.students ?? []);
+      catch { throw new Error("Reponse serveur invalide"); }
+      setExtractions((data.students as StudentExtraction[]) ?? []);
       setStep("review");
     } catch (e) {
       setErrorMsg(e instanceof Error ? e.message : "Erreur");
