@@ -1063,24 +1063,37 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
         {(step === "upload" || step === "processing") && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "12px 0" }}>
             <div style={{ fontSize: 13, color: "#6B7280", textAlign: "center" }}>
-              L'IA compare les copies des élèves avec ton corrigé et propose une note. Les écritures illisibles sont signalées automatiquement.
+              L'IA lit les copies scannées, corrige chaque réponse et enregistre les résultats automatiquement.
             </div>
 
-            {/* Corrigé officiel (optionnel mais recommandé) */}
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
-                📋 Corrigé officiel <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(recommandé — améliore la précision)</span>
+            {/* Statut clé de correction */}
+            {a.answer_key ? (
+              <div style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(52,199,89,0.08)", border: "1px solid rgba(52,199,89,0.25)", fontSize: 13, color: "#166534", fontWeight: 500 }}>
+                ✅ Clé de correction configurée — upload uniquement les copies
               </div>
-              <div onClick={() => keyRef.current?.click()}
-                style={{ border: `2px dashed ${correctionKeyFile ? "#16A34A" : "#D1D5DB"}`, borderRadius: 10, padding: "16px 24px", cursor: "pointer", textAlign: "center", background: correctionKeyFile ? "#F0FDF4" : "#FAFAFA" }}>
-                <div style={{ fontSize: 22, marginBottom: 4 }}>{correctionKeyFile ? "📄" : "☁️"}</div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: correctionKeyFile ? "#166534" : "#6B7280" }}>
-                  {correctionKeyFile ? correctionKeyFile.name : "Cliquer pour ajouter le corrigé (PDF)"}
+            ) : (
+              <div style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(255,149,0,0.08)", border: "1px solid rgba(255,149,0,0.3)", fontSize: 13, color: "#b36a00" }}>
+                ⚠️ Pas de clé de correction — ajoute le PDF corrigé ci-dessous, ou <a href={`/evaluations/corriger?assessment_id=${a.id}`} style={{ color: "#0A84FF", textDecoration: "underline" }}>configure la clé une fois pour toutes</a>
+              </div>
+            )}
+
+            {/* Corrigé officiel (seulement si pas de answer_key) */}
+            {!a.answer_key && (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", marginBottom: 6 }}>
+                  📋 Corrigé officiel (PDF) <span style={{ color: "#B91C1C", fontWeight: 400 }}>*</span>
                 </div>
-                {correctionKeyFile && <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{(correctionKeyFile.size / 1024 / 1024).toFixed(1)} MB</div>}
+                <div onClick={() => keyRef.current?.click()}
+                  style={{ border: `2px dashed ${correctionKeyFile ? "#16A34A" : "#D1D5DB"}`, borderRadius: 10, padding: "16px 24px", cursor: "pointer", textAlign: "center", background: correctionKeyFile ? "#F0FDF4" : "#FAFAFA" }}>
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>{correctionKeyFile ? "📄" : "☁️"}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: correctionKeyFile ? "#166534" : "#6B7280" }}>
+                    {correctionKeyFile ? correctionKeyFile.name : "Cliquer pour ajouter le corrigé (PDF)"}
+                  </div>
+                  {correctionKeyFile && <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{(correctionKeyFile.size / 1024 / 1024).toFixed(1)} MB</div>}
+                </div>
+                <input ref={keyRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={e => setCorrectionKeyFile(e.target.files?.[0] ?? null)} />
               </div>
-              <input ref={keyRef} type="file" accept=".pdf" style={{ display: "none" }} onChange={e => setCorrectionKeyFile(e.target.files?.[0] ?? null)} />
-            </div>
+            )}
 
             {/* Copies des élèves (obligatoire) */}
             <div>
@@ -1102,8 +1115,9 @@ function CorrectionModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherConte
             {errorMsg && <div style={{ color: "#B91C1C", fontSize: 13, background: "#FEF2F2", padding: "8px 14px", borderRadius: 8 }}>{errorMsg}</div>}
 
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <button onClick={startCorrection} disabled={!pdfFile || step === "processing"}
-                style={{ padding: "11px 32px", borderRadius: 10, background: step === "processing" ? "#9CA3AF" : "#0C4A6E", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: !pdfFile || step === "processing" ? "not-allowed" : "pointer" }}>
+              <button onClick={startCorrection}
+                disabled={!pdfFile || step === "processing" || (!a.answer_key && !correctionKeyFile)}
+                style={{ padding: "11px 32px", borderRadius: 10, background: (step === "processing" || !pdfFile || (!a.answer_key && !correctionKeyFile)) ? "#9CA3AF" : "#0C4A6E", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: (!pdfFile || step === "processing" || (!a.answer_key && !correctionKeyFile)) ? "not-allowed" : "pointer" }}>
                 {step === "processing" ? "⏳ L'IA analyse les copies…" : "🚀 Lancer la correction IA"}
               </button>
               {step === "processing" && <div style={{ fontSize: 12, color: "#9CA3AF" }}>Cela peut prendre 30–90 secondes selon le nombre de copies…</div>}

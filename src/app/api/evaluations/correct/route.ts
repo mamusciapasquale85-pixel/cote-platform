@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { PDFDocument } from "pdf-lib";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -87,17 +88,21 @@ export async function POST(req: Request) {
 
     const questions: GridQuestion[] = (gridRow?.questions ?? []) as GridQuestion[];
     const hasGrid = questions.length > 0;
-    if (!hasGrid && !correctionKey) {
-      return NextResponse.json({ error: "Aucune grille definie. Fournis un corrige officiel pour que l'IA puisse corriger." }, { status: 400 });
-    }
 
-    // ── Charger le titre de l'evaluation ─────────────────────────────────────
-    const { data: assessment, error: assessErr } = await supabase
+    // ── Charger le titre + answer_key de l'évaluation ────────────────────────
+    const { data: assessment } = await supabase
       .from("assessments")
-      .select("title, max_points, school_id")
+      .select("title, max_points, answer_key")
       .eq("id", assessmentId)
       .maybeSingle();
     if (assessErr) throw new Error("[assessments] " + assessErr.message);
+
+    const hasAnswerKey = assessment?.answer_key != null;
+
+    // Sans grille, sans corrigé uploadé ET sans answer_key : impossible de corriger
+    if (!hasGrid && !correctionKey && !hasAnswerKey) {
+      return NextResponse.json({ error: "Aucune grille définie. Configure la clé de correction dans l'évaluation ou fournis un corrigé PDF." }, { status: 400 });
+    }
 
     // ── Encoder les PDFs en base64 ────────────────────────────────────────────
     const pdfBuffer = await pdfFile.arrayBuffer();
@@ -172,10 +177,50 @@ Retourne UNIQUEMENT un JSON valide avec cette structure exacte:
   ]
 }
 
-Important: total_suggested / total_max * 10, arrondi a 1 decimale = score_sur_10.
-Si tu ne trouves pas de nom pour un eleve, utilise "Eleve inconnu (page X)".`;
+Important: total_suggested / total_max * 10, arrondi à 1 décimale = score_sur_10.
+Si tu ne trouves pas de nom pour un élève, utilise "Élève inconnu (page X)".`;
+    } else if (hasAnswerKey && !correctionKey) {
+      // Mode answer_key stocké dans la DB
+      const answerKeyText = JSON.stringify(assessment!.answer_key, null, 2);
+      const totalMaxFromKey = (() => {
+        const ak = assessment!.answer_key as Record<string, { total_points?: number }>;
+        return Object.values(ak).reduce((s, p) => s + (p?.total_points ?? 0), 0) || (assessment?.max_points ?? 40);
+      })();
+      prompt = `Tu es un assistant de correction d'évaluations scolaires en Fédération Wallonie-Bruxelles.
+
+Le document contient les COPIES DES ÉLÈVES scannées.
+
+ÉVALUATION: "${assessment?.title ?? ""}" (/${totalMaxFromKey} points)
+
+CLEF DE CORRECTION (stockée en base de données):
+${answerKeyText}
+
+INSTRUCTIONS:
+1. Identifie chaque élève (nom/prénom en haut de copie)
+2. Pour partie1 (traductions): accepte les variantes proches si sens + structure corrects. question_id: "p1_q1" à "p1_q20"
+3. Pour partie2 (QCM): correspondance exacte (A, B ou C). question_id: "p2_q1" à "p2_q20"
+4. ILLISIBLE: illegible: true, student_answer: "⚠ ILLISIBLE", suggested_score: 0, needs_review: true
+5. Vide/non répondu: student_answer: "", suggested_score: 0, needs_review: false
+
+Retourne UNIQUEMENT un JSON valide:
+{
+  "students": [
+    {
+      "name": "NOM Prénom",
+      "answers": [
+        { "question_id": "p1_q1", "student_answer": "Ik ben moe na school", "suggested_score": 1, "max_score": 1, "needs_review": false },
+        { "question_id": "p2_q1", "student_answer": "B", "suggested_score": 1, "max_score": 1, "needs_review": false }
+      ],
+      "total_suggested": 28,
+      "total_max": ${totalMaxFromKey},
+      "score_sur_10": 7.0
+    }
+  ]
+}
+Si pas de nom: "Élève inconnu (page X)".`;
     } else {
-      prompt = `Tu es un assistant de correction d'evaluations scolaires en Federation Wallonie-Bruxelles.
+      // Mode sans grille : Claude extrait les questions depuis le corrigé PDF
+      prompt = `Tu es un assistant de correction d'évaluations scolaires en Fédération Wallonie-Bruxelles.
 
 Le DOCUMENT 1 est le CORRIGE OFFICIEL. Le DOCUMENT 2 contient les COPIES DES ELEVES.
 
@@ -217,58 +262,63 @@ Important: score_sur_10 = total_suggested / total_max * 10, arrondi a 1 decimale
 Si pas de nom: "Eleve inconnu (page X)".`;
     }
 
-    // ── Construire le contenu du message Claude ───────────────────────────────
-    const messageContent: Array<{ type: string; source?: object; text?: string }> = [];
+    // ── Helper: appel Claude pour un chunk PDF ────────────────────────────────
+    const PAGES_PER_STUDENT = 2;
+    const CHUNK_THRESHOLD = 15 * 1024 * 1024; // 15 MB → split
 
-    if (correctionKeyBase64) {
-      messageContent.push({
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: correctionKeyBase64 },
+    const callClaude = async (chunkBase64: string): Promise<StudentExtraction[]> => {
+      const msgContent: Array<{ type: string; source?: object; text?: string }> = [];
+      if (correctionKeyBase64) {
+        msgContent.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: correctionKeyBase64 } });
+      }
+      msgContent.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: chunkBase64 } });
+      msgContent.push({ type: "text", text: prompt });
+
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({ model: "claude-opus-4-5", max_tokens: 8192, messages: [{ role: "user", content: msgContent }] }),
       });
+      if (!r.ok) { const e = await r.text(); throw new Error(`Anthropic error ${r.status}: ${e.slice(0, 300)}`); }
+      const d = await r.json() as { content?: Array<{ type: string; text?: string }> };
+      const txt = d.content?.find(c => c.type === "text")?.text ?? "";
+      const m = txt.match(/\{[\s\S]*\}/);
+      if (!m) throw new Error(`Pas de JSON dans la réponse Claude (aperçu: ${txt.slice(0, 200)})`);
+      const parsed = JSON.parse(m[0]) as { students?: StudentExtraction[] };
+      return parsed.students ?? [];
+    };
+
+    // ── Appel(s) Claude Vision ────────────────────────────────────────────────
+    let allStudents: StudentExtraction[] = [];
+
+    if (pdfBuffer.byteLength > CHUNK_THRESHOLD) {
+      // Split le PDF copies en tranches de PAGES_PER_STUDENT pages
+      const pdfDoc = await PDFDocument.load(pdfBuffer);
+      const totalPages = pdfDoc.getPageCount();
+
+      for (let start = 0; start < totalPages; start += PAGES_PER_STUDENT) {
+        const end = Math.min(start + PAGES_PER_STUDENT, totalPages);
+        const chunkDoc = await PDFDocument.create();
+        const indices = Array.from({ length: end - start }, (_, i) => start + i);
+        const copied = await chunkDoc.copyPages(pdfDoc, indices);
+        copied.forEach(pg => chunkDoc.addPage(pg));
+        const chunkBytes = await chunkDoc.save();
+        const chunkBase64 = Buffer.from(chunkBytes).toString("base64");
+        const students = await callClaude(chunkBase64);
+        allStudents.push(...students);
+      }
+    } else {
+      allStudents = await callClaude(pdfBase64);
     }
 
-    messageContent.push({
-      type: "document",
-      source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
-    });
-
-    messageContent.push({ type: "text", text: prompt });
-
-    // ── Appel Claude Vision ───────────────────────────────────────────────────
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-opus-4-5",
-        max_tokens: 8192,
-        messages: [{ role: "user", content: messageContent }],
-      }),
-    });
-
-    if (!anthropicRes.ok) {
-      const errBody = await anthropicRes.text();
-      throw new Error(`Anthropic error ${anthropicRes.status}: ${errBody.slice(0, 300)}`);
-    }
-
-    const anthropicData = (await anthropicRes.json()) as { content?: Array<{ type: string; text?: string }> };
-    const rawText = anthropicData.content?.find(c => c.type === "text")?.text ?? "";
-
-    // ── Parser le JSON retourne par Claude ────────────────────────────────────
-    let result: CorrectionResult;
-    try {
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("Pas de JSON dans la reponse");
-      result = JSON.parse(jsonMatch[0]) as CorrectionResult;
-    } catch {
+    // ── Valider ───────────────────────────────────────────────────────────────
+    if (allStudents.length === 0) {
       return NextResponse.json({
-        error: "L'IA n'a pas retourne un JSON valide. Reessaie ou verifie que le PDF est lisible.",
-        raw: rawText.slice(0, 500),
+        error: "L'IA n'a extrait aucun élève. Vérifie que le PDF est lisible.",
       }, { status: 422 });
     }
+
+    let result: CorrectionResult = { students: allStudents };
 
     // ── Calculer score_sur_10 si absent ──────────────────────────────────────
     for (const stud of result.students) {

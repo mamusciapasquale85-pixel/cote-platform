@@ -51,8 +51,7 @@ export type Assessment = {
   fichier_nom: string | null;
   cotation_type: "points" | "nisbttb";
   competences_evaluees: string[];
-  template_id: UUID | null;
-  template_titre?: string | null;
+  answer_key?: unknown | null;
 };
 
 export type ParsedAssessmentCsvRow = {
@@ -151,9 +150,9 @@ function isMissingStudentRefColumn(error: unknown): boolean {
 }
 
 const ASSESSMENT_SELECT_WITH_APP =
-  "id, title, type, date, max_points, weight, status, parent_visible, instructions, class_group_id, course_id, apprentissage_id, cotation_type, competences_evaluees, fichier_path, fichier_nom, template_id, created_at, updated_at";
+  "id, title, type, date, max_points, weight, status, parent_visible, instructions, class_group_id, course_id, apprentissage_id, cotation_type, competences_evaluees, fichier_path, fichier_nom, created_at, updated_at, answer_key";
 const ASSESSMENT_SELECT_NO_APP =
-  "id, title, type, date, max_points, weight, status, parent_visible, instructions, class_group_id, course_id, cotation_type, competences_evaluees, fichier_path, fichier_nom, template_id, created_at, updated_at";
+  "id, title, type, date, max_points, weight, status, parent_visible, instructions, class_group_id, course_id, cotation_type, competences_evaluees, fichier_path, fichier_nom, created_at, updated_at, answer_key";
 const ASSESSMENT_IMPORT_EXISTING_SELECT = "id, title, type, date, class_group_id, course_id";
 
 function normalizeAssessmentRows(rows: any[]): Assessment[] {
