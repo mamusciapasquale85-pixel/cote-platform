@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -23,7 +23,7 @@ type CorrectionResult = {
   erreur?: string;
 };
 
-export default function CorrigerCopiesPage() {
+function CorrigerCopiesInner() {
   const supabase = createClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -383,3 +383,7 @@ const TEMPLATE_ANSWER_KEY = {
     total_points: 20,
   },
 };
+
+export default function CorrigerCopiesPage() {
+  return <Suspense fallback={<div style={{ padding: 32, color: "#64748b" }}>Chargement…</div>}><CorrigerCopiesInner /></Suspense>;
+}
