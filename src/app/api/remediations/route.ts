@@ -41,6 +41,9 @@ export async function GET(_req: NextRequest) {
       .from("remediations")
       .select(`
         id,
+        subject,
+        niveau,
+        exercice_propose,
         eleve_id,
         classe_id,
         assessment_id,
@@ -66,6 +69,9 @@ export async function GET(_req: NextRequest) {
       .from("remediations")
       .select(`
         id,
+        subject,
+        niveau,
+        exercice_propose,
         eleve_id,
         classe_id,
         assessment_id,
@@ -98,6 +104,9 @@ export async function GET(_req: NextRequest) {
 
       return {
         id: r.id,
+        subject: r.subject ?? null,
+        niveau: r.niveau ?? null,
+        exercice_propose: r.exercice_propose ?? null,
         eleve_id: r.eleve_id,
         classe_id: r.classe_id,
         assessment_id: r.assessment_id,

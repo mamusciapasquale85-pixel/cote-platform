@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient as createClient } from "@/lib/supabase/server";
+import { courseNameToSubject, generateExercicePropose } from "@/lib/generateExercicePropose";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
     // Récupérer l'évaluation et sa clé de correction
     const { data: assessment, error: assessmentError } = await supabase
       .from("assessments")
-      .select("id, title, max_points, answer_key, school_id, academic_year_id")
+      .select("id, title, max_points, answer_key, school_id, academic_year_id, course_id")
       .eq("id", assessmentId)
       .single();
 
@@ -70,6 +71,17 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
     if (!apiKey)
       return NextResponse.json({ error: "ANTHROPIC_API_KEY manquante" }, { status: 500 });
+
+    // Déterminer la matière depuis le cours lié à l'évaluation
+    let assessmentSubject = "nl";
+    if (assessment.course_id) {
+      const { data: course } = await supabase
+        .from("courses")
+        .select("name")
+        .eq("id", assessment.course_id)
+        .maybeSingle();
+      if (course?.name) assessmentSubject = courseNameToSubject(course.name);
+    }
 
     const results: CorrectionResult[] = [];
 
@@ -217,7 +229,8 @@ Retourne UNIQUEMENT ce JSON (aucun texte autour) :
 
           // Déclencher remédiation si < 50%
           if (correctionData.pourcentage < 50 && correctionData.points_faibles.length > 0) {
-            await supabase.from("remediations").insert({
+            const attendu = correctionData.points_faibles.slice(0, 3).join(", ");
+            const { data: newRem } = await supabase.from("remediations").insert({
               student_id: studentId,
               assessment_id: assessmentId,
               school_id: assessment.school_id,
@@ -227,7 +240,20 @@ Retourne UNIQUEMENT ce JSON (aucun texte autour) :
               points_faibles: correctionData.points_faibles,
               score: correctionData.score_total,
               score_max: correctionData.score_max,
-            }).then(() => {}); // Non bloquant
+              attendu,
+              subject: assessmentSubject,
+            }).select("id").maybeSingle();
+
+            // Option B : générer un exercice de remédiation en arrière-plan
+            if (newRem?.id) {
+              void generateExercicePropose({
+                supabase,
+                remediationId: newRem.id,
+                subject: assessmentSubject,
+                attendu,
+                evaluationTitre: assessment.title,
+              });
+            }
           }
 
           results.push({

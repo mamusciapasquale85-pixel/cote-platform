@@ -8,8 +8,19 @@ import GenererExerciceModal from "@/components/remediation/GenererExerciceModal"
 type ApiStatut = "Proposee" | "En cours" | "Terminee";
 type UiStatut = "Proposée" | "En cours" | "Terminée";
 
+type ExercicePropose = {
+  titre: string;
+  contenu: string;
+  subject: string;
+  type_exercice: string;
+  niveau: string;
+};
+
 type RemediationItem = {
   id: string;
+  subject: string | null;
+  niveau: string | null;
+  exercice_propose: ExercicePropose | null;
   eleve_id: string | null;
   classe_id: string | null;
   assessment_id: string | null;
@@ -31,6 +42,9 @@ type GenererRemediationState = {
   attendu?: string;
   evaluationTitre?: string;
   eleveNom?: string;
+  subject?: string;
+  niveau?: string;
+  exercicePropose?: ExercicePropose;
 };
 
 type ApiResponse = {
@@ -531,6 +545,27 @@ export default function RemediationsPage() {
                           </select>
                         </div>
 
+                        {/* Exercice proposé par l'IA (Option B) */}
+                        {item.exercice_propose && (
+                          <div
+                            style={{
+                              borderRadius: 10,
+                              border: "1px solid rgba(34,197,94,0.35)",
+                              background: "rgba(34,197,94,0.07)",
+                              padding: "8px 10px",
+                              fontSize: 12,
+                              color: "#15803D",
+                              fontWeight: 700,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <span style={{ fontSize: 14 }}>✅</span>
+                            <span>Exercice IA prêt : <em style={{ fontWeight: 400 }}>{item.exercice_propose.titre}</em></span>
+                          </div>
+                        )}
+
                         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
                           <button
                             type="button"
@@ -562,21 +597,28 @@ export default function RemediationsPage() {
                                 attendu: item.attendu ?? undefined,
                                 evaluationTitre: item.evaluation_titre || undefined,
                                 eleveNom: item.eleve_nom || undefined,
+                                subject: item.subject ?? undefined,
+                                niveau: item.niveau ?? undefined,
+                                exercicePropose: item.exercice_propose ?? undefined,
                               })
                             }
                             style={{
                               minHeight: 36,
                               borderRadius: 10,
-                              border: "1px solid rgba(249,115,22,0.34)",
-                              background: "rgba(249,115,22,0.12)",
-                              color: "#B45309",
+                              border: item.exercice_propose
+                                ? "1px solid rgba(34,197,94,0.4)"
+                                : "1px solid rgba(249,115,22,0.34)",
+                              background: item.exercice_propose
+                                ? "rgba(34,197,94,0.10)"
+                                : "rgba(249,115,22,0.12)",
+                              color: item.exercice_propose ? "#15803D" : "#B45309",
                               padding: "8px 10px",
                               fontSize: 13,
                               fontWeight: 800,
                               cursor: "pointer",
                             }}
                           >
-                            ✨ Exercice
+                            {item.exercice_propose ? "👁 Voir / Régénérer" : "✨ Générer"}
                           </button>
                         </div>
                       </article>
@@ -613,6 +655,9 @@ export default function RemediationsPage() {
           attendu={genererRemediation.attendu}
           evaluationTitre={genererRemediation.evaluationTitre}
           eleveNom={genererRemediation.eleveNom}
+          subject={genererRemediation.subject}
+          niveau={genererRemediation.niveau}
+          exercicePropose={genererRemediation.exercicePropose}
           onClose={() => setGenererRemediation(null)}
         />
       )}

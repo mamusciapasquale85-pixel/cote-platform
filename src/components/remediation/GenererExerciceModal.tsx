@@ -1,11 +1,25 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
+type ExercicePropose = {
+  titre: string;
+  contenu: string;
+  subject: string;
+  type_exercice: string;
+  niveau: string;
+};
+
 interface GenererExerciceModalProps {
   remediationId: string;
   attendu?: string;
   evaluationTitre?: string;
   eleveNom?: string;
+  /** Matière pré-détectée ('nl', 'en', 'mathematiques'…) */
+  subject?: string;
+  /** Niveau pré-détecté ('A1', '1S'…) */
+  niveau?: string;
+  /** Exercice déjà généré en arrière-plan (Option B) */
+  exercicePropose?: ExercicePropose;
   onClose: () => void;
 }
 
@@ -81,15 +95,37 @@ function ExerciceRenderer({ text }: { text: string }) {
   );
 }
 
-export default function GenererExerciceModal({ remediationId, attendu, evaluationTitre, eleveNom, onClose }: GenererExerciceModalProps) {
-  const [typeExercice, setTypeExercice] = useState("lacunes");
-  const [niveau, setNiveau] = useState<Niveau>("A1");
+/** Déduire la langue depuis le subject ID */
+function subjectToLangue(subject: string | undefined): Langue {
+  if (subject === "en") return "en";
+  return "nl";
+}
+
+/** Déduire le type d'exercice par défaut selon la matière */
+function subjectToTypeExercice(subject: string | undefined): string {
+  if (!subject) return "lacunes";
+  const map: Record<string, string> = {
+    nl: "lacunes", en: "lacunes",
+    mathematiques: "calcul", sciences: "qcm_sc",
+    histoire: "qcm_hist", geographie: "qcm_geo", francais: "lecture_fr",
+  };
+  return map[subject] ?? "lacunes";
+}
+
+export default function GenererExerciceModal({ remediationId, attendu, evaluationTitre, eleveNom, subject, niveau: niveauProp, exercicePropose, onClose }: GenererExerciceModalProps) {
+  const [typeExercice, setTypeExercice] = useState(
+    exercicePropose?.type_exercice ?? subjectToTypeExercice(subject)
+  );
+  const [niveau, setNiveau] = useState<Niveau>(
+    (exercicePropose?.niveau ?? niveauProp ?? "A1") as Niveau
+  );
   const [theme, setTheme] = useState((attendu ?? "").trim());
-  const [langue, setLangue] = useState<Langue>("nl");
+  const [langue, setLangue] = useState<Langue>(subjectToLangue(exercicePropose?.subject ?? subject));
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [titre, setTitre] = useState("");
-  const [exercice, setExercice] = useState("");
+  // Option B : pré-remplir avec l'exercice proposé si disponible
+  const [titre, setTitre] = useState(exercicePropose?.titre ?? "");
+  const [exercice, setExercice] = useState(exercicePropose?.contenu ?? "");
   const [copied, setCopied] = useState(false);
 
   const hasResult = exercice.trim().length > 0;
@@ -423,12 +459,24 @@ export default function GenererExerciceModal({ remediationId, attendu, evaluatio
             </div>
           )}
 
+          {/* Bandeau "proposition auto" si exercice pré-généré en background */}
+          {hasResult && exercicePropose && exercice === exercicePropose.contenu && (
+            <div style={{
+              borderRadius: 10, padding: "9px 14px", fontSize: 13, fontWeight: 700,
+              background: "rgba(34,197,94,0.10)", border: "1px solid rgba(34,197,94,0.4)",
+              color: "#15803D", display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <span>✅</span>
+              <span>Exercice généré automatiquement par Klasbook — vérifie et adapte si nécessaire</span>
+            </div>
+          )}
+
           {(hasResult || loading) && (
             <div style={{ borderRadius: 14, border: "1.5px solid #e2e8f0", background: "#fff", overflow: "hidden" }}>
               {hasResult && (
                 <div style={{ padding: "12px 16px", background: GRADIENT, color: "#fff", fontWeight: 800, fontSize: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span>📄 {titre}</span>
-                  <span style={{ opacity: 0.8, fontSize: 11 }}>Claude Sonnet</span>
+                  <span style={{ opacity: 0.8, fontSize: 11 }}>Claude Haiku · Auto</span>
                 </div>
               )}
               <div style={{ padding: 16, minHeight: 200, maxHeight: "45vh", overflowY: "auto" }}>

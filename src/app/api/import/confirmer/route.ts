@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { courseNameToSubject, generateExercicePropose } from "@/lib/generateExercicePropose";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -118,16 +119,30 @@ export async function POST(req: Request) {
           value: r.value,
         });
 
-        // Si I ou NI → créer remédiation
+        // Si I ou NI → créer remédiation + générer exercice en background
         if (["I", "NI"].includes(r.level)) {
+          const importSubject = courseNameToSubject(evaluation.matiere ?? "");
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).from("remediations").insert({
+          const { data: newRem } = await (supabase as any).from("remediations").insert({
             eleve_id: studentId,
             assessment_id: assessmentId,
             type_remediation: "Exercices",
             origine: "Import",
             statut: "Proposee",
-          });
+            subject: importSubject,
+            attendu: evaluation.titre, // titre de l'évaluation comme thème par défaut
+          }).select("id").maybeSingle();
+
+          // Option B : générer un exercice en background
+          if (newRem?.id) {
+            void generateExercicePropose({
+              supabase,
+              remediationId: newRem.id,
+              subject: importSubject,
+              attendu: evaluation.titre,
+              evaluationTitre: evaluation.titre,
+            });
+          }
         }
 
         importes++;
