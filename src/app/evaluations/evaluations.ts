@@ -52,6 +52,7 @@ export type Assessment = {
   cotation_type: "points" | "nisbttb";
   competences_evaluees: string[];
   answer_key?: unknown | null;
+  template_id?: string | null;
 };
 
 export type ParsedAssessmentCsvRow = {
