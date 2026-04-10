@@ -3,6 +3,18 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+// Mapping subject IDs → possible course name patterns (for ilike search)
+const SUBJECT_COURSE_NAMES: Record<string, string[]> = {
+  nl:              ["néerlandais", "neerlandais", "neerl%", "dutch%"],
+  en:              ["anglais", "english%", "angl%"],
+  mathematiques:   ["math%", "mathématiques", "mathematiques"],
+  sciences:        ["sciences%", "biologie%", "chimie%", "physique%", "sc.%"],
+  histoire:        ["histoire%", "hist%"],
+  geographie:      ["géographie%", "geographie%", "géo%", "geo%"],
+  francais:        ["français%", "francais%", "fr.%"],
+  langues_modernes:["langues%", "lm%"],
+};
+
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createSupabaseServerClient();
@@ -32,33 +44,42 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   let courseId: string | null = body.course_id ?? null;
   if (!courseId && tpl.matiere) {
     const schoolId = tpl.school_id ?? body.school_id ?? null;
-    if (schoolId) {
-      const { data: schoolCourse } = await supabase
-        .from("courses")
-        .select("id")
-        .eq("school_id", schoolId)
-        .ilike("name", tpl.matiere)
-        .limit(1)
-        .maybeSingle();
-      courseId = schoolCourse?.id ?? null;
+    // Keywords to match against course names (case-insensitive substring match)
+    const keywords = [
+      tpl.matiere.toLowerCase(),
+      ...(SUBJECT_COURSE_NAMES[tpl.matiere] ?? []).map(p => p.replace(/%/g, "").toLowerCase()),
+    ];
+
+    // Fetch all courses (scoped to school if possible)
+    let q = supabase.from("courses").select("id, name");
+    if (schoolId) q = (q as typeof q).eq("school_id", schoolId);
+    const { data: allCourses } = await q.limit(50);
+
+    if (allCourses?.length) {
+      // Try exact substring match first
+      for (const kw of keywords) {
+        if (courseId) break;
+        const match = allCourses.find(c => c.name.toLowerCase().includes(kw));
+        if (match) courseId = match.id;
+      }
     }
+
+    // Fallback: fetch all courses without school filter
     if (!courseId) {
-      const { data: fallback } = await supabase
-        .from("courses")
-        .select("id")
-        .ilike("name", tpl.matiere)
-        .limit(1)
-        .maybeSingle();
-      courseId = fallback?.id ?? null;
+      const { data: globalCourses } = await supabase
+        .from("courses").select("id, name").limit(100);
+      if (globalCourses?.length) {
+        for (const kw of keywords) {
+          if (courseId) break;
+          const match = globalCourses.find(c => c.name.toLowerCase().includes(kw));
+          if (match) courseId = match.id;
+        }
+      }
     }
   }
 
-  if (!courseId) {
-    return NextResponse.json(
-      { error: `Cours introuvable pour la matiere "${tpl.matiere}"` },
-      { status: 400 }
-    );
-  }
+  // If course_id still not found, proceed without it (nullable field)
+  // The insert will fail at DB level if truly required
 
   const assessments = body.classesWithDates.map(({ classe_id, date }) => ({
     school_id: tpl.school_id ?? body.school_id ?? null,
