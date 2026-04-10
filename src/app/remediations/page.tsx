@@ -395,7 +395,7 @@ export default function RemediationsPage() {
             const meta = STATUS_META[status];
 
             return (
-              <article key={status} style={{ ...CARD_STYLE, padding: 12, display: "grid", gap: 10, minHeight: 220 }}>
+              <article key={status} style={{ ...CARD_STYLE, padding: 12, display: "grid", gap: 10, minHeight: 220, alignContent: "start" }}>
                 <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 900, fontSize: 18 }}>
                     <span aria-hidden>{meta.icon}</span>
@@ -438,7 +438,7 @@ export default function RemediationsPage() {
                     Aucune remédiation
                   </div>
                 ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
+                  <div style={{ display: "grid", gap: 10, alignContent: "start" }}>
                     {items.map((item) => (
                       <article
                         key={item.id}
