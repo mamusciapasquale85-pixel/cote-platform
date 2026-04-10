@@ -119,7 +119,7 @@ export default function DashboardPage() {
         padding: "28px 28px 24px", color: "#fff",
         boxShadow: "0 8px 30px rgba(255,59,48,0.25)",
       }}>
-        <div style={{ fontSize: 26, fontWeight: 900 }}>Bonjour{teacher_first_name ? ` ${teacher_first_name}` : ""} 👋</div>
+        <div style={{ fontSize: 26, fontWeight: 900 }}>Bonjour, M. Mamuscia 👋</div>
         <div style={{ marginTop: 6, opacity: 0.88, fontSize: 15 }}>
           Voici un aperçu de ta classe au {new Date().toLocaleDateString("fr-BE", { weekday: "long", day: "numeric", month: "long" })}.
         </div>
