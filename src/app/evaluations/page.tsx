@@ -1231,15 +1231,30 @@ function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext;
 
   useEffect(() => {
     async function load() {
-      const { data: enr } = await ctx.supabase
+      if (!a.class_group_id) {
+        console.error("ResultsModal: class_group_id manquant sur l'évaluation", a.id);
+        return;
+      }
+      // Étape 1 : récupérer les student_ids inscrits dans la classe
+      const { data: enr, error: enrErr } = await ctx.supabase
         .from("student_enrollments")
-        .select("student_id, students(id, first_name, last_name)")
+        .select("student_id")
         .eq("class_group_id", a.class_group_id);
-      const studs = (enr ?? []).map((e: any) => {
-        const s = e.students;
-        if (!s) return null;
-        return { id: s.id, display_name: `${s.first_name ?? ""} ${s.last_name ?? ""}`.trim() };
-      }).filter(Boolean) as Array<{ id: UUID; display_name: string }>;
+      if (enrErr) { console.error("student_enrollments error:", enrErr); return; }
+      const studentIds = (enr ?? []).map((e: any) => e.student_id).filter(Boolean);
+      if (studentIds.length === 0) { console.warn("Aucun élève inscrit pour class_group_id", a.class_group_id); return; }
+
+      // Étape 2 : récupérer les infos élèves
+      const { data: studsData, error: studsErr } = await ctx.supabase
+        .from("students")
+        .select("id, first_name, last_name")
+        .in("id", studentIds)
+        .order("last_name");
+      if (studsErr) { console.error("students error:", studsErr); return; }
+      const studs = (studsData ?? []).map((s: any) => ({
+        id: s.id as UUID,
+        display_name: `${s.last_name ?? ""} ${s.first_name ?? ""}`.trim(),
+      }));
       setStudents(studs);
 
       const existing = await listResultsForAssessment({ ctx, assessmentId: a.id });
