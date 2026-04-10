@@ -282,7 +282,8 @@ RÈGLES ABSOLUES :
 - Progression logique de la difficulté (facile → difficile)
 - Toujours un CORRIGÉ complet avec les étapes de raisonnement
 - Contextes variés et motivants (sport, argent, cuisine, technologie…)
-- Notation et présentation conformes aux habitudes FWB`;
+- Notation et présentation conformes aux habitudes FWB
+- FORMAT STRICT : N'utilise JAMAIS de LaTeX ($, \\dfrac, \\frac, etc.). Écris les fractions sous forme a/b, les équations en texte simple (ex: 3x + 5 = 14), les puissances avec ^ (ex: x^2). N'utilise pas de Markdown (**gras**, # titres). Utilise des MAJUSCULES pour les titres de sections. N'utilise PAS d'emojis.`;
 
   const prompts: Record<string, string> = {
     calcul: `${base}

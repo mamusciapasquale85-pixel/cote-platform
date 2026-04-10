@@ -366,92 +366,219 @@ export default function CreerEvaluationPage() {
     doc.setLineWidth(0.3);
     doc.line(ML, y - 4, PAGE_W - MR, y - 4);
 
-    // ── Contenu généré (texte enrichi) ────────────────────────
+    // ── Contenu généré (rendu propre) ────────────────────────
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(30, 41, 59);
 
-    const lines = result.exercice.split("\n");
+    const rawLines = result.exercice.split("\n");
 
-    for (const rawLine of lines) {
-      // Pagination
-      if (y > PAGE_H - 20) {
-        addFooter(doc, PAGE_W, PAGE_H, ML, MR, template.school_name);
-        doc.addPage();
-        // Barre en haut
-        doc.setFillColor(15, 23, 42);
-        doc.rect(0, 0, PAGE_W, 8, "F");
-        doc.setFillColor(10, 132, 255);
-        doc.rect(0, 0, 60, 8, "F");
-        y = 18;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(30, 41, 59);
+    // Helper: nouvelle page avec barre
+    function newPage() {
+      addFooter(doc, PAGE_W, PAGE_H, ML, MR, template.school_name);
+      doc.addPage();
+      doc.setFillColor(15, 23, 42);
+      doc.rect(0, 0, PAGE_W, 8, "F");
+      doc.setFillColor(10, 132, 255);
+      doc.rect(0, 0, 60, 8, "F");
+      y = 18;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(30, 41, 59);
+    }
+
+    // Helper: écrire du texte wrappé
+    function writeWrapped(text: string, indent: number = 0, lineH: number = 5.5) {
+      const wrapped = doc.splitTextToSize(text, CONTENT_W - indent) as string[];
+      for (const wLine of wrapped) {
+        if (y > PAGE_H - 20) newPage();
+        doc.text(wLine, ML + indent, y);
+        y += lineH;
       }
+    }
 
-      const line = rawLine.trimEnd();
+    // Regrouper les lignes de table consécutives
+    let i = 0;
+    while (i < rawLines.length) {
+      if (y > PAGE_H - 20) newPage();
 
-      // Titres niveau 1 : lignes commençant par lettres majuscules + "—" ou ":" ou tout en majuscules
-      if (/^#{1,3}\s/.test(line)) {
-        const text = line.replace(/^#{1,3}\s/, "").trim();
-        y += 2;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(10, 132, 255);
-        doc.text(text, ML, y);
-        y += 5;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(30, 41, 59);
+      const rawLine = rawLines[i].trimEnd();
+      const line = rawLine;
+
+      // ── Ligne vide ──
+      if (!line.trim()) {
+        y += 3;
+        i++;
         continue;
       }
 
-      // Lignes de type "TYPE :" ou "PARTIE" ou "CORRIGÉ" (tout en majuscules)
+      // ── Séparateur --- ──
+      if (/^-{3,}$/.test(line.trim())) {
+        doc.setDrawColor(210, 218, 228);
+        doc.setLineWidth(0.3);
+        doc.line(ML, y, PAGE_W - MR, y);
+        y += 4;
+        i++;
+        continue;
+      }
+
+      // ── Titre Markdown ### ## # ──
+      if (/^#{1,3}\s/.test(line)) {
+        const level = (line.match(/^(#{1,3})/) ?? ["#"])[0].length;
+        const text = processPdfText(line.replace(/^#{1,3}\s+/, ""));
+        y += 3;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(level === 1 ? 12 : level === 2 ? 11 : 10.5);
+        doc.setTextColor(10, 132, 255);
+        writeWrapped(text);
+        y += 1;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(30, 41, 59);
+        i++;
+        continue;
+      }
+
+      // ── Ligne tout en MAJUSCULES (section CORRIGÉ, PARTIE, SÉRIE…) ──
       if (/^[A-ZÉÈÀÙÊÎÔÛÇ\s\d–—:]{5,}$/.test(line.trim()) && line.trim().length > 4) {
         y += 2;
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
-        doc.setTextColor(255, 59, 48); // rouge
-        doc.text(line.trim(), ML, y);
-        y += 5;
+        doc.setTextColor(220, 38, 38);
+        doc.text(processPdfText(line.trim()), ML, y);
+        y += 6;
         doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
         doc.setTextColor(30, 41, 59);
+        i++;
         continue;
       }
 
-      // Ligne vide
-      if (!line.trim()) {
-        y += 4;
+      // ── Ligne de citation/encadré > ... ──
+      if (/^\s*>/.test(line)) {
+        const text = processPdfText(line.replace(/^\s*>\s?/, ""));
+        doc.setFillColor(241, 245, 249);
+        doc.rect(ML, y - 3.5, CONTENT_W, 7, "F");
+        doc.setDrawColor(10, 132, 255);
+        doc.setLineWidth(0.8);
+        doc.line(ML, y - 3.5, ML, y + 3.5);
+        doc.setLineWidth(0.3);
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(9.5);
+        doc.setTextColor(71, 85, 105);
+        writeWrapped(text, 4, 5);
+        y += 2;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(30, 41, 59);
+        i++;
         continue;
       }
 
-      // Ligne de séparation "---"
-      if (/^-{3,}$/.test(line.trim())) {
-        doc.setDrawColor(226, 232, 240);
-        doc.line(ML, y, PAGE_W - MR, y);
-        y += 4;
-        continue;
-      }
-
-      // Ligne normale avec word-wrap
-      const wrapped = doc.splitTextToSize(line, CONTENT_W);
-      for (const wLine of wrapped as string[]) {
-        if (y > PAGE_H - 20) {
-          addFooter(doc, PAGE_W, PAGE_H, ML, MR, template.school_name);
-          doc.addPage();
-          doc.setFillColor(15, 23, 42);
-          doc.rect(0, 0, PAGE_W, 8, "F");
-          doc.setFillColor(10, 132, 255);
-          doc.rect(0, 0, 60, 8, "F");
-          y = 18;
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(10);
-          doc.setTextColor(30, 41, 59);
+      // ── Tableau Markdown | col | col | ──
+      if (/^\|/.test(line.trim())) {
+        // Collecter toutes les lignes du tableau
+        const tableLines: string[] = [];
+        let j = i;
+        while (j < rawLines.length && /^\|/.test(rawLines[j].trim())) {
+          if (!isTableSeparator(rawLines[j])) {
+            tableLines.push(rawLines[j]);
+          }
+          j++;
         }
-        doc.text(wLine, ML, y);
-        y += 5.5;
+        i = j;
+
+        if (tableLines.length === 0) continue;
+
+        // Calculer largeurs de colonnes
+        const rows = tableLines.map(parseTableRow);
+        const maxCols = Math.max(...rows.map(r => r.length));
+        const colW = CONTENT_W / maxCols;
+
+        y += 2;
+        for (let ri = 0; ri < rows.length; ri++) {
+          if (y > PAGE_H - 20) newPage();
+          const isHeader = ri === 0;
+
+          // Fond alternée
+          if (isHeader) {
+            doc.setFillColor(226, 232, 240);
+            doc.rect(ML, y - 4, CONTENT_W, 6.5, "F");
+          } else if (ri % 2 === 0) {
+            doc.setFillColor(248, 250, 252);
+            doc.rect(ML, y - 4, CONTENT_W, 6.5, "F");
+          }
+
+          doc.setFont("helvetica", isHeader ? "bold" : "normal");
+          doc.setFontSize(9);
+          doc.setTextColor(isHeader ? 15 : 30, isHeader ? 23 : 41, isHeader ? 42 : 59);
+
+          for (let ci = 0; ci < maxCols; ci++) {
+            const cell = processPdfText(rows[ri][ci] ?? "");
+            const cx = ML + ci * colW;
+            // Tronquer si trop long
+            const maxW = colW - 2;
+            const cellLines = doc.splitTextToSize(cell, maxW) as string[];
+            doc.text(cellLines[0] ?? "", cx + 1, y);
+          }
+
+          // Bordures basse
+          doc.setDrawColor(210, 218, 228);
+          doc.setLineWidth(0.2);
+          doc.line(ML, y + 2.5, ML + CONTENT_W, y + 2.5);
+
+          y += 6.5;
+        }
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(30, 41, 59);
+        y += 3;
+        continue;
       }
+
+      // ── Élément de liste - item ou • item ──
+      const listMatch = line.match(/^(\s*)([-•*]|\d+[.)]) (.+)/);
+      if (listMatch) {
+        const indent = listMatch[1].length > 0 ? 8 : 4;
+        const bullet = /^\d/.test(listMatch[2]) ? listMatch[2] : "•";
+        const text = processPdfText(listMatch[3]);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(30, 41, 59);
+        doc.text(bullet, ML + indent - 3, y);
+        const wrapped2 = doc.splitTextToSize(text, CONTENT_W - indent - 2) as string[];
+        for (const wl of wrapped2) {
+          if (y > PAGE_H - 20) newPage();
+          doc.text(wl, ML + indent, y);
+          y += 5.5;
+        }
+        i++;
+        continue;
+      }
+
+      // ── Ligne bold **exercice** (toute la ligne en gras) ──
+      const isBoldLine = /^\*\*[^*]+\*\*[.:)]*$/.test(line.trim()) || /^\*\*[A-Z]/.test(line.trim());
+      if (isBoldLine) {
+        const text = processPdfText(line);
+        y += 1;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(15, 23, 42);
+        writeWrapped(text, 0, 5.5);
+        y += 1;
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(30, 41, 59);
+        i++;
+        continue;
+      }
+
+      // ── Ligne normale ──
+      const text = processPdfText(line);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(30, 41, 59);
+      writeWrapped(text, 0, 5.5);
+      i++;
     }
 
     // Footer dernière page
@@ -843,6 +970,74 @@ function ExercicePreview({ text }: { text: string }) {
       })}
     </div>
   );
+}
+
+// ─── PDF Content Processing ───────────────────────────────────────────────────
+
+/** Convert LaTeX math notation to plain readable text */
+function latexToPlain(latex: string): string {
+  return latex
+    .replace(/\\dfrac\{([^}]*)\}\{([^}]*)\}/g, "($1)/($2)")
+    .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, "($1)/($2)")
+    .replace(/\\sqrt\{([^}]*)\}/g, "racine($1)")
+    .replace(/\\sqrt/g, "racine")
+    .replace(/\\times/g, "x")
+    .replace(/\\div/g, "÷")
+    .replace(/\\cdot/g, ".")
+    .replace(/\\leq/g, "<=")
+    .replace(/\\geq/g, ">=")
+    .replace(/\\neq/g, "=/=")
+    .replace(/\\approx/g, "≈")
+    .replace(/\\pi/g, "pi")
+    .replace(/\\infty/g, "infini")
+    .replace(/\\alpha/g, "alpha")
+    .replace(/\\beta/g, "beta")
+    .replace(/\^\{2\}/g, "²")
+    .replace(/\^\{3\}/g, "³")
+    .replace(/\^\{([^}]+)\}/g, "^$1")
+    .replace(/\_\{([^}]+)\}/g, "_$1")
+    .replace(/\\\\/g, " ")
+    .replace(/[{}\\]/g, "")
+    .trim();
+}
+
+/** Strip emoji and unsupported Unicode characters (jsPDF built-in fonts only support Latin) */
+function stripUnsupported(text: string): string {
+  // Remove emoji ranges
+  return text
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
+    .replace(/[\u{2600}-\u{27BF}]/gu, "")
+    // Keep standard Latin, accented chars, common punctuation/math
+    .replace(/[^\u0000-\u024F\u00D7\u00F7\u2013\u2014\u2018\u2019\u201C\u201D\u2026\u00B0\u00B2\u00B3\u00BC\u00BD\u00BE\u2248]/g, "");
+}
+
+/** Process a raw markdown+LaTeX line into clean plain text for PDF */
+function processPdfText(text: string): string {
+  let t = text;
+  // Inline math: $...$ and $$...$$
+  t = t.replace(/\$\$([^$]+)\$\$/g, (_, math) => latexToPlain(math));
+  t = t.replace(/\$([^$\n]+)\$/g, (_, math) => latexToPlain(math));
+  // Strip bold **text**
+  t = t.replace(/\*\*([^*]*)\*\*/g, "$1");
+  // Strip italic *text* (but not bullet list * )
+  t = t.replace(/(?<!\s)\*([^*\n]+)\*(?!\s)/g, "$1");
+  // Strip __bold__
+  t = t.replace(/__([^_]*)__/g, "$1");
+  // Strip `code`
+  t = t.replace(/`([^`]*)`/g, "$1");
+  // Remove unsupported chars (emoji etc)
+  t = stripUnsupported(t);
+  return t;
+}
+
+/** Detect if line is a table separator row like |---|---| */
+function isTableSeparator(line: string): boolean {
+  return /^\|[\s:|-]+\|$/.test(line.trim());
+}
+
+/** Parse a pipe-table row into cells */
+function parseTableRow(line: string): string[] {
+  return line.trim().split("|").map(c => c.trim()).filter((_, i, arr) => i > 0 && i < arr.length - 1);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
