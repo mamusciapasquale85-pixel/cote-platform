@@ -1206,9 +1206,10 @@ export async function upsertResult(params: {
   assessmentId: UUID;
   studentId: UUID;
   value: number | null;
+  level?: string | null;
   competencyScores: Record<string, string | number>;
 }): Promise<void> {
-  const { ctx, assessmentId, studentId, value, competencyScores } = params;
+  const { ctx, assessmentId, studentId, value, level, competencyScores } = params;
   const { error } = await ctx.supabase
     .from("resultats")
     .upsert({
@@ -1218,6 +1219,7 @@ export async function upsertResult(params: {
       student_id: studentId,
       assessment_id: assessmentId,
       value: value,
+      level: level ?? null,
       competency_scores: competencyScores,
     }, { onConflict: "student_id,assessment_id" });
   if (error) throw error;
@@ -1230,7 +1232,7 @@ export async function listResultsForAssessment(params: {
   const { ctx, assessmentId } = params;
   const { data, error } = await ctx.supabase
     .from("resultats")
-    .select("student_id, value, competency_scores")
+    .select("student_id, value, level, competency_scores")
     .eq("assessment_id", assessmentId)
     .eq("school_id", ctx.schoolId);
   if (error) throw error;

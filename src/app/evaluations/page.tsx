@@ -1221,9 +1221,13 @@ const NISBTTB_OPTS = ["NI", "I", "S", "B", "TB"];
 function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext; onClose: () => void }) {
   const router = useRouter();
   const [students, setStudents] = useState<Array<{ id: UUID; display_name: string }>>([]);
-  const [scores, setScores] = useState<Record<UUID, { value: string; competencyScores: Record<string, string> }>>({});
+  const [scores, setScores] = useState<Record<UUID, { value: string; level: string; competencyScores: Record<string, string> }>>({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  const isNisbttb = a.cotation_type === "nisbttb";
+  const hasComps = (a.competences_evaluees ?? []).length > 0;
+  const compLabels: Record<string, string> = { audition: "Audition", lecture: "Lecture", expression_ecrite: "Écrite", orale_sans: "Orale (sans)", orale_avec: "Orale (avec)" };
 
   useEffect(() => {
     async function load() {
@@ -1246,7 +1250,11 @@ function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext;
         for (const comp of (a.competences_evaluees ?? [])) {
           cs[comp] = ex?.competency_scores?.[comp] != null ? String(ex.competency_scores[comp]) : "";
         }
-        init[s.id] = { value: ex?.value != null ? String(ex.value) : "", competencyScores: cs };
+        init[s.id] = {
+          value: ex?.value != null ? String(ex.value) : "",
+          level: (ex as any)?.level ?? "",
+          competencyScores: cs,
+        };
       }
       setScores(init);
     }
@@ -1259,21 +1267,30 @@ function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext;
       for (const s of students) {
         const row = scores[s.id];
         if (!row) continue;
-        const val = row.value !== "" ? Number(row.value) : null;
+        let val: number | null = null;
+        let lvl: string | null = null;
         const cs: Record<string, string | number> = {};
-        for (const [k, v] of Object.entries(row.competencyScores)) {
-          if (v !== "") cs[k] = a.cotation_type === "nisbttb" ? v : Number(v);
+
+        if (isNisbttb && !hasComps) {
+          // Niveau global NI/I/S/B/TB
+          lvl = row.level !== "" ? row.level : null;
+        } else if (!isNisbttb && !hasComps) {
+          // Note sur X points
+          val = row.value !== "" ? Number(row.value) : null;
+        } else {
+          // Compétences multiples
+          for (const [k, v] of Object.entries(row.competencyScores)) {
+            if (v !== "") cs[k] = isNisbttb ? v : Number(v);
+          }
+          if (!isNisbttb) val = row.value !== "" ? Number(row.value) : null;
         }
-        await upsertResult({ ctx, assessmentId: a.id, studentId: s.id, value: val, competencyScores: cs });
+        await upsertResult({ ctx, assessmentId: a.id, studentId: s.id, value: val, level: lvl, competencyScores: cs });
       }
       setMsg("✅ Résultats sauvegardés");
     } catch (e) {
       setMsg("❌ " + (e instanceof Error ? e.message : "Erreur"));
     } finally { setSaving(false); }
   }
-
-  const hasComps = (a.competences_evaluees ?? []).length > 0;
-  const compLabels: Record<string, string> = { audition: "Audition", lecture: "Lecture", expression_ecrite: "Écrite", orale_sans: "Orale (sans)", orale_avec: "Orale (avec)" };
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1286,7 +1303,8 @@ function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext;
           <thead>
             <tr style={{ background: "#F9FAFB" }}>
               <th style={{ textAlign: "left", padding: "6px 10px", borderBottom: "1px solid #E5E7EB" }}>Élève</th>
-              {!hasComps && <th style={{ padding: "6px 10px", borderBottom: "1px solid #E5E7EB" }}>Note</th>}
+              {!hasComps && !isNisbttb && <th style={{ padding: "6px 10px", borderBottom: "1px solid #E5E7EB", textAlign: "center" }}>Note /{a.max_points ?? "?"}</th>}
+              {!hasComps && isNisbttb && <th style={{ padding: "6px 10px", borderBottom: "1px solid #E5E7EB", textAlign: "center" }}>Niveau</th>}
               {hasComps && (a.competences_evaluees ?? []).map(c => (
                 <th key={c} style={{ padding: "6px 8px", borderBottom: "1px solid #E5E7EB", textAlign: "center" }}>{compLabels[c] ?? c}</th>
               ))}
@@ -1296,11 +1314,21 @@ function ResultsModal({ a, ctx, onClose }: { a: Assessment; ctx: TeacherContext;
             {students.map(s => (
               <tr key={s.id} style={{ borderBottom: "1px solid #F3F4F6" }}>
                 <td style={{ padding: "5px 10px" }}>{s.display_name}</td>
-                {!hasComps && (
+                {!hasComps && !isNisbttb && (
                   <td style={{ padding: "5px 10px", textAlign: "center" }}>
-                    <input type="number" value={scores[s.id]?.value ?? ""}
+                    <input type="number" min={0} max={a.max_points ?? undefined} value={scores[s.id]?.value ?? ""}
                       onChange={e => setScores(prev => ({ ...prev, [s.id]: { ...prev[s.id], value: e.target.value } }))}
                       style={{ width: 60, textAlign: "center", border: "1px solid #D1D5DB", borderRadius: 6, padding: "3px 6px" }} />
+                  </td>
+                )}
+                {!hasComps && isNisbttb && (
+                  <td style={{ padding: "5px 10px", textAlign: "center" }}>
+                    <select value={scores[s.id]?.level ?? ""}
+                      onChange={e => setScores(prev => ({ ...prev, [s.id]: { ...prev[s.id], level: e.target.value } }))}
+                      style={{ border: "1px solid #D1D5DB", borderRadius: 6, padding: "3px 8px", fontSize: 13, fontWeight: 600 }}>
+                      <option value="">—</option>
+                      {NISBTTB_OPTS.map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
                   </td>
                 )}
                 {hasComps && (a.competences_evaluees ?? []).map(c => (
