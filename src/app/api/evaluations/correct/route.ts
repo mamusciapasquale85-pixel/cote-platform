@@ -332,7 +332,7 @@ Si pas de nom: "Eleve inconnu (page X)".`;
       .from("correction_sessions")
       .insert({
         assessment_id: assessmentId,
-        school_id: gridRow?.school_id ?? assessment?.school_id ?? null,
+        school_id: gridRow?.school_id ?? null,
         teacher_id: user.id,
         status: "reviewing",
         extractions: result.students,
