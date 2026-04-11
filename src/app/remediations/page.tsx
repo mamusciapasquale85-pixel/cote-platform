@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { formatDateFR } from "@/lib/date";
 import PlanifierSeanceModal from "@/components/remediation/PlanifierSeanceModal";
 import GenererExerciceModal from "@/components/remediation/GenererExerciceModal";
+import GenerateurRemediation from "@/components/remediations/GenerateurRemediation";
 
 type ApiStatut = "Proposee" | "En cours" | "Terminee";
 type UiStatut = "Proposée" | "En cours" | "Terminée";
@@ -565,6 +566,13 @@ export default function RemediationsPage() {
                             <span>Exercice IA prêt : <em style={{ fontWeight: 400 }}>{item.exercice_propose.titre}</em></span>
                           </div>
                         )}
+
+                        <GenerateurRemediation
+                          remediationId={item.id}
+                          eleveNom={item.eleve_nom}
+                          niveau={item.niveau ?? "1re secondaire"}
+                          theme={item.attendu ?? undefined}
+                        />
 
                         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
                           <button
