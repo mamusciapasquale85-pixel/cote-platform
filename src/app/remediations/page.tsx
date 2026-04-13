@@ -36,6 +36,7 @@ type RemediationItem = {
   date_seance: string | null;
   duree_minutes: number | null;
   seance_notes: string | null;
+  competence: string | null;
 };
 
 type GenererRemediationState = {
