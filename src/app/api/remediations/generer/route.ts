@@ -22,6 +22,17 @@ const supabase = createClient(
 
 type Competence = "grammaire" | "conjugaison" | "vocabulaire" | "comprehension" | "expression";
 
+function normalizeCompetence(raw: string): Competence {
+  if (!raw) return "grammaire";
+  const r = raw.toLowerCase();
+  if (r.includes("conjugaison")) return "conjugaison";
+  if (r.includes("vocabulaire")) return "vocabulaire";
+  if (r.includes("comprehension") || r.includes("compréhension") || r.includes("lecture")) return "comprehension";
+  if (r.includes("expression")) return "expression";
+  if (r.includes("grammaire")) return "grammaire";
+  return "grammaire";
+}
+
 function buildPrompt(competence: Competence, niveau: string, theme: string, eleveNom: string): string {
   const ctx = `Élève : ${eleveNom || "élève"} | Niveau : ${niveau} | Thème : ${theme} | Matière : néerlandais (langue étrangère)`;
   const base = `Tu es professeur de NÉERLANDAIS (langue étrangère) dans le secondaire belge (FWB). ${ctx}.
@@ -111,6 +122,9 @@ Consigne en français. Puis 5 AMORCES DE PHRASES EN NÉERLANDAIS pour guider l'�
 
 [CORRIGÉ / EXEMPLE ATTENDU]
 5 lignes EN NÉERLANDAIS constituant un exemple de réponse acceptable.`;
+
+    default:
+      return base + `Génère une fiche de remédiation en néerlandais adaptée au niveau ${niveau}. Inclus une explication théorique en français, des exemples en néerlandais et un exercice de 10 items en néerlandais avec corrigé.`;
   }
 }
 
@@ -118,13 +132,14 @@ Consigne en français. Puis 5 AMORCES DE PHRASES EN NÉERLANDAIS pour guider l'�
 
 export async function POST(req: NextRequest) {
   try {
-    const { competence, theme, niveau, eleveNom, remediationId } = await req.json();
+    const { competence: rawCompetence, theme, niveau, eleveNom, eleve_nom, remediationId } = await req.json();
 
-    if (!competence || !remediationId) {
+    if (!remediationId) {
       return NextResponse.json({ error: "Paramètres manquants" }, { status: 400 });
     }
 
-    const prompt = buildPrompt(competence, niveau, theme, eleveNom);
+    const competence = normalizeCompetence(rawCompetence ?? "");
+    const prompt = buildPrompt(competence, niveau ?? "1re secondaire", theme ?? "Remédiation ciblée", eleveNom ?? eleve_nom ?? "élève");
 
     // ── Appel Anthropic ──
     const message = await anthropic.messages.create({

@@ -572,6 +572,7 @@ export default function RemediationsPage() {
                           eleveNom={item.eleve_nom}
                           niveau={item.niveau ?? "1re secondaire"}
                           theme={item.attendu ?? undefined}
+                          competence={item.competence ?? undefined}
                         />
 
                         <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
