@@ -83,7 +83,7 @@ interface GenerateurRemediationProps {
   eleveNom: string;
   niveau: string;
   theme?: string;
-  competence?: Competence;
+  competence?: string;
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
