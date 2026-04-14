@@ -171,7 +171,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      texte,
+      exercice: texte,
+      titre: `Remédiation ${competence} — ${theme ?? "néerlandais"}`,
       sauvegarde: !dbError,
     });
   } catch (err) {
