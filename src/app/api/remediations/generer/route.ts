@@ -43,88 +43,190 @@ Réponds en texte brut, sans markdown ni astérisques.\n\n`;
 
   switch (competence) {
     case "grammaire":
-      return base + `Génère une FICHE DE REMÉDIATION EN GRAMMAIRE NÉERLANDAISE (pas française !) :
+      return base + `Génère une FICHE DE REMÉDIATION EN GRAMMAIRE NÉERLANDAISE (pas française !) avec 5 exercices de 10 items chacun :
 
 [INTRO THÉORIQUE]
-En français : explique la règle grammaticale (max 6 lignes). Donne 3 exemples DE PHRASES EN NÉERLANDAIS avec leur traduction française entre parenthèses.
+En français : explique la règle grammaticale (max 8 lignes). Donne 5 exemples DE PHRASES EN NÉERLANDAIS avec leur traduction française entre parenthèses.
 
-[EXERCICE TYPE 1 – Compléter les blancs]
-Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS avec un blanc à compléter. Numérotées 1 à 10. TOUTES les phrases sont en néerlandais.
+[EXERCICE 1 – Compléter les blancs]
+Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS avec un blanc à compléter. Numérotées 1 à 10.
 
-[EXERCICE TYPE 2 – QCM]
+[EXERCICE 2 – QCM]
 Consigne en français. Puis 10 QUESTIONS EN NÉERLANDAIS à choix multiple (A/B/C), les 3 options aussi en néerlandais. Numérotées 1 à 10.
 
-[CORRIGÉ TYPE 1]
+[EXERCICE 3 – Transformer les phrases]
+Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS à transformer selon la règle (ex : singulier → pluriel, affirmatif → négatif). Numérotées 1 à 10.
+
+[EXERCICE 4 – Corriger les erreurs]
+Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS contenant une erreur grammaticale à identifier et corriger. Numérotées 1 à 10.
+
+[EXERCICE 5 – Production guidée]
+Consigne en français. Puis 10 AMORCES DE PHRASES EN NÉERLANDAIS à compléter librement en appliquant la règle. Numérotées 1 à 10.
+
+[CORRIGÉ EXERCICE 1]
 10 réponses en néerlandais numérotées.
 
-[CORRIGÉ TYPE 2]
-10 lettres de réponse (A, B ou C) numérotées.`;
+[CORRIGÉ EXERCICE 2]
+10 lettres (A, B ou C) numérotées.
+
+[CORRIGÉ EXERCICE 3]
+10 phrases transformées en néerlandais numérotées.
+
+[CORRIGÉ EXERCICE 4]
+10 phrases corrigées en néerlandais numérotées.
+
+[CORRIGÉ EXERCICE 5]
+10 exemples de réponses acceptables en néerlandais numérotés.`;
 
     case "conjugaison":
-      return base + `Génère une FICHE DE REMÉDIATION EN CONJUGAISON NÉERLANDAISE (pas française !) :
+      return base + `Génère une FICHE DE REMÉDIATION EN CONJUGAISON NÉERLANDAISE (pas française !) avec 5 exercices de 10 items chacun :
 
 [INTRO THÉORIQUE]
-En français : explique le temps verbal ou la règle (max 6 lignes). Donne le paradigme complet en néerlandais (ik, jij, hij/zij, wij, jullie, zij) avec traduction.
+En français : explique le temps verbal ou la règle (max 8 lignes). Donne le paradigme complet en néerlandais (ik, jij, hij/zij, wij, jullie, zij) avec traduction française.
 
-[EXERCICE TYPE 1 – Conjuguer]
-Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS avec le verbe à l'infinitif entre parenthèses à conjuguer. Numérotées 1 à 10. TOUTES les phrases sont en néerlandais.
+[EXERCICE 1 – Conjuguer à la bonne forme]
+Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS avec le verbe à l'infinitif entre parenthèses à conjuguer. Numérotées 1 à 10.
 
-[EXERCICE TYPE 2 – Corriger les erreurs]
+[EXERCICE 2 – Corriger les erreurs de conjugaison]
 Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS contenant une erreur de conjugaison à corriger. Numérotées 1 à 10.
 
-[CORRIGÉ TYPE 1]
-10 formes conjuguées en néerlandais numérotées.
+[EXERCICE 3 – Choisir la bonne forme (QCM)]
+Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS avec 3 formes verbales proposées (A/B/C). Numérotées 1 à 10.
 
-[CORRIGÉ TYPE 2]
-10 phrases corrigées en néerlandais numérotées.`;
+[EXERCICE 4 – Remettre dans l'ordre]
+Consigne en français. Puis 10 GROUPES DE MOTS EN NÉERLANDAIS dans le désordre à remettre en ordre pour former une phrase correcte. Numérotées 1 à 10.
+
+[EXERCICE 5 – Compléter un texte]
+Consigne en français. Un texte EN NÉERLANDAIS de 10 phrases avec 10 verbes manquants (infinitifs donnés entre parenthèses). Numérotées 1 à 10.
+
+[CORRIGÉ EXERCICE 1]
+10 formes conjuguées numérotées.
+
+[CORRIGÉ EXERCICE 2]
+10 phrases corrigées en néerlandais numérotées.
+
+[CORRIGÉ EXERCICE 3]
+10 lettres (A, B ou C) numérotées.
+
+[CORRIGÉ EXERCICE 4]
+10 phrases reconstituées en néerlandais numérotées.
+
+[CORRIGÉ EXERCICE 5]
+10 formes verbales correctes numérotées.`;
 
     case "vocabulaire":
-      return base + `Génère une FICHE DE REMÉDIATION EN VOCABULAIRE :
+      return base + `Génère une FICHE DE REMÉDIATION EN VOCABULAIRE NÉERLANDAIS avec 5 exercices de 10 items chacun :
 
 [INTRO – CHAMP LEXICAL]
-15 MOTS EN NÉERLANDAIS du thème "${theme}" avec traduction française et une phrase exemple EN NÉERLANDAIS pour chaque mot.
+20 MOTS EN NÉERLANDAIS du thème "${theme}" avec traduction française et une phrase exemple EN NÉERLANDAIS pour chaque mot.
 
-[EXERCICE TYPE 1 – Associer]
-Consigne en français. Puis 10 MOTS EN NÉERLANDAIS numérotés 1 à 10, à associer à leur traduction française (liste A-J mélangée fournie).
+[EXERCICE 1 – Associer mot et traduction]
+Consigne en français. 10 MOTS EN NÉERLANDAIS numérotés 1 à 10, à associer à leur traduction française (liste A-J mélangée).
 
-[EXERCICE TYPE 2 – Compléter]
+[EXERCICE 2 – Compléter les phrases]
 Consigne en français + liste de 12 mots EN NÉERLANDAIS. Puis 10 PHRASES EN NÉERLANDAIS avec un mot manquant. Numérotées 1 à 10.
 
-[CORRIGÉ TYPE 1]
+[EXERCICE 3 – Trouver l'intrus]
+Consigne en français. 10 SÉRIES de 4 mots EN NÉERLANDAIS : trouver le mot qui n'appartient pas au champ lexical. Numérotées 1 à 10.
+
+[EXERCICE 4 – Traduire]
+Consigne en français. 10 MOTS OU EXPRESSIONS EN FRANÇAIS à traduire en néerlandais. Numérotées 1 à 10.
+
+[EXERCICE 5 – Phrases à construire]
+Consigne en français. 10 MOTS EN NÉERLANDAIS à utiliser chacun dans une phrase courte en néerlandais. Numérotées 1 à 10.
+
+[CORRIGÉ EXERCICE 1]
 10 associations numérotées (néerlandais = français).
 
-[CORRIGÉ TYPE 2]
-10 mots néerlandais numérotés.`;
+[CORRIGÉ EXERCICE 2]
+10 mots néerlandais numérotés.
+
+[CORRIGÉ EXERCICE 3]
+10 intrus numérotés avec justification en français.
+
+[CORRIGÉ EXERCICE 4]
+10 traductions en néerlandais numérotées.
+
+[CORRIGÉ EXERCICE 5]
+10 exemples de phrases acceptables en néerlandais numérotées.`;
 
     case "comprehension":
-      return base + `Génère une FICHE DE REMÉDIATION EN COMPRÉHENSION ÉCRITE :
+      return base + `Génère une FICHE DE REMÉDIATION EN COMPRÉHENSION ÉCRITE avec 5 exercices de 10 items chacun :
 
 [TEXTE NÉERLANDAIS]
-INTÉGRALEMENT EN NÉERLANDAIS. Texte de niveau A1/A2, exactement 15 lignes, sur le thème "${theme}". Vocabulaire simple et accessible. NE PAS traduire le texte.
+INTÉGRALEMENT EN NÉERLANDAIS. Texte de niveau A1/A2, environ 20 lignes, sur le thème "${theme}". Vocabulaire simple et accessible. NE PAS traduire le texte.
 
-[QUESTIONS DE COMPRÉHENSION]
-5 questions EN FRANÇAIS sur le texte. Numérotées 1 à 5.
+[EXERCICE 1 – Questions de compréhension générale]
+Consigne en français. 10 QUESTIONS EN FRANÇAIS sur le contenu global du texte. Numérotées 1 à 10.
 
-[CORRIGÉ]
-5 réponses EN FRANÇAIS numérotées.`;
+[EXERCICE 2 – Vrai ou Faux]
+Consigne en français. 10 AFFIRMATIONS EN FRANÇAIS sur le texte. L'élève indique Vrai ou Faux. Numérotées 1 à 10.
+
+[EXERCICE 3 – Vocabulaire en contexte]
+Consigne en français. 10 MOTS EN NÉERLANDAIS extraits du texte, à associer à leur définition ou traduction française. Numérotées 1 à 10.
+
+[EXERCICE 4 – Compléter les phrases]
+Consigne en français. 10 PHRASES EN FRANÇAIS amorcées à compléter en s'appuyant sur le texte. Numérotées 1 à 10.
+
+[EXERCICE 5 – Questions ouvertes]
+Consigne en français. 10 QUESTIONS EN FRANÇAIS nécessitant une réponse personnelle courte en français, inspirée du texte. Numérotées 1 à 10.
+
+[CORRIGÉ EXERCICE 1]
+10 réponses en français numérotées.
+
+[CORRIGÉ EXERCICE 2]
+10 réponses Vrai/Faux numérotées avec justification brève.
+
+[CORRIGÉ EXERCICE 3]
+10 associations numérotées.
+
+[CORRIGÉ EXERCICE 4]
+10 phrases complètes en français numérotées.
+
+[CORRIGÉ EXERCICE 5]
+10 exemples de réponses acceptables numérotés.`;
 
     case "expression":
-      return base + `Génère une FICHE DE REMÉDIATION EN EXPRESSION ÉCRITE :
+      return base + `Génère une FICHE DE REMÉDIATION EN EXPRESSION ÉCRITE avec 5 exercices de 10 items chacun :
 
 [INTRO ET CONSIGNE]
-En français : explique comment structurer un texte court en néerlandais. Donne une liste de connecteurs utiles EN NÉERLANDAIS avec leur traduction.
+En français : explique comment structurer un texte court en néerlandais. Donne 15 connecteurs utiles EN NÉERLANDAIS avec leur traduction française.
 
 [MODÈLE]
-5 lignes EN NÉERLANDAIS sur le thème "${theme}". Puis traduction française complète en dessous.
+Un texte modèle EN NÉERLANDAIS de 10 lignes sur le thème "${theme}". Puis traduction française complète en dessous.
 
-[EXERCICE]
-Consigne en français. Puis 5 AMORCES DE PHRASES EN NÉERLANDAIS pour guider l'élève (ex: "Mijn naam is... / Ik woon in...").
+[EXERCICE 1 – Amorces de phrases]
+Consigne en français. 10 AMORCES DE PHRASES EN NÉERLANDAIS à compléter librement. Numérotées 1 à 10.
 
-[CORRIGÉ / EXEMPLE ATTENDU]
-5 lignes EN NÉERLANDAIS constituant un exemple de réponse acceptable.`;
+[EXERCICE 2 – Remettre en ordre]
+Consigne en français. 10 PHRASES EN NÉERLANDAIS dont les mots sont dans le désordre à remettre dans le bon ordre. Numérotées 1 à 10.
+
+[EXERCICE 3 – Relier les idées]
+Consigne en français. 10 PAIRES DE PHRASES COURTES EN NÉERLANDAIS à relier avec le connecteur approprié (liste de connecteurs fournie). Numérotées 1 à 10.
+
+[EXERCICE 4 – Corriger et améliorer]
+Consigne en français. 10 PHRASES EN NÉERLANDAIS mal formulées à corriger et reformuler. Numérotées 1 à 10.
+
+[EXERCICE 5 – Mini-productions]
+Consigne en français. 10 SITUATIONS courtes décrites en français : l'élève rédige 2-3 phrases EN NÉERLANDAIS pour chacune. Numérotées 1 à 10.
+
+[CORRIGÉ EXERCICE 1]
+10 exemples de complétions acceptables en néerlandais numérotés.
+
+[CORRIGÉ EXERCICE 2]
+10 phrases reconstituées en néerlandais numérotées.
+
+[CORRIGÉ EXERCICE 3]
+10 phrases reliées avec connecteur en néerlandais numérotées.
+
+[CORRIGÉ EXERCICE 4]
+10 phrases corrigées en néerlandais numérotées.
+
+[CORRIGÉ EXERCICE 5]
+10 exemples de mini-productions acceptables en néerlandais numérotés.`;
 
     default:
-      return base + `Génère une fiche de remédiation en néerlandais adaptée au niveau ${niveau}. Inclus une explication théorique en français, des exemples en néerlandais et un exercice de 10 items en néerlandais avec corrigé.`;
+      return base + `Génère une fiche de remédiation en néerlandais avec 5 exercices de 10 items chacun, adaptée au niveau ${niveau}. Inclus une explication théorique en français, des exemples en néerlandais, 5 types d'exercices variés entièrement en néerlandais, et tous les corrigés.`;
   }
 }
 
@@ -144,7 +246,7 @@ export async function POST(req: NextRequest) {
     // ── Appel Anthropic ──
     const message = await anthropic.messages.create({
       model: "claude-opus-4-6",
-      max_tokens: 2048,
+      max_tokens: 6000,
       messages: [{ role: "user", content: prompt }],
     });
 
