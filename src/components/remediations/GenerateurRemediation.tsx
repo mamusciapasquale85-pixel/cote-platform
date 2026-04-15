@@ -159,13 +159,14 @@ export default function GenerateurRemediation({
           onClick={() => setOpen(true)}
           style={{
             width: "100%",
+            minHeight: 36,
             padding: "8px 12px",
             borderRadius: 10,
-            border: "1.5px dashed rgba(10,132,255,0.4)",
-            background: "rgba(10,132,255,0.05)",
+            border: "1px solid rgba(10,132,255,0.32)",
+            background: "rgba(10,132,255,0.10)",
             color: "#0A63BF",
             fontSize: 13,
-            fontWeight: 700,
+            fontWeight: 800,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",

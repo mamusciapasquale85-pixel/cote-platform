@@ -576,7 +576,7 @@ export default function RemediationsPage() {
                           competence={item.competence ?? undefined}
                         />
 
-                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+                        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr" }}>
                           <button
                             type="button"
                             onClick={() => {
@@ -597,38 +597,6 @@ export default function RemediationsPage() {
                             }}
                           >
                             📅 Planifier
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setGenererRemediation({
-                                id: item.id,
-                                attendu: item.attendu ?? undefined,
-                                evaluationTitre: item.evaluation_titre || undefined,
-                                eleveNom: item.eleve_nom || undefined,
-                                subject: item.subject ?? undefined,
-                                niveau: item.niveau ?? undefined,
-                                exercicePropose: item.exercice_propose ?? undefined,
-                              })
-                            }
-                            style={{
-                              minHeight: 36,
-                              borderRadius: 10,
-                              border: item.exercice_propose
-                                ? "1px solid rgba(34,197,94,0.4)"
-                                : "1px solid rgba(249,115,22,0.34)",
-                              background: item.exercice_propose
-                                ? "rgba(34,197,94,0.10)"
-                                : "rgba(249,115,22,0.12)",
-                              color: item.exercice_propose ? "#15803D" : "#B45309",
-                              padding: "8px 10px",
-                              fontSize: 13,
-                              fontWeight: 800,
-                              cursor: "pointer",
-                            }}
-                          >
-                            {item.exercice_propose ? "👁 Voir / Régénérer" : "✨ Générer"}
                           </button>
                         </div>
                       </article>
