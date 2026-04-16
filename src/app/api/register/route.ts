@@ -11,7 +11,9 @@ const MATIERES_MAP: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const { firstName, lastName, email, password, role, schoolName, subjects, className, gradeLevel, promoCode } = await req.json();
+    const body = await req.json();
+    const { firstName, lastName, email, password, role, schoolName, subjects, className, gradeLevel, promoCode,
+      studentFirstName, studentLastName, childFirstName, childLastName } = body;
 
     const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -105,7 +107,46 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const redirectTo = role === "admin" ? "/direction" : role === "parent" ? "/parent" : "/dashboard";
+    // 8. Élève — lier student_id dans user_profiles
+    if (role === "student" && studentFirstName && studentLastName) {
+      const { data: student } = await admin.from("students")
+        .select("id")
+        .ilike("first_name", studentFirstName.trim())
+        .ilike("last_name", studentLastName.trim())
+        .eq("school_id", schoolId)
+        .limit(1).maybeSingle();
+      if (!student) {
+        // Supprimer l'utilisateur créé pour éviter les comptes orphelins
+        await admin.auth.admin.deleteUser(userId);
+        return NextResponse.json({ error: "Élève introuvable. Vérifiez le prénom et nom exacts." }, { status: 400 });
+      }
+      await admin.from("user_profiles").update({
+        template_json: { student_id: student.id, school_id: schoolId },
+      }).eq("id", userId);
+    }
+
+    // 9. Parent — lier enfant via parent_links
+    if (role === "parent" && (childFirstName || childLastName)) {
+      const fn = childFirstName || firstName;
+      const ln = childLastName || lastName;
+      const { data: student } = await admin.from("students")
+        .select("id")
+        .ilike("first_name", fn.trim())
+        .ilike("last_name", ln.trim())
+        .eq("school_id", schoolId)
+        .limit(1).maybeSingle();
+      if (student) {
+        await admin.from("parent_links").insert({
+          school_id: schoolId,
+          parent_user_id: userId,
+          student_id: student.id,
+          relationship: "parent",
+          visibility_level: "full",
+        });
+      }
+    }
+
+    const redirectTo = role === "admin" ? "/direction" : role === "parent" ? "/parent" : role === "student" ? "/eleve" : "/dashboard";
     return NextResponse.json({ success: true, redirectTo });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Erreur inattendue";

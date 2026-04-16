@@ -130,39 +130,18 @@ export default function LoginPage() {
     if (!studentFirstName.trim() || !studentLastName.trim()) { setRegError("Prénom et nom requis."); return; }
     setRegError(""); setRegLoading(true);
     try {
-      // Créer le compte auth
-      const { data: authData, error: authErr } = await supabase.auth.signUp({
-        email: regEmail.trim().toLowerCase(),
-        password: regPwd,
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName, lastName, email: regEmail.trim().toLowerCase(), password: regPwd,
+          role: "student", schoolName,
+          studentFirstName: studentFirstName.trim(),
+          studentLastName: studentLastName.trim(),
+        }),
       });
-      if (authErr) throw authErr;
-      const userId = authData.user?.id;
-      if (!userId) throw new Error("Compte non créé.");
-
-      // Trouver l'école
-      const { data: school } = await supabase.from("schools").select("id").ilike("name", schoolName.trim()).limit(1).maybeSingle();
-      if (!school) { setRegError("École introuvable. Vérifiez le nom exact."); setRegLoading(false); return; }
-
-      // Trouver l'élève
-      const { data: student } = await supabase.from("students")
-        .select("id").ilike("first_name", studentFirstName.trim()).ilike("last_name", studentLastName.trim())
-        .eq("school_id", school.id).limit(1).maybeSingle();
-      if (!student) { setRegError("Élève introuvable. Vérifiez le prénom et le nom exacts."); setRegLoading(false); return; }
-
-      // Créer le profil
-      await supabase.from("user_profiles").upsert({
-        id: userId,
-        full_name: `${studentFirstName} ${studentLastName}`,
-        display_role: "student",
-        locale: "fr",
-        template_json: { student_id: student.id, school_id: school.id },
-      });
-
-      await supabase.from("school_memberships").upsert(
-        { school_id: school.id, user_id: userId, role: "student" },
-        { onConflict: "school_id,user_id" }
-      );
-
+      const data = await res.json();
+      if (!res.ok) { setRegError(data.error || "Erreur."); setRegLoading(false); return; }
       await supabase.auth.signInWithPassword({ email: regEmail.trim().toLowerCase(), password: regPwd });
       setRegLoading(false);
       setMode("done");
@@ -178,25 +157,18 @@ export default function LoginPage() {
     if (!childFirstName.trim() || !childLastName.trim()) { setRegError("Prénom et nom de l'enfant requis."); return; }
     setRegError(""); setRegLoading(true);
     try {
-      const { data: authData, error: authErr } = await supabase.auth.signUp({
-        email: regEmail.trim().toLowerCase(), password: regPwd,
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName, lastName, email: regEmail.trim().toLowerCase(), password: regPwd,
+          role: "parent", schoolName,
+          childFirstName: childFirstName.trim(),
+          childLastName: childLastName.trim(),
+        }),
       });
-      if (authErr) throw authErr;
-      const userId = authData.user?.id;
-      if (!userId) throw new Error("Compte non créé.");
-
-      const { data: school } = await supabase.from("schools").select("id").ilike("name", schoolName.trim()).limit(1).maybeSingle();
-      if (!school) { setRegError("École introuvable."); setRegLoading(false); return; }
-
-      const { data: student } = await supabase.from("students")
-        .select("id").ilike("first_name", childFirstName.trim()).ilike("last_name", childLastName.trim())
-        .eq("school_id", school.id).limit(1).maybeSingle();
-      if (!student) { setRegError("Enfant introuvable. Vérifiez le prénom et nom exacts."); setRegLoading(false); return; }
-
-      await supabase.from("user_profiles").upsert({ id: userId, full_name: `${firstName} ${lastName}`, display_role: "parent", locale: "fr" });
-      await supabase.from("school_memberships").upsert({ school_id: school.id, user_id: userId, role: "parent" }, { onConflict: "school_id,user_id" });
-      await supabase.from("parent_links").insert({ school_id: school.id, parent_user_id: userId, student_id: student.id, relationship: "parent", visibility_level: "full" });
-
+      const data = await res.json();
+      if (!res.ok) { setRegError(data.error || "Erreur."); setRegLoading(false); return; }
       await supabase.auth.signInWithPassword({ email: regEmail.trim().toLowerCase(), password: regPwd });
       setRegLoading(false);
       setMode("done");
