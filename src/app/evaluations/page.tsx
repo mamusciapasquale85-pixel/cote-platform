@@ -444,7 +444,7 @@ function ImportResultsModal({ a, ctx, onClose, onImported }: { a: Assessment; ct
     setImporting(true); setErr(null);
     try {
       const { data: classes } = await ctx.supabase.from("class_groups").select("id, name").eq("school_id", ctx.schoolId);
-      const s = await importAssessmentResultsCsv({ ctx, rows, classes: classes ?? [], targetAssessmentId: a.id });
+      const s = await importAssessmentResultsCsv({ ctx, rows, classes: (classes ?? []) as unknown as ClassGroup[], targetAssessmentId: a.id });
       setSummary(s);
       if (s.errors.length === 0) setTimeout(onImported, 1500);
     } catch (e) { setErr(toNiceError(e)); } finally { setImporting(false); }
