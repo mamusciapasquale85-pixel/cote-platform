@@ -135,6 +135,29 @@ function ImportElevesModal({ className, onClose, onImport, saving }: {
   const [importDone, setImportDone] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
 
+  async function parseXLSX(file: File): Promise<ImportPreviewRow[]> {
+    const XLSX = await import("xlsx");
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    if (data.length === 0) return [];
+    const headers = (data[0] as string[]).map(h => String(h).trim().toLowerCase());
+    const prenomIdx = headers.findIndex(h => h.includes("prénom") || h.includes("prenom") || h === "first_name" || h === "firstname");
+    const nomIdx = headers.findIndex(h => h === "nom" || h === "last_name" || h === "lastname" || h.includes("famille"));
+    const usePrenomIdx = prenomIdx >= 0 ? prenomIdx : 0;
+    const useNomIdx = nomIdx >= 0 ? nomIdx : 1;
+    const dataRows = prenomIdx >= 0 ? data.slice(1) : data;
+    return dataRows
+      .map(row => {
+        const prenom = String(row[usePrenomIdx] ?? "").trim();
+        const nom = String(row[useNomIdx] ?? "").trim();
+        const valid = prenom.length > 0 && nom.length > 0;
+        return { prenom, nom, valid, error: !valid ? "Prénom ou nom manquant" : undefined };
+      })
+      .filter(r => r.prenom || r.nom);
+  }
+
   function parseCSV(text: string): ImportPreviewRow[] {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     if (lines.length === 0) return [];
@@ -167,8 +190,14 @@ function ImportElevesModal({ className, onClose, onImport, saving }: {
     setParseError(null);
     setPreview([]);
     try {
-      const text = await file.text();
-      const rows = parseCSV(text);
+      let rows: ImportPreviewRow[];
+      const isXlsx = file.name.endsWith(".xlsx") || file.name.endsWith(".xls");
+      if (isXlsx) {
+        rows = await parseXLSX(file);
+      } else {
+        const text = await file.text();
+        rows = parseCSV(text);
+      }
       if (rows.length === 0) throw new Error("Aucune ligne détectée.");
       setPreview(rows);
     } catch (e) {
@@ -197,20 +226,21 @@ function ImportElevesModal({ className, onClose, onImport, saving }: {
       {!importDone ? (
         <>
           <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "12px 14px", marginBottom: 14, fontSize: 13, color: "#475569" }}>
-            <b>Format CSV attendu :</b> colonnes <code>prenom</code> et <code>nom</code> (ou <code>first_name</code> / <code>last_name</code>).<br />
-            Séparateur <code>;</code> ou <code>,</code>. La première ligne peut être un en-tête.
+            <b>Formats acceptés :</b> CSV (<code>.csv</code>) ou Excel (<code>.xlsx</code>).<br />
+            Colonnes attendues : <code>prenom</code> et <code>nom</code> (ou <code>first_name</code> / <code>last_name</code>).<br />
+            Pour CSV : séparateur <code>;</code> ou <code>,</code>. La première ligne peut être un en-tête.
           </div>
 
           <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
             <button
               onClick={() => fileInputRef.current?.click()}
               style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #e2e8f0", background: "#f8fafc", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-              📂 Choisir un fichier CSV
+              📂 Choisir un fichier CSV / Excel
             </button>
             {fileName && <span style={{ fontSize: 13, color: "#64748b", alignSelf: "center" }}>{fileName}</span>}
           </div>
 
-          <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{ display: "none" }}
+          <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,text/csv" style={{ display: "none" }}
             onChange={e => void onFileChange(e.target.files?.[0] ?? null)} />
 
           {parseError && (
