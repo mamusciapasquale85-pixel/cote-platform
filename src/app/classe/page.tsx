@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import {
   getTeacherContext, listClassGroups, upsertClassGroup, deleteClassGroup,
@@ -51,12 +51,10 @@ function NiveauxBadges({ niveaux }: { niveaux: Niveaux }) {
   );
 }
 
-// ─── Modals ──────────────────────────────────────────────────────────────────
-
 function ModalOverlay({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", borderRadius: 16, padding: 28, minWidth: 360, maxWidth: 480, boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }}>
+      <div style={{ background: "#fff", borderRadius: 16, padding: 28, minWidth: 360, maxWidth: 520, width: "100%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", maxHeight: "90vh", overflowY: "auto" }}>
         {children}
       </div>
     </div>
@@ -72,15 +70,12 @@ function AddClassModal({ onClose, onSave, saving }: { onClose: () => void; onSav
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>Nom de la classe</label>
-          <input
-            autoFocus value={name} onChange={e => setName(e.target.value)}
-            placeholder="ex : 5TQ1, 3GT2…"
+          <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="ex : 5TQ1, 3GT2…"
             style={{ width: "100%", padding: "9px 12px", borderRadius: 9, border: "1px solid #e2e8f0", fontSize: 14, boxSizing: "border-box" }} />
         </div>
         <div>
           <label style={{ fontSize: 12, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 4 }}>Année / niveau</label>
-          <input
-            type="number" min={1} max={7} value={grade} onChange={e => setGrade(Number(e.target.value))}
+          <input type="number" min={1} max={7} value={grade} onChange={e => setGrade(Number(e.target.value))}
             style={{ width: 80, padding: "9px 12px", borderRadius: 9, border: "1px solid #e2e8f0", fontSize: 14 }} />
         </div>
       </div>
@@ -125,7 +120,155 @@ function AddStudentModal({ className, onClose, onSave, saving }: { className: st
   );
 }
 
-// ─── Page principale ──────────────────────────────────────────────────────────
+type ImportPreviewRow = { prenom: string; nom: string; valid: boolean; error?: string };
+
+function ImportElevesModal({ className, onClose, onImport, saving }: {
+  className: string;
+  onClose: () => void;
+  onImport: (rows: { prenom: string; nom: string }[]) => Promise<void>;
+  saving: boolean;
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [preview, setPreview] = useState<ImportPreviewRow[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [importDone, setImportDone] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+
+  function parseCSV(text: string): ImportPreviewRow[] {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length === 0) return [];
+
+    // Détecte le séparateur
+    const sep = lines[0].includes(";") ? ";" : ",";
+    const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/['"]/g, ""));
+
+    const prenomIdx = headers.findIndex(h => h.includes("prénom") || h.includes("prenom") || h === "first_name" || h === "firstname");
+    const nomIdx = headers.findIndex(h => h === "nom" || h === "last_name" || h === "lastname" || h.includes("famille"));
+
+    // Si pas d'en-têtes reconnus, essaie colonnes 0 et 1
+    const usePrenomIdx = prenomIdx >= 0 ? prenomIdx : 0;
+    const useNomIdx = nomIdx >= 0 ? nomIdx : 1;
+
+    const dataLines = prenomIdx >= 0 ? lines.slice(1) : lines;
+
+    return dataLines.map(line => {
+      const cols = line.split(sep).map(c => c.trim().replace(/^["']|["']$/g, ""));
+      const prenom = cols[usePrenomIdx] ?? "";
+      const nom = cols[useNomIdx] ?? "";
+      const valid = prenom.length > 0 && nom.length > 0;
+      return { prenom, nom, valid, error: !valid ? "Prénom ou nom manquant" : undefined };
+    }).filter(r => r.prenom || r.nom);
+  }
+
+  async function onFileChange(file: File | null) {
+    if (!file) return;
+    setFileName(file.name);
+    setParseError(null);
+    setPreview([]);
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      if (rows.length === 0) throw new Error("Aucune ligne détectée.");
+      setPreview(rows);
+    } catch (e) {
+      setParseError(e instanceof Error ? e.message : "Erreur de lecture");
+    }
+  }
+
+  const validRows = preview.filter(r => r.valid);
+
+  async function handleImport() {
+    if (validRows.length === 0) return;
+    try {
+      await onImport(validRows.map(r => ({ prenom: r.prenom, nom: r.nom })));
+      setImportResult(`✅ ${validRows.length} élève${validRows.length > 1 ? "s" : ""} importé${validRows.length > 1 ? "s" : ""} avec succès.`);
+      setImportDone(true);
+    } catch (e) {
+      setParseError(e instanceof Error ? e.message : "Erreur import");
+    }
+  }
+
+  return (
+    <ModalOverlay>
+      <h3 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 800 }}>📥 Importer une liste d'élèves</h3>
+      <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 16px" }}>dans {className}</p>
+
+      {!importDone ? (
+        <>
+          <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "12px 14px", marginBottom: 14, fontSize: 13, color: "#475569" }}>
+            <b>Format CSV attendu :</b> colonnes <code>prenom</code> et <code>nom</code> (ou <code>first_name</code> / <code>last_name</code>).<br />
+            Séparateur <code>;</code> ou <code>,</code>. La première ligne peut être un en-tête.
+          </div>
+
+          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{ padding: "9px 18px", borderRadius: 9, border: "1.5px solid #e2e8f0", background: "#f8fafc", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+              📂 Choisir un fichier CSV
+            </button>
+            {fileName && <span style={{ fontSize: 13, color: "#64748b", alignSelf: "center" }}>{fileName}</span>}
+          </div>
+
+          <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{ display: "none" }}
+            onChange={e => void onFileChange(e.target.files?.[0] ?? null)} />
+
+          {parseError && (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#b91c1c", marginBottom: 12 }}>
+              ⚠️ {parseError}
+            </div>
+          )}
+
+          {preview.length > 0 && (
+            <>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+                Aperçu — {validRows.length} élève{validRows.length > 1 ? "s" : ""} valide{validRows.length > 1 ? "s" : ""} sur {preview.length}
+              </div>
+              <div style={{ maxHeight: 240, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 10, marginBottom: 14 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc" }}>
+                      <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>Prénom</th>
+                      <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>Nom</th>
+                      <th style={{ padding: "8px 12px", textAlign: "center", fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.map((r, i) => (
+                      <tr key={i} style={{ background: r.valid ? "transparent" : "#fef2f2" }}>
+                        <td style={{ padding: "7px 12px", borderBottom: "1px solid #f3f4f6" }}>{r.prenom || "—"}</td>
+                        <td style={{ padding: "7px 12px", borderBottom: "1px solid #f3f4f6" }}>{r.nom || "—"}</td>
+                        <td style={{ padding: "7px 12px", borderBottom: "1px solid #f3f4f6", textAlign: "center" }}>
+                          {r.valid ? <span style={{ color: "#16a34a", fontWeight: 700 }}>✓</span> : <span style={{ color: "#b91c1c", fontSize: 11 }}>{r.error}</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <button onClick={onClose} style={{ padding: "8px 18px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Annuler</button>
+            <button onClick={() => void handleImport()} disabled={validRows.length === 0 || saving}
+              style={{ padding: "8px 20px", borderRadius: 8, background: validRows.length === 0 || saving ? "#e2e8f0" : "#111827", color: validRows.length === 0 || saving ? "#94a3b8" : "#fff", border: "none", fontWeight: 700, fontSize: 13, cursor: validRows.length === 0 || saving ? "not-allowed" : "pointer" }}>
+              {saving ? "Import en cours…" : `Importer ${validRows.length} élève${validRows.length > 1 ? "s" : ""}`}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div style={{ textAlign: "center", padding: "20px 0" }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
+          <div style={{ fontWeight: 700, fontSize: 15, color: "#16a34a", marginBottom: 20 }}>{importResult}</div>
+          <button onClick={onClose} style={{ padding: "10px 24px", borderRadius: 10, background: "#111827", color: "#fff", border: "none", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+            Fermer
+          </button>
+        </div>
+      )}
+    </ModalOverlay>
+  );
+}
 
 export default function ClassePage() {
   const [ctx, setCtx] = useState<TeacherContext | null>(null);
@@ -138,10 +281,10 @@ export default function ClassePage() {
   const [search, setSearch] = useState("");
   const [showAddClass, setShowAddClass] = useState(false);
   const [showAddStudent, setShowAddStudent] = useState(false);
+  const [showImportEleves, setShowImportEleves] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Init context + classes
   useEffect(() => {
     getTeacherContext()
       .then(async c => {
@@ -166,8 +309,6 @@ export default function ClassePage() {
   }, []);
 
   useEffect(() => { if (activeClass) loadEleves(activeClass); }, [activeClass, loadEleves]);
-
-  // ── Gestion classes ──────────────────────────────────────────────────────
 
   async function handleAddClass(name: string, grade: number) {
     if (!ctx) return;
@@ -200,8 +341,6 @@ export default function ClassePage() {
     } finally { setSaving(false); }
   }
 
-  // ── Gestion élèves ────────────────────────────────────────────────────────
-
   async function handleAddStudent(first: string, last: string) {
     if (!ctx || !activeClass) return;
     setSaving(true); setActionError(null);
@@ -212,6 +351,19 @@ export default function ClassePage() {
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Erreur");
     } finally { setSaving(false); }
+  }
+
+  async function handleImportEleves(rows: { prenom: string; nom: string }[]) {
+    if (!ctx || !activeClass) throw new Error("Contexte manquant");
+    setSaving(true);
+    try {
+      for (const row of rows) {
+        await addStudentAndEnroll(ctx, { classGroupId: activeClass, first_name: row.prenom, last_name: row.nom });
+      }
+      loadEleves(activeClass);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleRemoveStudent(studentId: string, name: string) {
@@ -225,8 +377,6 @@ export default function ClassePage() {
       setActionError(e instanceof Error ? e.message : "Erreur");
     }
   }
-
-  // ── Filtres ───────────────────────────────────────────────────────────────
 
   const filtered = eleves.filter(e => {
     const matchSearch = search === "" || `${e.prenom} ${e.nom}`.toLowerCase().includes(search.toLowerCase());
@@ -256,19 +406,22 @@ export default function ClassePage() {
             {c.name}
           </button>
         ))}
-
-        {/* Bouton nouvelle classe */}
         <button onClick={() => setShowAddClass(true)}
           style={{ padding: "8px 14px", borderRadius: 10, border: "1.5px dashed #CBD5E1", background: "#F8FAFC", color: "#475569", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
           ＋ Classe
         </button>
-
-        {/* Supprimer classe active */}
         {activeClass && ctx && (
           <button onClick={handleDeleteClass} disabled={saving}
             style={{ padding: "8px 12px", borderRadius: 10, border: "1.5px solid #FECACA", background: "#FFF5F5", color: "#B91C1C", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
             title="Supprimer cette classe">
             🗑
+          </button>
+        )}
+        {/* ── NOUVEAU : Bouton importer liste ── */}
+        {activeClass && ctx && (
+          <button onClick={() => setShowImportEleves(true)}
+            style={{ padding: "8px 14px", borderRadius: 10, border: "1.5px solid #BFDBFE", background: "#EFF6FF", color: "#1D4ED8", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+            📥 Importer liste
           </button>
         )}
       </div>
@@ -324,36 +477,35 @@ export default function ClassePage() {
         </div>
       </div>
 
-      {/* ── Erreur / Loading ── */}
       {error && <div style={{ padding: 16, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, color: "#B91C1C", fontSize: 13, marginBottom: 12 }}>{error}</div>}
       {loading && <div style={{ padding: 40, textAlign: "center", color: "#9CA3AF" }}><div style={{ fontSize: 28, marginBottom: 8 }}>👥</div>Chargement…</div>}
 
-      {/* ── Classe vide ── */}
       {!loading && activeClass && eleves.length === 0 && !error && (
         <div style={{ padding: "40px 0", textAlign: "center", color: "#9CA3AF" }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
           <div style={{ fontSize: 14, marginBottom: 16 }}>Aucun élève dans cette classe.</div>
           {ctx && (
-            <button onClick={() => setShowAddStudent(true)}
-              style={{ padding: "9px 20px", borderRadius: 9, border: "none", background: "#111827", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-              ＋ Ajouter un élève
-            </button>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={() => setShowAddStudent(true)}
+                style={{ padding: "9px 20px", borderRadius: 9, border: "none", background: "#111827", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                ＋ Ajouter un élève
+              </button>
+              <button onClick={() => setShowImportEleves(true)}
+                style={{ padding: "9px 20px", borderRadius: 9, border: "1.5px solid #BFDBFE", background: "#EFF6FF", color: "#1D4ED8", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                📥 Importer liste
+              </button>
+            </div>
           )}
         </div>
       )}
 
-      {/* ── Liste élèves ── */}
       {!loading && filtered.length > 0 && (
         <div style={{ background: "#FFF", borderRadius: 14, border: "1px solid #E5E7EB", overflow: "hidden" }}>
-
-          {/* Header tableau */}
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.5fr 1fr 36px", gap: 16, padding: "10px 18px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
             {["Élève", "Résultats", "Score de maîtrise", "Niveaux", ""].map((h, i) => (
               <div key={i} style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: ".05em" }}>{h}</div>
             ))}
           </div>
-
-          {/* Lignes */}
           {filtered.map((e, i) => (
             <div key={e.id} style={{
               display: "grid", gridTemplateColumns: "2fr 1fr 1.5fr 1fr 36px",
@@ -361,7 +513,6 @@ export default function ClassePage() {
               background: e.niveaux.NI > 0 ? "#FFF5F5" : i % 2 === 0 ? "#FFF" : "#FAFAFA",
               borderBottom: "1px solid #F3F4F6",
             }}>
-              {/* Nom — cliquable pour voir le profil */}
               <Link href={`/eleves/${e.id}`} style={{ textDecoration: "none" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
                   <div style={{
@@ -379,25 +530,12 @@ export default function ClassePage() {
                   </div>
                 </div>
               </Link>
-
-              {/* Nb résultats */}
               <div style={{ fontSize: 13, color: "#6B7280", fontWeight: 500 }}>
                 {e.total_resultats > 0 ? `${e.total_resultats} résultat${e.total_resultats > 1 ? "s" : ""}` : <span style={{ color: "#D1D5DB" }}>Aucun</span>}
               </div>
-
-              {/* Score maîtrise */}
               <ScoreBar score={e.score_maitrise} />
-
-              {/* Badges niveaux */}
-              {e.total_resultats > 0
-                ? <NiveauxBadges niveaux={e.niveaux} />
-                : <span style={{ fontSize: 12, color: "#D1D5DB" }}>—</span>
-              }
-
-              {/* Bouton retirer */}
-              <button
-                onClick={() => handleRemoveStudent(e.id, `${e.prenom} ${e.nom}`)}
-                title="Retirer de la classe"
+              {e.total_resultats > 0 ? <NiveauxBadges niveaux={e.niveaux} /> : <span style={{ fontSize: 12, color: "#D1D5DB" }}>—</span>}
+              <button onClick={() => handleRemoveStudent(e.id, `${e.prenom} ${e.nom}`)} title="Retirer de la classe"
                 style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid #FECACA", background: "#FFF5F5", color: "#B91C1C", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, lineHeight: 1 }}>
                 ✕
               </button>
@@ -406,7 +544,6 @@ export default function ClassePage() {
         </div>
       )}
 
-      {/* Footer */}
       {!loading && filtered.length > 0 && (
         <div style={{ textAlign: "center", marginTop: 12, fontSize: 12, color: "#9CA3AF" }}>
           {filtered.length} élève{filtered.length > 1 ? "s" : ""} affiché{filtered.length > 1 ? "s" : ""}
@@ -414,19 +551,15 @@ export default function ClassePage() {
         </div>
       )}
 
-      {/* ── Modals ── */}
-      {showAddClass && (
-        <AddClassModal
-          onClose={() => setShowAddClass(false)}
-          onSave={handleAddClass}
-          saving={saving} />
-      )}
-      {showAddStudent && activeClassData && (
-        <AddStudentModal
+      {showAddClass && <AddClassModal onClose={() => setShowAddClass(false)} onSave={handleAddClass} saving={saving} />}
+      {showAddStudent && activeClassData && <AddStudentModal className={activeClassData.name} onClose={() => setShowAddStudent(false)} onSave={handleAddStudent} saving={saving} />}
+      {showImportEleves && activeClassData && (
+        <ImportElevesModal
           className={activeClassData.name}
-          onClose={() => setShowAddStudent(false)}
-          onSave={handleAddStudent}
-          saving={saving} />
+          onClose={() => { setShowImportEleves(false); }}
+          onImport={handleImportEleves}
+          saving={saving}
+        />
       )}
     </div>
   );

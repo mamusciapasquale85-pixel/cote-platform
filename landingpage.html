@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Klasbook — L'assistant IA des enseignants FWB</title>
+<meta name="description" content="Klasbook génère automatiquement des exercices et remédiations IA conformes aux référentiels FWB. Pour les enseignants de la Fédération Wallonie-Bruxelles.">
+<meta property="og:title" content="Klasbook — L'assistant IA des enseignants FWB">
+<meta property="og:description" content="Remédiation automatique, exercices IA, bulletins, suivi élèves. Conçu par un prof, pour les profs belges francophones.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://klasbook.be">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f8ff;
+  --surface:#ffffff;
+  --surface2:#f0f2fa;
+  --text:#0f172a;
+  --text2:rgba(15,23,42,0.6);
+  --text3:rgba(15,23,42,0.38);
+  --primary:#4f7cff;
+  --secondary:#9b7bff;
+  --accent:#ff5a7a;
+  --green:#22c55e;
+  --warning:#f59e0b;
+  --grad:linear-gradient(135deg,#FF3B30 0%,#0A84FF 100%);
+  --grad2:linear-gradient(135deg,#4f7cff 0%,#9b7bff 100%);
+  --border:rgba(15,23,42,0.08);
+  --border-h:rgba(15,23,42,0.14);
+  --shadow:0 8px 30px rgba(15,23,42,0.08);
+  --shadow-lg:0 16px 48px rgba(15,23,42,0.12);
+  --font:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;
+  --radius:20px;
+  --max:1120px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+
+/* NAV */
+nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 40px;height:60px;display:flex;align-items:center;justify-content:space-between}
+.n-logo{display:flex;align-items:center;gap:10px;font-size:1.1rem;font-weight:900;letter-spacing:-0.03em;color:var(--text)}
+.n-logo-icon{width:32px;height:32px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(10,132,255,0.3)}
+.n-logo-icon span{font-size:16px;color:#fff}
+.n-links{display:flex;gap:28px;align-items:center}
+.n-links a{font-size:0.88rem;color:var(--text2);font-weight:500;transition:color .2s}
+.n-links a:hover{color:var(--text)}
+.n-cta{background:var(--primary);color:#fff!important;padding:9px 20px;border-radius:12px;font-weight:700;font-size:0.85rem;transition:opacity .2s;box-shadow:0 4px 14px rgba(79,124,255,0.3)}
+.n-cta:hover{opacity:.88}
+
+/* HERO */
+.hero{padding:140px 40px 100px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-160px;left:-5%;width:820px;height:600px;background:radial-gradient(ellipse,rgba(79,124,255,0.12) 0%,transparent 62%);pointer-events:none}
+.hero::after{content:'';position:absolute;top:-80px;right:-5%;width:620px;height:500px;background:radial-gradient(ellipse,rgba(155,123,255,0.1) 0%,transparent 64%);pointer-events:none}
+.h-pill{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(34,197,94,0.3);background:rgba(34,197,94,0.08);border-radius:999px;padding:5px 16px 5px 10px;font-size:0.78rem;color:#16a34a;font-weight:700;margin-bottom:28px}
+.h-pill-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.hero h1{font-size:clamp(2.6rem,5.5vw,3.8rem);font-weight:900;line-height:1.1;letter-spacing:-1.5px;max-width:820px;margin:0 auto 20px;color:var(--text)}
+.hero h1 em{font-style:italic;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.h-sub{font-size:1.1rem;color:var(--text2);max-width:580px;margin:0 auto 40px;line-height:1.75}
+.h-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.btn-p{background:var(--grad);color:#fff;padding:14px 30px;border-radius:14px;font-size:0.95rem;font-weight:700;transition:all .2s;border:none;cursor:pointer;font-family:var(--font);box-shadow:0 8px 24px rgba(255,59,48,0.2)}
+.btn-p:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(255,59,48,0.28)}
+.btn-s{background:var(--surface);color:var(--text);padding:14px 30px;border-radius:14px;font-size:0.95rem;font-weight:600;border:1px solid var(--border-h);transition:all .2s;box-shadow:var(--shadow)}
+.btn-s:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg)}
+.h-note{margin-top:24px;font-size:0.82rem;color:var(--text3);display:flex;gap:20px;justify-content:center;flex-wrap:wrap}
+.h-note span{display:flex;align-items:center;gap:4px}
+
+/* PROOF BAR */
+.proof{border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:20px 40px;display:flex;align-items:center;justify-content:center;gap:40px;flex-wrap:wrap;background:var(--surface)}
+.proof span{font-size:0.84rem;color:var(--text2);font-weight:500;display:flex;align-items:center;gap:8px}
+
+/* SECTIONS */
+.sec{padding:100px 40px}
+.sec-alt{background:var(--surface)}
+.sec-inner{max-width:var(--max);margin:0 auto}
+.sec-label{font-size:0.7rem;text-transform:uppercase;letter-spacing:0.14em;font-weight:800;margin-bottom:12px}
+.sec-label-p{color:var(--primary)}
+.sec-label-a{color:var(--accent)}
+.sec-label-g{color:var(--green)}
+.sec-label-s{color:var(--secondary)}
+.sec-title{font-size:clamp(1.8rem,3.5vw,2.5rem);font-weight:900;letter-spacing:-0.5px;margin-bottom:10px;max-width:700px}
+.sec-sub{color:var(--text2);font-size:1.02rem;margin-bottom:48px;max-width:560px;line-height:1.7}
+
+/* PROBLEM */
+.pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.pain-c{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow);transition:all .25s}
+.pain-c:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.pain-i{font-size:1.6rem;margin-bottom:14px}
+.pain-t{font-size:0.98rem;font-weight:700;margin-bottom:6px}
+.pain-d{font-size:0.87rem;color:var(--text2);line-height:1.65}
+
+/* HOW */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.step{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow);position:relative}
+.step-n{width:36px;height:36px;border-radius:12px;background:var(--grad2);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;margin-bottom:16px;color:#fff;box-shadow:0 4px 12px rgba(79,124,255,0.25)}
+.step-t{font-size:0.95rem;font-weight:700;margin-bottom:6px}
+.step-d{font-size:0.85rem;color:var(--text2);line-height:1.65}
+.step-arrow{position:absolute;right:-14px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:1rem;z-index:2}
+
+/* FEATURES */
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.feat-c{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:26px;box-shadow:var(--shadow);transition:all .25s}
+.feat-c:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg);border-color:rgba(79,124,255,0.2)}
+.feat-i{font-size:1.4rem;margin-bottom:12px;width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center}
+.feat-i-blue{background:rgba(79,124,255,0.1);border:1px solid rgba(79,124,255,0.15)}
+.feat-i-purple{background:rgba(155,123,255,0.1);border:1px solid rgba(155,123,255,0.15)}
+.feat-i-pink{background:rgba(255,90,122,0.1);border:1px solid rgba(255,90,122,0.15)}
+.feat-i-green{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.15)}
+.feat-i-amber{background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.15)}
+.feat-t{font-size:0.95rem;font-weight:700;margin-bottom:4px}
+.feat-d{font-size:0.84rem;color:var(--text2);line-height:1.6}
+
+/* COMPARISON */
+.cmp{width:100%;border-collapse:separate;border-spacing:0;background:var(--surface);border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);margin-top:40px;box-shadow:var(--shadow)}
+.cmp th{padding:14px 18px;text-align:center;font-size:0.76rem;font-weight:800;background:var(--surface2);color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--border)}
+.cmp th:first-child{text-align:left}
+.cmp th.you{color:var(--primary)}
+.cmp td{padding:13px 18px;text-align:center;font-size:0.88rem;border-bottom:1px solid rgba(15,23,42,0.04)}
+.cmp td:first-child{text-align:left;color:var(--text2);font-weight:500}
+.cmp tr:last-child td{border-bottom:none}
+.cmp .yc{background:rgba(79,124,255,0.04)}
+.iy{color:var(--green);font-weight:700}
+.in{color:#ef4444}
+.ip{color:var(--warning)}
+
+/* PRICING */
+.pr-toggle{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:48px}
+.pr-toggle span{font-size:0.88rem;color:var(--text3);font-weight:600}
+.pr-toggle span.active{color:var(--text);font-weight:700}
+.pr-toggle-track{width:48px;height:26px;border-radius:13px;background:var(--surface2);border:1px solid var(--border);position:relative;cursor:pointer;transition:background .2s}
+.pr-toggle-track.on{background:rgba(79,124,255,0.15);border-color:rgba(79,124,255,0.3)}
+.pr-toggle-thumb{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--primary);transition:transform .2s;box-shadow:0 2px 6px rgba(79,124,255,0.3)}
+.pr-toggle-track:not(.on) .pr-toggle-thumb{background:#94a3b8}
+.pr-toggle-track.on .pr-toggle-thumb{transform:translateX(22px)}
+.pr-save{font-size:0.72rem;color:#16a34a;font-weight:700;background:rgba(34,197,94,0.1);padding:3px 10px;border-radius:999px;margin-left:4px}
+.pr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;text-align:left}
+.pr-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.pr-card.feat{border:2px solid var(--primary);box-shadow:0 12px 40px rgba(79,124,255,0.15);position:relative}
+.pr-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--grad2);color:#fff;font-size:0.7rem;font-weight:800;padding:4px 16px;border-radius:999px;white-space:nowrap;letter-spacing:0.04em;box-shadow:0 4px 12px rgba(79,124,255,0.3)}
+.pr-name{font-size:0.72rem;text-transform:uppercase;letter-spacing:0.1em;font-weight:800;color:var(--text3);margin-bottom:10px}
+.pr-price{font-size:2.6rem;font-weight:900;letter-spacing:-1.5px;line-height:1;color:var(--text)}
+.pr-period{font-size:0.85rem;color:var(--text3);margin-top:4px;margin-bottom:4px;min-height:20px}
+.pr-desc{font-size:0.86rem;color:var(--text2);margin-bottom:20px;line-height:1.55;flex-grow:0}
+.pr-list{list-style:none;flex-grow:1}
+.pr-list li{padding:7px 0;font-size:0.85rem;color:var(--text2);border-bottom:1px solid rgba(15,23,42,0.05);display:flex;gap:10px;align-items:baseline}
+.pr-list li:last-child{border-bottom:none}
+.pr-list li::before{content:'✓';color:var(--green);flex-shrink:0;font-size:0.82rem;font-weight:700}
+.pr-list li.no::before{content:'—';color:var(--text3)}
+.pr-btn{display:block;width:100%;text-align:center;margin-top:24px;padding:14px;border-radius:14px;font-weight:700;font-size:0.9rem;cursor:pointer;transition:all .2s;border:none;font-family:var(--font)}
+.pr-btn-p{background:var(--grad2);color:#fff;box-shadow:0 8px 24px rgba(79,124,255,0.25)}
+.pr-btn-p:hover{transform:translateY(-1px);box-shadow:0 12px 32px rgba(79,124,255,0.3)}
+.pr-btn-s{background:var(--surface);color:var(--text);border:1px solid var(--border-h);box-shadow:var(--shadow)}
+.pr-btn-s:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg)}
+.pr-note{margin-top:24px;font-size:0.82rem;color:var(--text3);text-align:center}
+
+/* FAQ */
+.faq-list{max-width:720px;margin:0 auto}
+.faq-i{border-bottom:1px solid var(--border);padding:20px 0}
+.faq-q{font-weight:700;font-size:0.95rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;user-select:none;transition:color .15s;color:var(--text)}
+.faq-q:hover{color:var(--text2)}
+.faq-ic{color:var(--text3);flex-shrink:0;transition:transform .25s;font-size:1.1rem}
+.faq-i.open .faq-ic{transform:rotate(45deg)}
+.faq-a{font-size:0.9rem;color:var(--text2);line-height:1.7;padding-top:12px;display:none}
+.faq-i.open .faq-a{display:block}
+
+/* CTA */
+.cta-f{padding:120px 40px;text-align:center;position:relative;overflow:hidden}
+.cta-f::before{content:'';position:absolute;bottom:-200px;left:50%;transform:translateX(-50%);width:800px;height:600px;background:radial-gradient(ellipse,rgba(79,124,255,0.1) 0%,transparent 65%);pointer-events:none}
+.cta-f h2{font-size:clamp(2rem,4vw,2.8rem);font-weight:900;letter-spacing:-1px;max-width:700px;margin:0 auto 16px;color:var(--text)}
+.cta-f p{font-size:1.02rem;color:var(--text2);max-width:500px;margin:0 auto 36px}
+
+/* FOOTER */
+footer{padding:28px 40px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;color:var(--text3);font-size:0.8rem;background:var(--surface)}
+footer a{color:var(--text3);margin-left:20px;transition:color .15s;font-weight:500}
+footer a:hover{color:var(--text2)}
+
+/* RESPONSIVE */
+@media(max-width:900px){
+  nav{padding:0 20px}
+  .n-links{display:none}
+  .hero,.sec{padding-left:20px;padding-right:20px}
+  .pain-grid,.steps,.feat-grid,.pr-grid{grid-template-columns:1fr}
+  .step-arrow{display:none}
+  .proof{gap:16px;padding:16px 20px}
+  footer{flex-direction:column;gap:10px;text-align:center}
+  .cta-f{padding:80px 20px}
+  .cmp{font-size:0.82rem}
+  .cmp th,.cmp td{padding:10px 8px}
+}
+@media(max-width:600px){
+  .hero h1{font-size:2.2rem;letter-spacing:-1px}
+  .h-sub{font-size:1rem}
+  .h-note{flex-direction:column;gap:8px;align-items:center}
+  .pr-price{font-size:2.2rem}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="n-logo">
+    <div class="n-logo-icon"><span>✦</span></div>
+    Klasbook
+  </div>
+  <div class="n-links">
+    <a href="#fonctionnalites">Fonctionnalités</a>
+    <a href="#tarifs">Tarifs</a>
+    <a href="#faq">FAQ</a>
+    <a href="https://klasbook.be/login" class="n-cta">Se connecter</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="h-pill"><span class="h-pill-dot"></span> Disponible maintenant — Belgique FWB</div>
+  <h1>L'IA qui prépare tes cours, <em>pas à ta place</em>, mais pour toi.</h1>
+  <p class="h-sub">Exercices IA, remédiations automatiques, bulletins, correction de copies, suivi des élèves — tout conforme aux référentiels FWB. Conçu par un prof belge, pour les profs.</p>
+  <div class="h-actions">
+    <a href="https://klasbook.be/register" class="btn-p">Créer mon compte gratuit →</a>
+    <a href="#fonctionnalites" class="btn-s">Découvrir les outils</a>
+  </div>
+  <div class="h-note">
+    <span>✓ Gratuit pour commencer</span>
+    <span>✓ Aucune carte bancaire</span>
+    <span>✓ Données hébergées en Europe</span>
+  </div>
+</section>
+
+<!-- PROOF BAR -->
+<div class="proof">
+  <span>🏫 Utilisé au LAB Marie Curie, Bruxelles</span>
+  <span>🇧🇪 Référentiels IFPC/FWB intégrés</span>
+  <span>🤖 IA Claude (Anthropic)</span>
+  <span>🎓 Créé par un enseignant en activité</span>
+</div>
+
+<!-- PROBLEM -->
+<section class="sec">
+  <div class="sec-inner">
+    <div class="sec-label sec-label-a">Le problème</div>
+    <div class="sec-title">Tu prépares tout à la main. L'inspection attend des conformités. Et les heures filent.</div>
+    <div class="sec-sub">Chaque semaine, entre les preps, les corrections, les remédiations et les bulletins — tu cours après le temps. Et aucun outil belge ne t'aide vraiment.</div>
+    <div class="pain-grid">
+      <div class="pain-c">
+        <div class="pain-i">⏱️</div>
+        <div class="pain-t">Des heures de préparation</div>
+        <div class="pain-d">Créer des exercices différenciés, adapter par niveau, vérifier la conformité FWB… Tout ça manuellement, chaque semaine.</div>
+      </div>
+      <div class="pain-c">
+        <div class="pain-i">🎯</div>
+        <div class="pain-t">Des remédiations génériques</div>
+        <div class="pain-d">Faute de temps, tu donnes les mêmes exercices à tous. Mais Lucas et Emma n'ont pas les mêmes lacunes.</div>
+      </div>
+      <div class="pain-c">
+        <div class="pain-i">📋</div>
+        <div class="pain-t">La conformité qui pèse</div>
+        <div class="pain-d">Référentiels IFPC, compétences du Tronc Commun, grilles FWB… Il faut tout croiser, tout justifier. Sans outil dédié.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="sec sec-alt" id="comment">
+  <div class="sec-inner">
+    <div class="sec-label sec-label-p">Comment ça marche</div>
+    <div class="sec-title">De l'évaluation à la remédiation, en 4 clics</div>
+    <div class="sec-sub">Un workflow complet qui t'accompagne de la formative à la sommative.</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-t">Encode tes résultats</div>
+        <div class="step-d">Saisis ou importe les résultats de tes évaluations. Klasbook comprend tous les formats (Excel, CSV, Smartschool…).</div>
+        <div class="step-arrow">→</div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-t">L'IA détecte les lacunes</div>
+        <div class="step-d">Klasbook identifie automatiquement quels élèves n'ont pas atteint quelles compétences FWB.</div>
+        <div class="step-arrow">→</div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-t">Exercices générés</div>
+        <div class="step-d">Des exercices de remédiation ciblés, conformes au référentiel IFPC, générés en quelques secondes par IA.</div>
+        <div class="step-arrow">→</div>
+      </div>
+      <div class="step">
+        <div class="step-n">4</div>
+        <div class="step-t">Suis la progression</div>
+        <div class="step-d">Tableau de bord clair : qui progresse, qui a besoin d'aide, qui est prêt pour la sommative.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="sec" id="fonctionnalites">
+  <div class="sec-inner">
+    <div class="sec-label sec-label-p">Fonctionnalités</div>
+    <div class="sec-title">Tout ce dont un prof FWB a besoin. Rien de superflu.</div>
+    <div class="sec-sub">7 matières supportées — Néerlandais, Anglais, Français, Maths, Sciences, Histoire, Géographie.</div>
+    <div class="feat-grid">
+      <div class="feat-c">
+        <div class="feat-i feat-i-blue">✨</div>
+        <div class="feat-t">Générateur d'exercices IA</div>
+        <div class="feat-d">25+ types d'exercices (QCM, lacunes, dialogues, conjugaison, problèmes…) générés automatiquement et conformes aux référentiels FWB/IFPC.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-pink">🩺</div>
+        <div class="feat-t">Remédiation automatique</div>
+        <div class="feat-d">Un élève en difficulté ? Klasbook crée automatiquement un exercice ciblé sur sa lacune précise. Différenciation réelle, pas théorique.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-purple">📝</div>
+        <div class="feat-t">Correction IA de copies</div>
+        <div class="feat-d">Importe une copie (texte ou scan) et l'IA corrige, attribue les points et génère un feedback personnalisé pour l'élève.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-blue">📄</div>
+        <div class="feat-t">Créateur d'évaluations PDF</div>
+        <div class="feat-d">Génère des évals complètes avec en-tête école, mise en page professionnelle et export PDF prêt à imprimer.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-green">📊</div>
+        <div class="feat-t">Bulletins & compétences FWB</div>
+        <div class="feat-d">Bulletins conformes FWB, grille TB/B/S/I/NI, appréciations générées par IA, export PDF. Tout le système belge.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-amber">🎓</div>
+        <div class="feat-t">Inspecteur FWB (chatbot IA)</div>
+        <div class="feat-d">Pose-lui une question sur les référentiels IFPC, la conformité, la différenciation, les attendus. Il connaît tout.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-purple">🗣️</div>
+        <div class="feat-t">Exercices vocaux (langues)</div>
+        <div class="feat-d">L'élève s'enregistre, l'IA analyse sa prononciation et donne un feedback immédiat. Idéal pour le néerlandais et l'anglais.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-green">👥</div>
+        <div class="feat-t">Gestion de classes & élèves</div>
+        <div class="feat-d">Crée tes classes, ajoute tes élèves, organise tes groupes. Import CSV ou saisie manuelle. Tout centralisé.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-blue">📅</div>
+        <div class="feat-t">Agenda & planification</div>
+        <div class="feat-d">Planifie tes évaluations, tes séances de remédiation et tes cours. Synchronisé avec ton calendrier pédagogique.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-pink">👨‍👩‍👧</div>
+        <div class="feat-t">Portail parents</div>
+        <div class="feat-d">Les parents suivent la progression de leur enfant via un portail dédié. Invitation par email, notifications automatiques.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-amber">📥</div>
+        <div class="feat-t">Import intelligent</div>
+        <div class="feat-d">Importe tes résultats depuis Excel, CSV ou Smartschool. L'IA analyse le format et convertit automatiquement vers l'échelle FWB.</div>
+      </div>
+      <div class="feat-c">
+        <div class="feat-i feat-i-green">🎯</div>
+        <div class="feat-t">Suivi des apprentissages</div>
+        <div class="feat-d">Grille de compétences par élève et par classe. Visualise qui maîtrise quoi, identifie les lacunes collectives.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON -->
+<section class="sec sec-alt">
+  <div class="sec-inner">
+    <div class="sec-label sec-label-a">Comparaison</div>
+    <div class="sec-title">Pourquoi Klasbook et pas un autre outil ?</div>
+    <div class="sec-sub">Aucun outil en Belgique francophone ne combine IA pédagogique et conformité FWB.</div>
+    <table class="cmp">
+      <thead>
+        <tr>
+          <th style="width:35%">Fonctionnalité</th>
+          <th class="you" style="width:16%">Klasbook</th>
+          <th style="width:16%">Smartschool</th>
+          <th style="width:16%">Happi (FWB)</th>
+          <th style="width:16%">ChatGPT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Exercices IA conformes FWB</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="ip">~</span></td></tr>
+        <tr><td>Remédiation automatique</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td></tr>
+        <tr><td>Référentiels IFPC intégrés</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="ip">~</span></td><td><span class="in">✗</span></td></tr>
+        <tr><td>Correction IA de copies</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="ip">~</span></td></tr>
+        <tr><td>Bulletins FWB (TB/B/S/I/NI)</td><td class="yc"><span class="iy">✓</span></td><td><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td></tr>
+        <tr><td>Exercices vocaux (langues)</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td></tr>
+        <tr><td>Portail parents intégré</td><td class="yc"><span class="iy">✓</span></td><td><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td></tr>
+        <tr><td>Pas besoin de l'accord IT</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="iy">✓</span></td></tr>
+        <tr><td>Conçu par un prof FWB</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="sec" id="tarifs">
+  <div class="sec-inner" style="text-align:center">
+    <div class="sec-label sec-label-s" style="text-align:center">Tarifs</div>
+    <div class="sec-title" style="margin:0 auto 10px;text-align:center">Simple. Transparent. Sans engagement.</div>
+    <div class="sec-sub" style="margin:0 auto 20px;text-align:center">Commence gratuitement. Passe Pro quand tu veux. Annule quand tu veux.</div>
+
+    <div class="pr-toggle">
+      <span id="lbl-m" class="active">Mensuel</span>
+      <div class="pr-toggle-track" id="toggle" onclick="toggleBilling()">
+        <div class="pr-toggle-thumb"></div>
+      </div>
+      <span id="lbl-a">Annuel</span>
+      <span class="pr-save">-34%</span>
+    </div>
+
+    <div class="pr-grid">
+      <!-- FREE -->
+      <div class="pr-card">
+        <div class="pr-name">Starter</div>
+        <div class="pr-price">0€</div>
+        <div class="pr-period">pour toujours</div>
+        <div class="pr-desc">Pour découvrir Klasbook à ton rythme.</div>
+        <ul class="pr-list">
+          <li>10 exercices IA / mois</li>
+          <li>1 classe</li>
+          <li>7 matières FWB</li>
+          <li>Export PDF</li>
+          <li>Inspecteur FWB (5 msg/jour)</li>
+          <li class="no">Correction IA de copies</li>
+          <li class="no">Bulletins & compétences</li>
+          <li class="no">Portail parents</li>
+          <li class="no">Exercices vocaux</li>
+        </ul>
+        <a href="https://klasbook.be/register" class="pr-btn pr-btn-s">Créer mon compte →</a>
+      </div>
+
+      <!-- PRO -->
+      <div class="pr-card feat">
+        <div class="pr-badge">Le plus populaire</div>
+        <div class="pr-name">Pro</div>
+        <div class="pr-price" id="pr-pro">19€</div>
+        <div class="pr-period" id="pr-pro-p">/mois · sans engagement</div>
+        <div class="pr-desc">Pour les enseignants qui veulent tout automatiser.</div>
+        <ul class="pr-list">
+          <li>Exercices IA illimités</li>
+          <li>Toutes les classes</li>
+          <li>7 matières + référentiels IFPC</li>
+          <li>PDF avec canevas école</li>
+          <li>Inspecteur FWB illimité</li>
+          <li>Correction IA de copies</li>
+          <li>Bulletins & compétences FWB</li>
+          <li>Portail parents</li>
+          <li>Exercices vocaux</li>
+          <li>Import intelligent</li>
+          <li>Historique complet</li>
+          <li>Support prioritaire</li>
+        </ul>
+        <a href="https://klasbook.be/register?plan=pro" class="pr-btn pr-btn-p">Essayer gratuitement →</a>
+      </div>
+
+      <!-- ECOLE -->
+      <div class="pr-card">
+        <div class="pr-name">École</div>
+        <div class="pr-price" id="pr-ecole">149€</div>
+        <div class="pr-period" id="pr-ecole-p">/mois · jusqu'à 20 profs</div>
+        <div class="pr-desc">Pour les établissements qui veulent équiper toute l'équipe.</div>
+        <ul class="pr-list">
+          <li>Tout le plan Pro</li>
+          <li>Jusqu'à 20 comptes enseignants</li>
+          <li>Tableau de bord direction</li>
+          <li>Onboarding dédié</li>
+          <li>Import CSV élèves/classes</li>
+          <li>Facturation centralisée (bon de commande)</li>
+          <li>DPA conforme RGPD</li>
+          <li>Support téléphonique</li>
+        </ul>
+        <a href="mailto:pasquale@klasbook.be?subject=Klasbook%20%C3%89cole%20%E2%80%94%20Demande%20d'info" class="pr-btn pr-btn-s">Contacter Pasquale →</a>
+      </div>
+    </div>
+    <div class="pr-note">✓ Aucune carte bancaire pour le plan Starter · ✓ Annulation à tout moment · ✓ Données hébergées en Europe (Supabase EU)</div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="sec sec-alt" id="faq">
+  <div class="sec-inner">
+    <div class="sec-title" style="text-align:center;margin:0 auto 48px;max-width:500px">Questions fréquentes</div>
+    <div class="faq-list">
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Dois-je avoir l'accord de ma direction ? <span class="faq-ic">+</span></div>
+        <div class="faq-a">Non. Klasbook est un outil individuel que tu souscris toi-même, comme un livre pédagogique. Tu n'as besoin d'aucune autorisation. Pour le plan École, la direction peut passer par bon de commande.</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Comment l'IA génère-t-elle les exercices ? <span class="faq-ic">+</span></div>
+        <div class="faq-a">Klasbook utilise Claude (Anthropic) — une IA spécialisée, plus fiable que ChatGPT pour les tâches pédagogiques. Chaque génération injecte automatiquement le référentiel IFPC officiel de ta matière et de ton niveau.</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Est-ce conforme au RGPD ? <span class="faq-ic">+</span></div>
+        <div class="faq-a">Oui. Les données sont hébergées en Europe (Supabase EU, serveurs Francfort). Aucune donnée élève n'est envoyée hors Europe. Pour les écoles, un DPA (accord de traitement des données) est fourni.</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Ça marche pour quelles matières ? <span class="faq-ic">+</span></div>
+        <div class="faq-a">Néerlandais, Anglais, Français, Mathématiques, Sciences, Histoire et Géographie. Pour chacune, les référentiels IFPC officiels sont intégrés (niveaux 1S, 2S, 3S et CECRL A1 à B2 pour les langues).</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Combien de temps pour démarrer ? <span class="faq-ic">+</span></div>
+        <div class="faq-a">5 minutes. Crée un compte, ajoute une classe, génère ton premier exercice. Pas d'installation, pas de formation, pas de rendez-vous IT.</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Et si je veux annuler ? <span class="faq-ic">+</span></div>
+        <div class="faq-a">Le plan Starter est gratuit pour toujours. Le plan Pro est sans engagement : tu annules en un clic depuis ton compte, à tout moment.</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">Qui développe Klasbook ? <span class="faq-ic">+</span></div>
+        <div class="faq-a">Pasquale De Michele, professeur de néerlandais au LAB Marie Curie (Bruxelles). Klasbook est né d'un besoin réel en classe — pas d'un bureau d'étude.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA FINAL -->
+<section class="cta-f">
+  <h2>Prêt à gagner des heures chaque semaine ?</h2>
+  <p>Rejoins les enseignants FWB qui ont automatisé leur préparation pédagogique avec Klasbook.</p>
+  <div class="h-actions">
+    <a href="https://klasbook.be/register" class="btn-p">Créer mon compte gratuit →</a>
+    <a href="mailto:pasquale@klasbook.be" class="btn-s">Parler à Pasquale</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div><strong>Klasbook</strong> · L'assistant IA des enseignants FWB · © 2026</div>
+  <div>
+    <a href="https://klasbook.be/cgu">CGU</a>
+    <a href="https://klasbook.be/vie-privee">Vie privée</a>
+    <a href="mailto:pasquale@klasbook.be">Contact</a>
+  </div>
+</footer>
+
+<script>
+let annual=false;
+function toggleBilling(){
+  annual=!annual;
+  document.getElementById('toggle').classList.toggle('on',annual);
+  document.getElementById('lbl-m').classList.toggle('active',!annual);
+  document.getElementById('lbl-a').classList.toggle('active',annual);
+  if(annual){
+    document.getElementById('pr-pro').innerHTML='149€';
+    document.getElementById('pr-pro-p').textContent='/an · soit 12,42€/mois';
+    document.getElementById('pr-ecole').innerHTML='1 190€';
+    document.getElementById('pr-ecole-p').textContent='/an · soit 99€/mois';
+  }else{
+    document.getElementById('pr-pro').innerHTML='19€';
+    document.getElementById('pr-pro-p').textContent='/mois · sans engagement';
+    document.getElementById('pr-ecole').innerHTML='149€';
+    document.getElementById('pr-ecole-p').textContent='/mois · jusqu\'à 20 profs';
+  }
+}
+</script>
+
+</body>
+</html>

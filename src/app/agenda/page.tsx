@@ -737,8 +737,15 @@ export default function AgendaPage() {
         </div>
 
         {/* Boutons sous la grille */}
-        <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+        <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end", flexWrap: "wrap" }}>
           <button style={btn} onClick={() => ctx && void loadGrid(ctx, weekDays[0], weekDays[4])} disabled={!ctx}>Rafraîchir</button>
+          <button
+            style={{ ...btn, background: "#EFF6FF", borderColor: "#BFDBFE", color: "#1D4ED8" }}
+            onClick={() => { setShowModifierPanel(true); setTimeout(() => fileInputRef.current?.click(), 100); }}
+            disabled={!ctx}
+          >
+            📥 Importer horaire
+          </button>
           <button style={btn} onClick={() => setShowModifierPanel((v) => !v)} disabled={!ctx}>
             {showModifierPanel ? "Fermer" : "Modifier"}
           </button>
