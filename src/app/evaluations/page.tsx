@@ -303,6 +303,7 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
   const [resultsModalOpen, setResultsModalOpen] = useState(false);
   const [gridModalOpen, setGridModalOpen] = useState(false);
   const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
   const [editingDate, setEditingDate] = useState(false);
@@ -358,6 +359,7 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
         <button onClick={() => setGridModalOpen(true)} style={abtn("#FFFBEB", "#92400E", "#FDE68A")}>📋 Grille</button>
         <button onClick={() => setCorrectionModalOpen(true)} style={abtn("#F0F9FF", "#0C4A6E", "#BAE6FD")}>📷 Corriger</button>
         <button onClick={() => setResultsModalOpen(true)} style={abtn("#ECFDF5", "#065F46", "#A7F3D0")}>📊 Résultats</button>
+        <button onClick={() => setImportModalOpen(true)} style={abtn("#F0F9FF", "#0369A1", "#BAE6FD")}>📥 Import</button>
         <div style={{ marginLeft: "auto", display: "flex", gap: 5, alignItems: "center" }}>
           {isPublished && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#F0FDF4", color: "#166534", border: "1px solid #BBF7D0" }}>✓ Publiée</span>}
           {a.status === "draft" && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20, background: "#FFFBEB", color: "#92400E", border: "1px solid #FDE68A" }}>Brouillon</span>}
@@ -406,9 +408,69 @@ function AssessmentCard({ a, apprentissageNameById, highlighted, onToggleStatus,
       </div>
     </div>
     {resultsModalOpen && <ResultsModal a={a} ctx={ctx} onClose={() => setResultsModalOpen(false)} />}
+    {importModalOpen && <ImportResultsModal a={a} ctx={ctx} onClose={() => setImportModalOpen(false)} onImported={() => { onRefresh(); setImportModalOpen(false); }} />}
     {gridModalOpen && <GridEditorModal a={a} ctx={ctx} onClose={() => setGridModalOpen(false)} />}
     {correctionModalOpen && <CorrectionModal a={a} ctx={ctx} onClose={() => setCorrectionModalOpen(false)} />}
     </>
+  );
+}
+
+// ── ImportResultsModal ───────────────────────────────────────────────────────
+function ImportResultsModal({ a, ctx, onClose, onImported }: { a: Assessment; ctx: TeacherContext; onClose: () => void; onImported: () => void }) {
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [rows, setRows] = useState<ParsedAssessmentResultCsvRow[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [summary, setSummary] = useState<AssessmentResultCsvImportSummary | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handleFile(file: File | null) {
+    setRows([]); setSummary(null); setErr(null); setFileName(file?.name ?? "");
+    if (!file) return;
+    try {
+      let text: string;
+      if (file.name.match(/\.xlsx?$/i)) {
+        const { read, utils } = await import("xlsx");
+        const buf = await file.arrayBuffer();
+        const wb = read(buf); const ws = wb.Sheets[wb.SheetNames[0]];
+        const arr = utils.sheet_to_csv(ws); text = arr;
+      } else { text = await file.text(); }
+      setRows(parseAssessmentResultsCsv(text));
+    } catch (e) { setErr(toNiceError(e)); }
+  }
+
+  async function doImport() {
+    if (!rows.length) return;
+    setImporting(true); setErr(null);
+    try {
+      const { data: classes } = await ctx.supabase.from("class_groups").select("id, name").eq("school_id", ctx.schoolId);
+      const s = await importAssessmentResultsCsv({ ctx, rows, classes: classes ?? [], targetAssessmentId: a.id });
+      setSummary(s);
+      if (s.errors.length === 0) setTimeout(onImported, 1500);
+    } catch (e) { setErr(toNiceError(e)); } finally { setImporting(false); }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={onClose}>
+      <div style={{ background: "#fff", borderRadius: 16, padding: 24, width: 480, maxWidth: "96vw", boxShadow: "0 8px 32px rgba(0,0,0,0.18)" }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>📥 Import résultats — {a.title}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer" }}>×</button>
+        </div>
+        <p style={{ fontSize: 12, color: "#6B7280", marginBottom: 14 }}>Importe un fichier CSV ou Excel avec les résultats des élèves pour cette évaluation. Colonnes attendues : <strong>prénom, nom, résultat</strong> (NI/I/S/B/TB ou note).</p>
+        <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" style={{ display: "none" }} onChange={e => void handleFile(e.target.files?.[0] ?? null)} />
+        <div onClick={() => fileRef.current?.click()} style={{ border: `2px dashed ${fileName ? "#0369A1" : "#D1D5DB"}`, borderRadius: 10, padding: "16px 24px", cursor: "pointer", textAlign: "center", background: fileName ? "#F0F9FF" : "#FAFAFA", marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: fileName ? "#0369A1" : "#6B7280" }}>{fileName || "Cliquer pour choisir un fichier CSV ou Excel"}</div>
+          {rows.length > 0 && <div style={{ fontSize: 11, color: "#0369A1", marginTop: 4 }}>{rows.length} ligne(s) détectée(s)</div>}
+        </div>
+        {err && <div style={{ fontSize: 12, color: "#B91C1C", background: "#FEF2F2", padding: "8px 12px", borderRadius: 8, marginBottom: 10 }}>{err}</div>}
+        {summary && <div style={{ fontSize: 12, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "8px 12px", marginBottom: 10, color: "#166534" }}>✅ Importés : {summary.upserted} · Doublons : {summary.duplicatedInFile} · Erreurs : {summary.errors.length}</div>}
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #E5E7EB", background: "#F9FAFB", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Annuler</button>
+          <button onClick={doImport} disabled={!rows.length || importing} style={{ padding: "9px 20px", borderRadius: 8, background: !rows.length || importing ? "#9CA3AF" : "#0369A1", color: "#fff", border: "none", fontWeight: 700, fontSize: 13, cursor: !rows.length || importing ? "not-allowed" : "pointer" }}>{importing ? "Import…" : `Importer (${rows.length})`}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -886,20 +948,10 @@ export default function EvaluationsPage() {
           <select style={selStyle} value={filterClassId} onChange={e => setFilterClassId(e.target.value as UUID)}><option value="">Toutes les classes</option>{classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
           <select style={selStyle} value={filterCourseId} onChange={e => setFilterCourseId(e.target.value as UUID)}><option value="">Tous les cours</option>{courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
           <div style={{ flex: 1 }} />
-          {activeTab !== "modeles" && (<button style={{ ...btnStyle, color: "#6B7280" }} onClick={() => setShowImport(v => !v)}>📥 Import CSV</button>)}
+
           {activeTab === "modeles" ? (<button onClick={() => setShowCreateTemplateModal(true)} disabled={!ctx} style={{ height: 42, padding: "0 18px", borderRadius: 9, border: "none", background: "linear-gradient(135deg,#7C3AED,#5B21B6)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: ctx ? "pointer" : "not-allowed" }}>+ Nouveau modèle</button>) : (<button onClick={() => setShowCreateModal(true)} disabled={!ctx} style={{ height: 42, padding: "0 18px", borderRadius: 9, border: "none", background: "linear-gradient(135deg,#FF3B30,#0A84FF)", color: "#fff", fontWeight: 800, fontSize: 14, cursor: ctx ? "pointer" : "not-allowed" }}>+ Nouvelle évaluation</button>)}
         </div>
-        {showImport && (<div style={{ margin: "0 16px 16px", padding: 16, background: "#F9FAFB", borderRadius: 12, border: "1px solid #E5E7EB", display: "grid", gap: 12 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>📥 Import CSV — Évaluations</div>
-          <input ref={csvRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => void onSelectCsv(e.target.files?.[0] ?? null)} />
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><button style={btnStyle} onClick={() => csvRef.current?.click()}>Choisir CSV</button><button style={{ ...btnStyle, background: csvRows.length ? "#F0FDF4" : undefined }} onClick={onImportCsv} disabled={!csvRows.length || csvImporting}>{csvImporting ? "Import…" : `Importer (${csvRows.length})`}</button><span style={{ fontSize: 12, color: "#9CA3AF" }}>{csvFileName || "Aucun fichier"}</span></div>
-          {csvSummary && <div style={{ fontSize: 12, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "8px 12px", color: "#166534" }}>Créés : {csvSummary.created} · Existants : {csvSummary.alreadyExisting} · Erreurs : {csvSummary.errors.length}</div>}
-          <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 12, fontWeight: 700, fontSize: 14 }}>📥 Import CSV — Résultats élèves</div>
-          <input ref={resCsvRef} type="file" accept=".csv" style={{ display: "none" }} onChange={e => void onSelectResCsv(e.target.files?.[0] ?? null)} />
-          <select style={{ ...selStyle, maxWidth: 380 }} value={resTargetId} onChange={e => setResTargetId(e.target.value as UUID)}><option value="">Évaluation cible (optionnelle)</option>{rows.map(a => <option key={a.id} value={a.id}>{a.title} — {formatDateFR(a.date)}</option>)}</select>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}><button style={btnStyle} onClick={() => resCsvRef.current?.click()}>Choisir CSV</button><button style={{ ...btnStyle, background: resCsvRows.length ? "#F0FDF4" : undefined }} onClick={onImportResCsv} disabled={!resCsvRows.length || resCsvImporting}>{resCsvImporting ? "Import…" : `Importer résultats (${resCsvRows.length})`}</button><span style={{ fontSize: 12, color: "#9CA3AF" }}>{resCsvFileName || "Aucun fichier"}</span></div>
-          {resCsvSummary && <div style={{ fontSize: 12, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "8px 12px", color: "#166534" }}>Enregistrés : {resCsvSummary.upserted} · Doublons : {resCsvSummary.duplicatedInFile} · Erreurs : {resCsvSummary.errors.length}</div>}
-        </div>)}
+
       </div>
       <div style={{ display: "grid", gap: 8 }}>
         {activeTab === "modeles" ? (templates.length === 0 ? (<div style={{ background: "#FFF", borderRadius: 14, border: "1px solid #DDD6FE", padding: "40px 24px", textAlign: "center", color: "#6B7280" }}><div style={{ fontSize: 32, marginBottom: 8 }}>📚</div><div style={{ fontWeight: 700, fontSize: 15 }}>Aucun modèle</div></div>) : (templates.map(tpl => (<TemplateCard key={tpl.id} tpl={tpl} classes={classes} ctx={ctx!} onDistributed={count => { flash(`${count} évaluation${count > 1 ? "s" : ""} créée${count > 1 ? "s" : ""} ✅`); if (ctx) void refresh(ctx); }} onDelete={() => { setTemplates(prev => prev.filter(t => t.id !== tpl.id)); flash("Modèle supprimé."); }} />)))) : filteredRows.length === 0 ? (<div style={{ background: "#FFF", borderRadius: 14, border: "1px solid #E5E7EB", padding: "40px 24px", textAlign: "center", color: "#6B7280" }}><div style={{ fontSize: 32, marginBottom: 8 }}>📋</div><div style={{ fontWeight: 700, fontSize: 15 }}>{activeTab === "archived" ? "Aucune évaluation archivée" : "Aucune évaluation"}</div></div>) : (filteredRows.map(a => (<AssessmentCard key={a.id} a={a} apprentissageNameById={apprentissageNameById} highlighted={a.id === highlightedId} onToggleStatus={onToggleStatus} onArchive={onArchive} onDelete={onDelete} onRefresh={() => ctx && refresh(ctx)} ctx={ctx!} />)))}
