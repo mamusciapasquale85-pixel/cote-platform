@@ -35,7 +35,8 @@ const GRADE_OPTIONS = [
   { label: "5ème secondaire", value: 11 }, { label: "6ème secondaire", value: 12 },
 ];
 
-type Mode = "login" | "forgot" | "r1" | "r2" | "r3" | "r4" | "done";
+type Mode = "login" | "forgot" | "r1" | "r2" | "r3" | "r4" | "r_student" | "r_parent" | "done";
+type RegRole = "teacher" | "admin" | "student" | "parent";
 
 const inp: React.CSSProperties = {
   width: "100%", padding: "11px 12px", border: "2px solid #e5e7eb",
@@ -48,35 +49,37 @@ export default function LoginPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // ── Login state ──
   const [mode, setMode] = useState<Mode>("login");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPwd, setLoginPwd] = useState("");
   const [loginMsg, setLoginMsg] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
 
-  // ── Register state ──
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPwd, setRegPwd] = useState("");
   const [regPwd2, setRegPwd2] = useState("");
-  const [regRole, setRegRole] = useState<"teacher" | "admin">("teacher");
+  const [regRole, setRegRole] = useState<RegRole>("teacher");
   const [schoolName, setSchoolName] = useState("");
   const [subjects, setSubjects] = useState<string[]>([]);
   const [className, setClassName] = useState("");
   const [gradeLevel, setGradeLevel] = useState(7);
   const [promoCode, setPromoCode] = useState("");
+  // Student / parent specific
+  const [studentFirstName, setStudentFirstName] = useState("");
+  const [studentLastName, setStudentLastName] = useState("");
+  const [childFirstName, setChildFirstName] = useState("");
+  const [childLastName, setChildLastName] = useState("");
+
   const [regError, setRegError] = useState("");
   const [regLoading, setRegLoading] = useState(false);
 
-  // ── Login ──
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoginMsg(""); setLoginLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password: loginPwd });
     if (error) { setLoginLoading(false); setLoginMsg("Email ou mot de passe incorrect."); return; }
-    // Vérifier membership de CE user (pas n'importe quelle école)
     const { data: { user } } = await supabase.auth.getUser();
     const { data: memberships } = await supabase
       .from("school_memberships").select("role")
@@ -86,10 +89,10 @@ export default function LoginPage() {
     if (!membership) { window.location.href = "/onboarding"; return; }
     if (membership.role === "admin") window.location.href = "/direction";
     else if (membership.role === "parent") window.location.href = "/parent";
+    else if (membership.role === "student") window.location.href = "/eleve";
     else window.location.href = "/dashboard";
   }
 
-  // ── Forgot password ──
   async function handleForgot(e: React.FormEvent) {
     e.preventDefault();
     setLoginLoading(true);
@@ -98,7 +101,6 @@ export default function LoginPage() {
     setLoginMsg("✅ Email envoyé ! Vérifiez votre boîte mail.");
   }
 
-  // ── Register wizard ──
   function toggleSubject(id: string) {
     setSubjects(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   }
@@ -111,13 +113,97 @@ export default function LoginPage() {
       if (regPwd !== regPwd2) { setRegError("Les mots de passe ne correspondent pas."); return; }
       setMode("r2");
     } else if (from === "r2") {
-      setMode("r3");
+      if (regRole === "student") setMode("r_student");
+      else if (regRole === "parent") setMode("r_parent");
+      else setMode("r3");
     } else if (from === "r3") {
       if (!schoolName.trim()) { setRegError("Veuillez indiquer votre école."); return; }
       if (regRole === "teacher") setMode("r4");
       else submitRegistration();
     } else if (from === "r4") {
       submitRegistration();
+    }
+  }
+
+  async function submitStudent() {
+    if (!schoolName.trim()) { setRegError("Veuillez indiquer le nom de votre école."); return; }
+    if (!studentFirstName.trim() || !studentLastName.trim()) { setRegError("Prénom et nom requis."); return; }
+    setRegError(""); setRegLoading(true);
+    try {
+      // Créer le compte auth
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: regEmail.trim().toLowerCase(),
+        password: regPwd,
+      });
+      if (authErr) throw authErr;
+      const userId = authData.user?.id;
+      if (!userId) throw new Error("Compte non créé.");
+
+      // Trouver l'école
+      const { data: school } = await supabase.from("schools").select("id").ilike("name", schoolName.trim()).limit(1).maybeSingle();
+      if (!school) { setRegError("École introuvable. Vérifiez le nom exact."); setRegLoading(false); return; }
+
+      // Trouver l'élève
+      const { data: student } = await supabase.from("students")
+        .select("id").ilike("first_name", studentFirstName.trim()).ilike("last_name", studentLastName.trim())
+        .eq("school_id", school.id).limit(1).maybeSingle();
+      if (!student) { setRegError("Élève introuvable. Vérifiez le prénom et le nom exacts."); setRegLoading(false); return; }
+
+      // Créer le profil
+      await supabase.from("user_profiles").upsert({
+        id: userId,
+        full_name: `${studentFirstName} ${studentLastName}`,
+        display_role: "student",
+        locale: "fr",
+        template_json: { student_id: student.id, school_id: school.id },
+      });
+
+      await supabase.from("school_memberships").upsert(
+        { school_id: school.id, user_id: userId, role: "student" },
+        { onConflict: "school_id,user_id" }
+      );
+
+      await supabase.auth.signInWithPassword({ email: regEmail.trim().toLowerCase(), password: regPwd });
+      setRegLoading(false);
+      setMode("done");
+      setTimeout(() => { window.location.href = "/eleve"; }, 1500);
+    } catch (e) {
+      setRegError(e instanceof Error ? e.message : "Erreur");
+      setRegLoading(false);
+    }
+  }
+
+  async function submitParent() {
+    if (!schoolName.trim()) { setRegError("Veuillez indiquer le nom de l'école."); return; }
+    if (!childFirstName.trim() || !childLastName.trim()) { setRegError("Prénom et nom de l'enfant requis."); return; }
+    setRegError(""); setRegLoading(true);
+    try {
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: regEmail.trim().toLowerCase(), password: regPwd,
+      });
+      if (authErr) throw authErr;
+      const userId = authData.user?.id;
+      if (!userId) throw new Error("Compte non créé.");
+
+      const { data: school } = await supabase.from("schools").select("id").ilike("name", schoolName.trim()).limit(1).maybeSingle();
+      if (!school) { setRegError("École introuvable."); setRegLoading(false); return; }
+
+      const { data: student } = await supabase.from("students")
+        .select("id").ilike("first_name", childFirstName.trim()).ilike("last_name", childLastName.trim())
+        .eq("school_id", school.id).limit(1).maybeSingle();
+      if (!student) { setRegError("Enfant introuvable. Vérifiez le prénom et nom exacts."); setRegLoading(false); return; }
+
+      await supabase.from("user_profiles").upsert({ id: userId, full_name: `${firstName} ${lastName}`, display_role: "parent", locale: "fr" });
+      await supabase.from("school_memberships").upsert({ school_id: school.id, user_id: userId, role: "parent" }, { onConflict: "school_id,user_id" });
+      await supabase.from("parent_links").insert({ school_id: school.id, parent_user_id: userId, student_id: student.id, relationship: "parent", visibility_level: "full" });
+
+      await supabase.auth.signInWithPassword({ email: regEmail.trim().toLowerCase(), password: regPwd });
+      setRegLoading(false);
+      setMode("done");
+      setTimeout(() => { window.location.href = "/parent"; }, 1500);
+    } catch (e) {
+      setRegError(e instanceof Error ? e.message : "Erreur");
+      setRegLoading(false);
     }
   }
 
@@ -132,22 +218,15 @@ export default function LoginPage() {
           email: regEmail.trim().toLowerCase(),
           password: regPwd,
           role: regRole,
-          schoolName,
-          subjects,
-          className,
-          gradeLevel,
+          schoolName, subjects, className, gradeLevel,
           promoCode: promoCode.trim() || undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok) { setRegError(data.error || "Erreur lors de la création du compte."); setRegLoading(false); return; }
-      // Se connecter avec les credentials
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: regEmail.trim().toLowerCase(),
-        password: regPwd,
-      });
+      const { error: signInErr } = await supabase.auth.signInWithPassword({ email: regEmail.trim().toLowerCase(), password: regPwd });
       setRegLoading(false);
-      if (signInErr) { setRegError("Compte créé mais connexion échouée. Essayez de vous connecter manuellement."); return; }
+      if (signInErr) { setRegError("Compte créé mais connexion échouée."); return; }
       setMode("done");
       setTimeout(() => { window.location.href = data.redirectTo || "/dashboard"; }, 1500);
     } catch {
@@ -156,41 +235,42 @@ export default function LoginPage() {
   }
 
   const [showDemoMenu, setShowDemoMenu] = useState(false);
-
   function handleDemo(role: "prof" | "direction" | "parents") {
     setLoginLoading(true);
     window.location.href = `/api/demo?role=${role}`;
   }
 
-  const isRegMode = ["r1", "r2", "r3", "r4", "done"].includes(mode);
+  const isRegMode = ["r1", "r2", "r3", "r4", "r_student", "r_parent", "done"].includes(mode);
+
   const regSteps = regRole === "teacher"
     ? ["Identité", "Fonction", "École", "Matières"]
-    : ["Identité", "Fonction", "École"];
-  const regStepIdx = mode === "r1" ? 0 : mode === "r2" ? 1 : mode === "r3" ? 2 : mode === "r4" ? 3 : 3;
+    : regRole === "student" || regRole === "parent"
+      ? ["Identité", "Fonction", "Établissement"]
+      : ["Identité", "Fonction", "École"];
+
+  const regStepIdx = mode === "r1" ? 0 : mode === "r2" ? 1 : ["r3", "r_student", "r_parent"].includes(mode) ? 2 : mode === "r4" ? 3 : 3;
 
   return (
     <main style={{ minHeight: "100vh", background: GRAD, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "system-ui, sans-serif", padding: 24 }}>
       <div style={{ background: "white", borderRadius: 16, padding: "40px 44px 44px", width: "100%", maxWidth: 460, boxShadow: "0 25px 50px rgba(0,0,0,0.2)" }}>
 
-        {/* Logo */}
         <div style={{ textAlign: "center", marginBottom: 28 }}>
           <h1 style={{ fontSize: "2rem", fontWeight: 800, background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: 0 }}>Klasbook</h1>
           <p style={{ color: "#6b7280", marginTop: 6, fontSize: "0.88rem" }}>La gestion de classe simplifiée</p>
         </div>
 
-        {/* Tabs — masqués si forgot ou wizard inscription */}
         {mode !== "forgot" && mode !== "done" && (
           <div style={{ display: "flex", background: "#f3f4f6", borderRadius: 10, padding: 4, marginBottom: 28 }}>
-            <button onClick={() => { setMode("login"); setLoginMsg(""); }} style={{ flex: 1, padding: 10, border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", transition: "all 0.2s", background: !isRegMode ? "white" : "transparent", color: !isRegMode ? ACCENT : "#6b7280", boxShadow: !isRegMode ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
+            <button onClick={() => { setMode("login"); setLoginMsg(""); }} style={{ flex: 1, padding: 10, border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", background: !isRegMode ? "white" : "transparent", color: !isRegMode ? ACCENT : "#6b7280", boxShadow: !isRegMode ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
               Se connecter
             </button>
-            <button onClick={() => { setMode("r1"); setRegError(""); }} style={{ flex: 1, padding: 10, border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", transition: "all 0.2s", background: isRegMode ? "white" : "transparent", color: isRegMode ? ACCENT : "#6b7280", boxShadow: isRegMode ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
+            <button onClick={() => { setMode("r1"); setRegError(""); }} style={{ flex: 1, padding: 10, border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", background: isRegMode ? "white" : "transparent", color: isRegMode ? ACCENT : "#6b7280", boxShadow: isRegMode ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
               Créer un compte
             </button>
           </div>
         )}
 
-        {/* ═══════════════════ LOGIN ═══════════════════ */}
+        {/* LOGIN */}
         {mode === "login" && (
           <form onSubmit={handleLogin}>
             <Lbl>Email</Lbl>
@@ -202,24 +282,23 @@ export default function LoginPage() {
             </div>
             <Btn loading={loginLoading}>Se connecter</Btn>
             {loginMsg && <Msg error>{loginMsg}</Msg>}
-
             <div style={{ marginTop: 20 }}>
               <Sep />
               {!showDemoMenu ? (
                 <button type="button" disabled={loginLoading} onClick={() => setShowDemoMenu(true)}
-                  style={{ width: "100%", padding: 12, background: GRAD, color: "white", border: "none", borderRadius: 8, fontSize: "0.9rem", fontWeight: 700, cursor: "pointer", opacity: loginLoading ? 0.7 : 1 }}>
+                  style={{ width: "100%", padding: 12, background: GRAD, color: "white", border: "none", borderRadius: 8, fontSize: "0.9rem", fontWeight: 700, cursor: "pointer" }}>
                   🎮 Essayer la démo
                 </button>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <p style={{ textAlign: "center", fontSize: 12, color: "#6b7280", margin: "0 0 4px" }}>Choisissez un profil :</p>
                   {([
-                    { role: "prof",      icon: "📚", label: "Professeur",  desc: "Classes, évaluations, remédiations" },
-                    { role: "direction", icon: "🏫", label: "Direction",   desc: "Vue d'ensemble de l'établissement" },
-                    { role: "parents",   icon: "👨‍👩‍👧", label: "Parent",     desc: "Résultats et suivi de votre enfant" },
+                    { role: "prof", icon: "📚", label: "Professeur", desc: "Classes, évaluations, remédiations" },
+                    { role: "direction", icon: "🏫", label: "Direction", desc: "Vue d'ensemble de l'établissement" },
+                    { role: "parents", icon: "👨‍👩‍👧", label: "Parent", desc: "Résultats et suivi de votre enfant" },
                   ] as const).map(({ role, icon, label, desc }) => (
                     <button key={role} type="button" disabled={loginLoading} onClick={() => handleDemo(role)}
-                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", background: "#f8fafc", border: "2px solid #e5e7eb", borderRadius: 9, cursor: "pointer", textAlign: "left", opacity: loginLoading ? 0.7 : 1, transition: "border-color 0.15s" }}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 14px", background: "#f8fafc", border: "2px solid #e5e7eb", borderRadius: 9, cursor: "pointer", textAlign: "left" }}
                       onMouseEnter={e => (e.currentTarget.style.borderColor = ACCENT)}
                       onMouseLeave={e => (e.currentTarget.style.borderColor = "#e5e7eb")}>
                       <span style={{ fontSize: "1.4rem" }}>{icon}</span>
@@ -237,12 +316,10 @@ export default function LoginPage() {
           </form>
         )}
 
-        {/* ═══════════════════ FORGOT ═══════════════════ */}
+        {/* FORGOT */}
         {mode === "forgot" && (
           <>
-            <button onClick={() => { setMode("login"); setLoginMsg(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 13, marginBottom: 20, display: "flex", alignItems: "center", gap: 4, padding: 0 }}>
-              ← Retour
-            </button>
+            <button onClick={() => { setMode("login"); setLoginMsg(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 13, marginBottom: 20, display: "flex", alignItems: "center", gap: 4, padding: 0 }}>← Retour</button>
             <h2 style={{ fontSize: "1.1rem", fontWeight: 800, color: "#111827", margin: "0 0 6px" }}>Mot de passe oublié</h2>
             <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 24 }}>Entrez votre email — un lien de réinitialisation vous sera envoyé.</p>
             <form onSubmit={handleForgot}>
@@ -254,10 +331,9 @@ export default function LoginPage() {
           </>
         )}
 
-        {/* ═══════════════════ REGISTER WIZARD ═══════════════════ */}
+        {/* REGISTER WIZARD */}
         {isRegMode && mode !== "done" && (
           <>
-            {/* Progress steps */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 28 }}>
               {regSteps.map((label, i) => {
                 const done = i < regStepIdx;
@@ -281,31 +357,17 @@ export default function LoginPage() {
               <div>
                 <h3 style={{ margin: "0 0 20px", fontSize: "1.05rem", fontWeight: 700, color: "#111827" }}>Vos informations</h3>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-                  <div>
-                    <Lbl>Prénom</Lbl>
-                    <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Jean" required style={inp} />
-                  </div>
-                  <div>
-                    <Lbl>Nom</Lbl>
-                    <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Dupont" required style={inp} />
-                  </div>
+                  <div><Lbl>Prénom</Lbl><input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Jean" required style={inp} /></div>
+                  <div><Lbl>Nom</Lbl><input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Dupont" required style={inp} /></div>
                 </div>
                 <Lbl>Adresse email</Lbl>
                 <input type="email" value={regEmail} onChange={e => setRegEmail(e.target.value)} placeholder="prof@ecole.be" required style={{ ...inp, marginBottom: 14 }} />
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 4 }}>
-                  <div>
-                    <Lbl>Mot de passe</Lbl>
-                    <input type="password" value={regPwd} onChange={e => setRegPwd(e.target.value)} placeholder="••••••••" required minLength={6} style={inp} />
-                  </div>
-                  <div>
-                    <Lbl>Confirmer</Lbl>
-                    <input type="password" value={regPwd2} onChange={e => setRegPwd2(e.target.value)} placeholder="••••••••" required style={inp} />
-                  </div>
+                  <div><Lbl>Mot de passe</Lbl><input type="password" value={regPwd} onChange={e => setRegPwd(e.target.value)} placeholder="••••••••" required minLength={6} style={inp} /></div>
+                  <div><Lbl>Confirmer</Lbl><input type="password" value={regPwd2} onChange={e => setRegPwd2(e.target.value)} placeholder="••••••••" required style={inp} /></div>
                 </div>
                 {regError && <ErrBox>{regError}</ErrBox>}
-                <div style={{ marginTop: 20 }}>
-                  <Btn loading={false} onClick={() => nextStep("r1")}>Continuer →</Btn>
-                </div>
+                <div style={{ marginTop: 20 }}><Btn loading={false} onClick={() => nextStep("r1")}>Continuer →</Btn></div>
               </div>
             )}
 
@@ -316,7 +378,9 @@ export default function LoginPage() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
                   {([
                     { value: "teacher", label: "Enseignant(e)", desc: "Gérer mes classes, évaluations et compétences", icon: "📚" },
-                    { value: "admin", label: "Direction", desc: "Accès à l'ensemble de l'établissement", icon: "🏫" },
+                    { value: "admin",   label: "Direction",     desc: "Accès à l'ensemble de l'établissement",       icon: "🏫" },
+                    { value: "parent",  label: "Parent",        desc: "Suivre les résultats de mon enfant",           icon: "👨‍👩‍👧" },
+                    { value: "student", label: "Élève",         desc: "Voir mes résultats et mes remédiations",       icon: "🎒" },
                   ] as const).map(r => (
                     <button key={r.value} type="button" onClick={() => setRegRole(r.value)}
                       style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", border: regRole === r.value ? `2px solid ${ACCENT}` : "2px solid #e5e7eb", borderRadius: 10, background: regRole === r.value ? ACCENT_LIGHT : "white", cursor: "pointer", textAlign: "left" }}>
@@ -328,9 +392,6 @@ export default function LoginPage() {
                       {regRole === r.value && <span style={{ marginLeft: "auto", color: ACCENT, fontWeight: 700 }}>✓</span>}
                     </button>
                   ))}
-                  <p style={{ fontSize: "0.78rem", color: "#9ca3af", margin: "4px 0 0", textAlign: "center" }}>
-                    Parents : accès via invitation de l'école
-                  </p>
                 </div>
                 {regError && <ErrBox>{regError}</ErrBox>}
                 <div style={{ display: "flex", gap: 10 }}>
@@ -340,15 +401,13 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* ÉTAPE 3 — École */}
+            {/* ÉTAPE 3 — École (teacher/admin) */}
             {mode === "r3" && (
               <div>
                 <h3 style={{ margin: "0 0 20px", fontSize: "1.05rem", fontWeight: 700, color: "#111827" }}>Votre établissement</h3>
                 <Lbl>Nom de l'école / l'institut</Lbl>
                 <input value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="Institut Marie Curie, Bruxelles" required style={{ ...inp, marginBottom: 8 }} />
-                <p style={{ fontSize: "0.78rem", color: "#6b7280", marginBottom: 16 }}>
-                  Si votre établissement existe déjà dans Klasbook, vous serez automatiquement rattaché.
-                </p>
+                <p style={{ fontSize: "0.78rem", color: "#6b7280", marginBottom: 16 }}>Si votre établissement existe déjà dans Klasbook, vous serez automatiquement rattaché.</p>
                 <Lbl>Code promo <span style={{ fontWeight: 400, color: "#9ca3af" }}>(optionnel)</span></Lbl>
                 <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="ex: KLASBETA2026" style={{ ...inp, marginBottom: 20, letterSpacing: "0.05em" }} />
                 {regError && <ErrBox>{regError}</ErrBox>}
@@ -356,20 +415,18 @@ export default function LoginPage() {
                   <BackBtn onClick={() => setMode("r2")} />
                   <div style={{ flex: 2 }}>
                     <Btn loading={regLoading} onClick={() => nextStep("r3")}>
-                      {regRole === "teacher" ? "Continuer →" : (regLoading ? "Création…" : "Créer mon Klasbook →")}
+                      {regRole === "teacher" ? "Continuer →" : regLoading ? "Création…" : "Créer mon Klasbook →"}
                     </Btn>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* ÉTAPE 4 — Matières + Classe (teacher seulement) */}
+            {/* ÉTAPE 4 — Matières (teacher) */}
             {mode === "r4" && (
               <div>
                 <h3 style={{ margin: "0 0 6px", fontSize: "1.05rem", fontWeight: 700, color: "#111827" }}>Vos matières</h3>
-                <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 14 }}>
-                  Votre Klasbook sera personnalisé en fonction de vos matières.
-                </p>
+                <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 14 }}>Votre Klasbook sera personnalisé en fonction de vos matières.</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 16 }}>
                   {MATIERES.map(m => {
                     const sel = subjects.includes(m.id);
@@ -383,7 +440,6 @@ export default function LoginPage() {
                     );
                   })}
                 </div>
-
                 <Lbl>Classe principale (optionnel)</Lbl>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 6 }}>
                   <input value={className} onChange={e => setClassName(e.target.value)} placeholder="ex: 3B Néerlandais" style={inp} />
@@ -392,22 +448,57 @@ export default function LoginPage() {
                   </select>
                 </div>
                 <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: 16 }}>Vous pourrez ajouter d'autres classes plus tard.</p>
-
                 {regError && <ErrBox>{regError}</ErrBox>}
                 <div style={{ display: "flex", gap: 10 }}>
                   <BackBtn onClick={() => setMode("r3")} />
-                  <div style={{ flex: 2 }}>
-                    <Btn loading={regLoading} onClick={() => nextStep("r4")}>
-                      {regLoading ? "Création de votre Klasbook…" : "Créer mon Klasbook →"}
-                    </Btn>
-                  </div>
+                  <div style={{ flex: 2 }}><Btn loading={regLoading} onClick={() => nextStep("r4")}>{regLoading ? "Création de votre Klasbook…" : "Créer mon Klasbook →"}</Btn></div>
+                </div>
+              </div>
+            )}
+
+            {/* ÉTAPE ÉLÈVE */}
+            {mode === "r_student" && (
+              <div>
+                <h3 style={{ margin: "0 0 6px", fontSize: "1.05rem", fontWeight: 700, color: "#111827" }}>Ton établissement</h3>
+                <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 16 }}>Entre le nom de ton école et ton prénom/nom tels qu'enregistrés par ton professeur.</p>
+                <Lbl>Nom de l'école</Lbl>
+                <input value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="Lab Marie Curie" required style={{ ...inp, marginBottom: 14 }} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 4 }}>
+                  <div><Lbl>Ton prénom</Lbl><input value={studentFirstName} onChange={e => setStudentFirstName(e.target.value)} placeholder="Emma" required style={inp} /></div>
+                  <div><Lbl>Ton nom</Lbl><input value={studentLastName} onChange={e => setStudentLastName(e.target.value)} placeholder="Dupont" required style={inp} /></div>
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: 16 }}>Si tu n'es pas trouvé(e), demande à ton professeur de vérifier ton nom dans Klasbook.</p>
+                {regError && <ErrBox>{regError}</ErrBox>}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <BackBtn onClick={() => setMode("r2")} />
+                  <div style={{ flex: 2 }}><Btn loading={regLoading} onClick={() => void submitStudent()}>{regLoading ? "Recherche…" : "Accéder à mon espace →"}</Btn></div>
+                </div>
+              </div>
+            )}
+
+            {/* ÉTAPE PARENT */}
+            {mode === "r_parent" && (
+              <div>
+                <h3 style={{ margin: "0 0 6px", fontSize: "1.05rem", fontWeight: 700, color: "#111827" }}>Votre établissement et votre enfant</h3>
+                <p style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: 16 }}>Entrez le nom de l'école et les informations de votre enfant telles qu'enregistrées.</p>
+                <Lbl>Nom de l'école</Lbl>
+                <input value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="Lab Marie Curie" required style={{ ...inp, marginBottom: 14 }} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 4 }}>
+                  <div><Lbl>Prénom de l'enfant</Lbl><input value={childFirstName} onChange={e => setChildFirstName(e.target.value)} placeholder="Emma" required style={inp} /></div>
+                  <div><Lbl>Nom de l'enfant</Lbl><input value={childLastName} onChange={e => setChildLastName(e.target.value)} placeholder="Dupont" required style={inp} /></div>
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginBottom: 16 }}>Le prénom et nom doivent correspondre à ceux enregistrés par l'école.</p>
+                {regError && <ErrBox>{regError}</ErrBox>}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <BackBtn onClick={() => setMode("r2")} />
+                  <div style={{ flex: 2 }}><Btn loading={regLoading} onClick={() => void submitParent()}>{regLoading ? "Recherche…" : "Accéder à mon espace →"}</Btn></div>
                 </div>
               </div>
             )}
           </>
         )}
 
-        {/* ═══════════════════ DONE ═══════════════════ */}
+        {/* DONE */}
         {mode === "done" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <div style={{ fontSize: "3.5rem", marginBottom: 16 }}>🎉</div>
@@ -436,11 +527,7 @@ function Btn({ children, loading, onClick }: { children: React.ReactNode; loadin
   );
 }
 function BackBtn({ onClick }: { onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} style={{ padding: "13px 18px", background: "#f3f4f6", color: "#374151", border: "2px solid #e5e7eb", borderRadius: 8, fontSize: "0.95rem", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-      ← Retour
-    </button>
-  );
+  return <button type="button" onClick={onClick} style={{ padding: "13px 18px", background: "#f3f4f6", color: "#374151", border: "2px solid #e5e7eb", borderRadius: 8, fontSize: "0.95rem", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>← Retour</button>;
 }
 function ErrBox({ children }: { children: React.ReactNode }) {
   return <div style={{ marginBottom: 12, padding: "10px 14px", borderRadius: 8, background: "#fef2f2", color: "#dc2626", fontSize: "0.83rem" }}>{children}</div>;
