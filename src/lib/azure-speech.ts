@@ -147,6 +147,17 @@ type AzureSTTResponse = {
 };
 
 function parseAssessmentResult(data: AzureSTTResponse): PronunciationResult {
+  // Gestion explicite des statuts Azure non-Success
+  if (data.RecognitionStatus !== "Success") {
+    const MSG: Record<string, string> = {
+      NoMatch:               "Aucune parole reconnue. Parle plus fort ou rapproche-toi du micro.",
+      InitialSilenceTimeout: "Aucun son détecté. Vérifie que ton micro fonctionne et que tu as bien appuyé sur Enregistrer.",
+      BabbleTimeout:         "Audio trop court ou trop bruité. Réessaie dans un endroit calme.",
+      Error:                 "Erreur Azure Speech. Réessaie dans un instant.",
+    };
+    throw new Error(MSG[data.RecognitionStatus] ?? `Reconnaissance échouée : ${data.RecognitionStatus}`);
+  }
+
   const best = data.NBest?.[0];
   const pa   = best?.PronunciationAssessment;
 

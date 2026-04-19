@@ -73,6 +73,7 @@ export async function POST(req: Request) {
       const langCode    = LANG_MAP[langue] ?? "nl-BE";
 
       const result = await assessPronunciation(audioBuffer, referenceText, langCode);
+      const feedback = buildFeedback(result);
 
       // Sauvegarde en base (non-bloquant)
       let sessionId: string | null = null;
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
               completeness: result.completenessScore,
               words:        result.words,
             },
-            feedback: buildFeedback(result),
+            feedback,
           })
           .select("id")
           .single();
@@ -101,7 +102,7 @@ export async function POST(req: Request) {
         // non-bloquant
       }
 
-      return NextResponse.json({ ...result, sessionId });
+      return NextResponse.json({ ...result, feedback, sessionId });
     }
 
     return NextResponse.json({ error: "Content-Type non supporté" }, { status: 415 });
