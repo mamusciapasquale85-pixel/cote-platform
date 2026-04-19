@@ -19,6 +19,13 @@ const LANG_MAP: Record<string, string> = {
   es: "es-ES",
 };
 
+// nl-BE non supporté pour Pronunciation Assessment → on utilise nl-NL
+const PA_LANG_MAP: Record<string, string> = {
+  nl: "nl-NL",
+  en: "en-GB",
+  es: "es-ES",
+};
+
 // ─── POST handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
@@ -70,9 +77,11 @@ export async function POST(req: Request) {
       }
 
       const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
-      const langCode    = LANG_MAP[langue] ?? "nl-BE";
+      const paLangCode  = PA_LANG_MAP[langue] ?? "nl-NL";
 
-      const result = await assessPronunciation(audioBuffer, referenceText, langCode);
+      console.log(`[vocal] lang=${langue} pa_lang=${paLangCode} ref="${referenceText}"`);
+      const result = await assessPronunciation(audioBuffer, referenceText, paLangCode);
+      console.log(`[vocal] pronScore=${result.pronScore} recognized="${result.recognizedText}"`);
       const feedback = buildFeedback(result);
 
       // Sauvegarde en base (non-bloquant)
