@@ -7,7 +7,7 @@ import PronunciationFeedback from "@/components/vocal/PronunciationFeedback";
 
 type Phrase = { id: string; theme_key: string; niveau: "A1" | "A2"; fr: string; nl: string; tip?: string };
 type Theme = { key: string; label: string; icon: string };
-type Mode = "themes" | "libre" | "liste";
+type Mode = "themes" | "libre" | "liste" | "tuteur";
 type ListePhase = "input" | "practice" | "summary";
 type WordResult = { word: string; score: number | null; recognizedText: string };
 
@@ -29,6 +29,13 @@ export default function VocalPage() {
   const [mode, setMode] = useState<Mode>("themes");
   const [customText, setCustomText] = useState("");
   const [activeCustomText, setActiveCustomText] = useState<string | null>(null);
+
+  // Mode tuteur
+  const [tuteurQuestion, setTuteurQuestion] = useState("");
+  const [tuteurMatiere, setTuteurMatiere] = useState("nl");
+  const [tuteurExplication, setTuteurExplication] = useState<string | null>(null);
+  const [tuteurLoading, setTuteurLoading] = useState(false);
+  const [tuteurError, setTuteurError] = useState<string | null>(null);
 
   // Mode liste
   const [wordInput, setWordInput] = useState("");
@@ -77,6 +84,29 @@ export default function VocalPage() {
     setResult(null); setError(null);
     if (m !== "libre") setActiveCustomText(null);
     if (m !== "liste") { setListePhase("input"); setWordList([]); setWordResults([]); }
+    if (m !== "tuteur") { setTuteurExplication(null); setTuteurError(null); }
+  };
+
+  const handleTuteurSubmit = async () => {
+    const q = tuteurQuestion.trim();
+    if (!q) return;
+    setTuteurLoading(true);
+    setTuteurExplication(null);
+    setTuteurError(null);
+    try {
+      const res = await fetch("/api/tuteur-vocal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q, matiere: tuteurMatiere }),
+      });
+      const data = await res.json() as { explication?: string; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? "Erreur inconnue");
+      setTuteurExplication(data.explication ?? "");
+    } catch (e) {
+      setTuteurError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTuteurLoading(false);
+    }
   };
 
   const handlePracticeCustom = () => {
@@ -161,7 +191,7 @@ export default function VocalPage() {
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>Module Vocal — Néerlandais</div>
             <div style={{ fontSize: 13, color: "#94a3b8" }}>
-              {mode === "themes" && theme ? `Thème : ${theme.label}` : mode === "libre" ? "Mode libre" : "Liste de mots"} · FWB A1–A2
+              {mode === "themes" && theme ? `Thème : ${theme.label}` : mode === "libre" ? "Mode libre" : mode === "liste" ? "Liste de mots" : "Tuteur vocal multi-matières"} · FWB
             </div>
           </div>
         </div>
@@ -175,6 +205,7 @@ export default function VocalPage() {
             { id: "themes", label: "📚 Thèmes" },
             { id: "libre",  label: "✏️ Mode libre" },
             { id: "liste",  label: "📋 Liste de mots" },
+            { id: "tuteur", label: "🎓 Tuteur vocal" },
           ] as { id: Mode; label: string }[]).map(m => (
             <button key={m.id} onClick={() => handleModeSwitch(m.id)} style={{
               padding: "6px 16px", borderRadius: 20, border: "none", cursor: "pointer",
@@ -437,6 +468,93 @@ export default function VocalPage() {
                     📋 Nouvelle liste
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ═══ MODE TUTEUR ═════════════════════════════════════════════════════ */}
+        {mode === "tuteur" && (
+          <div style={{ flex: 1, maxWidth: 680, margin: "0 auto" }}>
+            {/* Sélecteur matière */}
+            <div style={{ background: "#fff", borderRadius: 14, padding: "18px 20px", border: "1px solid #e2e8f0", marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a", marginBottom: 12 }}>🎓 Pose une question à ton tuteur</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                {([
+                  { id: "nl",       label: "🇳🇱 Néerlandais" },
+                  { id: "en",       label: "🇬🇧 Anglais" },
+                  { id: "maths",    label: "🔢 Maths" },
+                  { id: "histoire", label: "📜 Histoire" },
+                  { id: "geo",      label: "🌍 Géographie" },
+                  { id: "sciences", label: "🔬 Sciences" },
+                  { id: "fr",       label: "📝 Français" },
+                  { id: "autre",    label: "📚 Autre" },
+                ] as { id: string; label: string }[]).map(m => (
+                  <button key={m.id} onClick={() => { setTuteurMatiere(m.id); setTuteurExplication(null); }} style={{
+                    padding: "6px 14px", borderRadius: 20, border: "none", cursor: "pointer",
+                    fontSize: 13, fontWeight: 600,
+                    background: tuteurMatiere === m.id ? "#0A84FF" : "#f1f5f9",
+                    color: tuteurMatiere === m.id ? "#fff" : "#475569",
+                  }}>{m.label}</button>
+                ))}
+              </div>
+              <textarea
+                value={tuteurQuestion}
+                onChange={e => setTuteurQuestion(e.target.value)}
+                placeholder={"Tape ta question…\n\nEx: Comment on utilise le verbe 'zijn' en néerlandais ?\nEx: C'est quoi la photosynthèse ?\nEx: Explique-moi les fractions"}
+                rows={5}
+                style={{
+                  width: "100%", padding: "12px 14px", border: "2px solid #e2e8f0",
+                  borderRadius: 10, fontSize: 14, fontFamily: "system-ui, sans-serif",
+                  resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: 1.6,
+                }}
+                onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleTuteurSubmit(); }}
+              />
+              <button
+                onClick={handleTuteurSubmit}
+                disabled={!tuteurQuestion.trim() || tuteurLoading}
+                style={{
+                  marginTop: 12, width: "100%", padding: "13px", borderRadius: 10, border: "none",
+                  background: tuteurQuestion.trim() && !tuteurLoading ? GRADIENT : "#e2e8f0",
+                  color: tuteurQuestion.trim() && !tuteurLoading ? "#fff" : "#94a3b8",
+                  fontSize: 15, fontWeight: 700,
+                  cursor: tuteurQuestion.trim() && !tuteurLoading ? "pointer" : "not-allowed",
+                }}
+              >
+                {tuteurLoading ? "⏳ Génération en cours…" : "✨ Obtenir une explication vocale"}
+              </button>
+              <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>Ctrl+Entrée pour envoyer</div>
+            </div>
+
+            {/* Erreur */}
+            {tuteurError && (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "12px 16px", fontSize: 13, color: "#dc2626", marginBottom: 16 }}>
+                ⚠ {tuteurError}
+              </div>
+            )}
+
+            {/* Explication + lecture vocale */}
+            {tuteurExplication && (
+              <div>
+                <div style={{ background: "#0f172a", borderRadius: 16, padding: "20px 24px", marginBottom: 16, color: "#fff" }}>
+                  <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+                    💡 Explication
+                  </div>
+                  <div style={{ fontSize: 16, lineHeight: 1.7, color: "#e2e8f0" }}>{tuteurExplication}</div>
+                </div>
+                <div style={{ background: "#fff", borderRadius: 14, padding: "16px 18px", border: "1px solid #e2e8f0", marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a", marginBottom: 12 }}>🔊 Écouter l&apos;explication</div>
+                  <VocalPlayer text={tuteurExplication} langue="fr" />
+                </div>
+                <button
+                  onClick={() => { setTuteurExplication(null); setTuteurQuestion(""); }}
+                  style={{
+                    width: "100%", padding: "11px", borderRadius: 10, border: "1.5px solid #e2e8f0",
+                    background: "#fff", color: "#0f172a", fontSize: 14, fontWeight: 700, cursor: "pointer",
+                  }}
+                >
+                  ➕ Nouvelle question
+                </button>
               </div>
             )}
           </div>

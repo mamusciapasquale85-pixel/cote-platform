@@ -11,12 +11,14 @@ const VOICE_MAP: Record<string, VoiceName> = {
   nl: "nl-BE-ArnaudNeural",
   en: "en-GB-RyanNeural",
   es: "es-ES-AlvaroNeural",
+  fr: "fr-BE-GerardNeural",
 };
 
 const LANG_MAP: Record<string, string> = {
   nl: "nl-BE",
   en: "en-GB",
   es: "es-ES",
+  fr: "fr-BE",
 };
 
 // nl-BE non supporté pour Pronunciation Assessment → on utilise nl-NL

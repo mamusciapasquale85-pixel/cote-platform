@@ -12,7 +12,8 @@ export type VoiceName =
   | "nl-BE-ArnaudNeural"
   | "nl-BE-DenaNeural"
   | "en-GB-RyanNeural"
-  | "es-ES-AlvaroNeural";
+  | "es-ES-AlvaroNeural"
+  | "fr-BE-GerardNeural";
 
 export type PronunciationWord = {
   word: string;
