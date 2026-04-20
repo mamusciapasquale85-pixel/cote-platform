@@ -10,6 +10,7 @@ type Assessment = {
   date: string;
   max_points: number | null;
   answer_key: unknown;
+  correction_key_path: string | null;
 };
 
 type CorrectionResult = {
@@ -38,17 +39,58 @@ function CorrigerCopiesInner() {
   const [showAnswerKeyEditor, setShowAnswerKeyEditor] = useState(false);
   const [answerKeyJson, setAnswerKeyJson] = useState("");
   const [savingKey, setSavingKey] = useState(false);
+  const [corrKeyFile, setCorrKeyFile] = useState<File | null>(null);
+  const [uploadingCorrKey, setUploadingCorrKey] = useState(false);
+  const corrKeyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     supabase
       .from("assessments")
-      .select("id, title, date, max_points, answer_key")
+      .select("id, title, date, max_points, answer_key, correction_key_path")
       .order("date", { ascending: false })
       .then(({ data }) => setAssessments((data ?? []) as Assessment[]));
   }, [supabase]);
 
   const selected = assessments.find(a => a.id === selectedId);
   const hasKey = selected?.answer_key != null;
+  const hasCorrPdf = !!selected?.correction_key_path;
+  const canCorrect = hasKey || hasCorrPdf;
+
+  const handleUploadCorrKey = async () => {
+    if (!corrKeyFile || !selectedId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    setUploadingCorrKey(true);
+    try {
+      const path = `${user.id}/${selectedId}/correction_key.pdf`;
+      const { error: upErr } = await supabase.storage
+        .from("correction-uploads")
+        .upload(path, corrKeyFile, { upsert: true, contentType: "application/pdf" });
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase
+        .from("assessments")
+        .update({ correction_key_path: path })
+        .eq("id", selectedId);
+      if (dbErr) throw dbErr;
+      setAssessments(prev => prev.map(a =>
+        a.id === selectedId ? { ...a, correction_key_path: path } : a
+      ));
+      setCorrKeyFile(null);
+    } catch (e) {
+      alert("Erreur upload : " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setUploadingCorrKey(false);
+    }
+  };
+
+  const handleDeleteCorrKey = async () => {
+    if (!selected?.correction_key_path || !selectedId) return;
+    await supabase.storage.from("correction-uploads").remove([selected.correction_key_path]);
+    await supabase.from("assessments").update({ correction_key_path: null }).eq("id", selectedId);
+    setAssessments(prev => prev.map(a =>
+      a.id === selectedId ? { ...a, correction_key_path: null } : a
+    ));
+  };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -142,7 +184,7 @@ function CorrigerCopiesInner() {
           {assessments.map(a => (
             <option key={a.id} value={a.id}>
               {a.title} · {a.date} · {a.max_points ?? "?"}pts
-              {a.answer_key ? " ✓" : " ⚠️ sans clé"}
+              {a.answer_key ? " ✓ clé JSON" : a.correction_key_path ? " ✓ corrigé PDF" : " ⚠️ sans clé"}
             </option>
           ))}
         </select>
@@ -211,6 +253,60 @@ function CorrigerCopiesInner() {
         </div>
       )}
 
+      {/* Corrigé PDF (one-time upload) */}
+      {selectedId && !hasKey && (
+        <div style={{
+          marginBottom: 24, padding: "14px 18px", borderRadius: 12,
+          background: hasCorrPdf ? "rgba(52,199,89,0.06)" : "rgba(10,132,255,0.06)",
+          border: `1px solid ${hasCorrPdf ? "rgba(52,199,89,0.25)" : "rgba(10,132,255,0.2)"}`,
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: hasCorrPdf ? "#1a7a34" : "#0A84FF", marginBottom: 10 }}>
+            {hasCorrPdf ? "✅ Corrigé PDF enregistré" : "📎 Uploader le corrigé PDF (une seule fois)"}
+          </div>
+          {hasCorrPdf ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 13, color: "#6e6e73" }}>
+                Utilisé automatiquement à chaque correction
+              </span>
+              <button
+                onClick={() => void handleDeleteCorrKey()}
+                style={{ background: "none", border: "1px solid #d2d2d7", borderRadius: 8, padding: "4px 12px", fontSize: 12, cursor: "pointer", color: "#ff3b30" }}
+              >
+                Supprimer
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <input
+                ref={corrKeyInputRef}
+                type="file"
+                accept="application/pdf"
+                style={{ display: "none" }}
+                onChange={e => setCorrKeyFile(e.target.files?.[0] ?? null)}
+              />
+              <button
+                onClick={() => corrKeyInputRef.current?.click()}
+                style={{ padding: "7px 14px", borderRadius: 8, border: "1.5px solid #d2d2d7", background: "#fff", fontSize: 13, cursor: "pointer", color: "#1d1d1f" }}
+              >
+                {corrKeyFile ? `📄 ${corrKeyFile.name}` : "Choisir le PDF corrigé"}
+              </button>
+              {corrKeyFile && (
+                <button
+                  onClick={() => void handleUploadCorrKey()}
+                  disabled={uploadingCorrKey}
+                  style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: uploadingCorrKey ? "#d2d2d7" : "#0A84FF", color: "#fff", fontSize: 13, fontWeight: 600, cursor: uploadingCorrKey ? "not-allowed" : "pointer" }}
+                >
+                  {uploadingCorrKey ? "Envoi…" : "Sauvegarder"}
+                </button>
+              )}
+            </div>
+          )}
+          <p style={{ fontSize: 11, color: "#6e6e73", marginTop: 8, marginBottom: 0 }}>
+            L&apos;IA utilisera ce corrigé comme référence. Toutes les corrections seront marquées &quot;à valider&quot;.
+          </p>
+        </div>
+      )}
+
       {/* Zone de dépôt */}
       <div style={{ marginBottom: 8 }}>
         <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#1d1d1f", marginBottom: 8 }}>
@@ -262,12 +358,12 @@ function CorrigerCopiesInner() {
       {/* Bouton corriger */}
       <button
         onClick={handleSubmit}
-        disabled={!selectedId || !hasKey || files.length === 0 || loading}
+        disabled={!selectedId || !canCorrect || files.length === 0 || loading}
         style={{
           width: "100%", padding: 14, borderRadius: 980, border: "none",
-          background: (!selectedId || !hasKey || files.length === 0 || loading) ? "#d2d2d7" : "#0A84FF",
+          background: (!selectedId || !canCorrect || files.length === 0 || loading) ? "#d2d2d7" : "#0A84FF",
           color: "white", fontSize: 16, fontWeight: 600,
-          cursor: (!selectedId || !hasKey || files.length === 0 || loading) ? "not-allowed" : "pointer",
+          cursor: (!selectedId || !canCorrect || files.length === 0 || loading) ? "not-allowed" : "pointer",
           fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
           transition: "background 0.2s",
           marginBottom: 32,

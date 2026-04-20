@@ -58,15 +58,25 @@ export async function POST(request: NextRequest) {
     // Récupérer l'évaluation et sa clé de correction
     const { data: assessment, error: assessmentError } = await supabase
       .from("assessments")
-      .select("id, title, max_points, answer_key, school_id, academic_year_id, course_id")
+      .select("id, title, max_points, answer_key, correction_key_path, school_id, academic_year_id, course_id")
       .eq("id", assessmentId)
       .single();
 
     if (assessmentError || !assessment)
       return NextResponse.json({ error: "Évaluation introuvable" }, { status: 404 });
 
-    if (!assessment.answer_key)
-      return NextResponse.json({ error: "Cette évaluation n'a pas de clé de correction. Ajoutez-la d'abord." }, { status: 400 });
+    if (!assessment.answer_key && !assessment.correction_key_path)
+      return NextResponse.json({ error: "Aucune clé de correction. Ajoutez une clé JSON ou uploadez le corrigé PDF." }, { status: 400 });
+
+    // Charger le corrigé PDF depuis Storage si disponible
+    let correctionKeyBase64: string | null = null;
+    if (!assessment.answer_key && assessment.correction_key_path) {
+      const { data: ckBlob, error: ckErr } = await supabase.storage
+        .from("correction-uploads")
+        .download(assessment.correction_key_path);
+      if (ckErr || !ckBlob) return NextResponse.json({ error: "Impossible de charger le corrigé PDF." }, { status: 500 });
+      correctionKeyBase64 = Buffer.from(await ckBlob.arrayBuffer()).toString("base64");
+    }
 
     const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
     if (!apiKey)
@@ -90,28 +100,45 @@ export async function POST(request: NextRequest) {
         const arrayBuffer = await file.arrayBuffer();
         const base64 = Buffer.from(arrayBuffer).toString("base64");
 
-        // Claude Vision lit et corrige la copie
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-            "anthropic-beta": "pdfs-2024-09-25",
-          },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-6",
-            max_tokens: 3000,
-            messages: [{
-              role: "user",
-              content: [
-                {
-                  type: "document",
-                  source: { type: "base64", media_type: "application/pdf", data: base64 },
-                },
-                {
-                  type: "text",
-                  text: `Tu es un correcteur scolaire expert. Analyse cette copie d'élève scannée et corrige-la.
+        // Construire le contenu du message Claude
+        const msgContent: Array<{ type: string; source?: object; text?: string }> = [];
+
+        // Mode corrigé PDF : on l'inclut en document 1
+        if (correctionKeyBase64) {
+          msgContent.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: correctionKeyBase64 } });
+        }
+        // Copie élève (toujours en dernier)
+        msgContent.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } });
+
+        const promptText = correctionKeyBase64
+          ? `Tu es un correcteur scolaire expert en Fédération Wallonie-Bruxelles.
+Le DOCUMENT 1 est le CORRIGÉ OFFICIEL. Le DOCUMENT 2 est la COPIE DE L'ÉLÈVE.
+Utilise le corrigé pour évaluer chaque réponse de l'élève.
+- Accepte les variantes proches si le sens est correct.
+- QCM : correction exacte uniquement.
+- Vide ou illisible : 0 point, commentaire "Non répondu" ou "Illisible".
+- Marque needs_review: true pour toutes les questions ouvertes.
+
+Retourne UNIQUEMENT ce JSON :
+{
+  "nom": "NOM en majuscules",
+  "prenom": "Prénom",
+  "partie1": {
+    "reponses": { "1": "texte transcrit", ... },
+    "corrections": { "1": { "reponse": "texte", "correct": true, "points": 1 }, ... },
+    "total": 14
+  },
+  "partie2": {
+    "reponses": { "1": "B", ... },
+    "corrections": { "1": { "reponse": "B", "correct": true, "points": 1 }, ... },
+    "total": 17
+  },
+  "score_total": 31,
+  "score_max": ${assessment.max_points ?? 40},
+  "pourcentage": 77.5,
+  "points_faibles": ["verbes irréguliers", "vocabulaire"]
+}`
+          : `Tu es un correcteur scolaire expert. Analyse cette copie d'élève scannée et corrige-la.
 
 CLEF DE CORRECTION :
 ${JSON.stringify(assessment.answer_key, null, 2)}
@@ -146,10 +173,23 @@ Retourne UNIQUEMENT ce JSON (aucun texte autour) :
   "score_max": ${assessment.max_points ?? 40},
   "pourcentage": 77.5,
   "points_faibles": ["verbes irréguliers", "vocabulaire de la maison", "négation"]
-}`,
-                },
-              ],
-            }],
+}`;
+
+        msgContent.push({ type: "text", text: promptText });
+
+        // Claude Vision lit et corrige la copie
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+            "anthropic-beta": "pdfs-2024-09-25",
+          },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-6",
+            max_tokens: 3000,
+            messages: [{ role: "user", content: msgContent }],
           }),
         });
 
