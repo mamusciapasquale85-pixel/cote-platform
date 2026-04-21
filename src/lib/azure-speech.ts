@@ -91,6 +91,7 @@ export async function assessPronunciation(
     `https://${REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1` +
     `?language=${encodeURIComponent(language)}&format=detailed`;
 
+  // Azure exige du base64 URL-safe (RFC 4648 §5) : +→- /→_ sans padding
   const assessmentConfig = Buffer.from(
     JSON.stringify({
       ReferenceText: referenceText,
@@ -99,7 +100,10 @@ export async function assessPronunciation(
       EnableMiscue: true,
       EnableProsodyAssessment: false,
     })
-  ).toString("base64");
+  ).toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
 
   const res = await fetch(url, {
     method: "POST",
