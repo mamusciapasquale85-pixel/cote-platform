@@ -659,7 +659,9 @@ export default function AgendaPage() {
                         }
                       >
                         {/* Nom de la classe */}
-                        <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.65 }}>{className || ""}</div>
+                        <div style={{ fontWeight: 900, fontSize: 12, opacity: 0.65 }}>
+                          {className || <span style={{ opacity: 0.3, fontStyle: "italic", fontWeight: 500 }}>+ Ajouter</span>}
+                        </div>
 
                         {/* Titre de la leçon */}
                         {row?.lesson_title && (
@@ -737,18 +739,20 @@ export default function AgendaPage() {
         </div>
 
         {/* Boutons sous la grille */}
-        <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          <button style={btn} onClick={() => ctx && void loadGrid(ctx, weekDays[0], weekDays[4])} disabled={!ctx}>Rafraîchir</button>
-          <button
-            style={{ ...btn, background: "#EFF6FF", borderColor: "#BFDBFE", color: "#1D4ED8" }}
-            onClick={() => { setShowModifierPanel(true); setTimeout(() => fileInputRef.current?.click(), 100); }}
-            disabled={!ctx}
-          >
-            📥 Importer horaire
-          </button>
-          <button style={btn} onClick={() => setShowModifierPanel((v) => !v)} disabled={!ctx}>
-            {showModifierPanel ? "Fermer" : "Modifier"}
-          </button>
+        <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12, color: "#64748b", fontStyle: "italic" }}>
+            💡 Cliquez sur une cellule pour encoder un cours manuellement
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button style={btn} onClick={() => ctx && void loadGrid(ctx, weekDays[0], weekDays[4])} disabled={!ctx}>Rafraîchir</button>
+            <button
+              style={{ ...btn, background: "#EFF6FF", borderColor: "#BFDBFE", color: "#1D4ED8" }}
+              onClick={() => { setShowModifierPanel(true); setTimeout(() => fileInputRef.current?.click(), 100); }}
+              disabled={!ctx}
+            >
+              📥 Importer horaire CSV
+            </button>
+          </div>
         </div>
 
       </div>

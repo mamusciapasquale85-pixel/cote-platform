@@ -397,22 +397,36 @@ Toutes ces routes nécessitent un cookie Supabase Auth :
 
 ## LANDING PAGE
 
-- **Fichier :** `klasbook-site/index.html`
-- **Hébergement :** Netlify
-- **Design :** Mode clair, couleurs app (bleu #4f7cff, violet #9b7bff, rose #ff5a7a)
-- **CTA :** Lien direct vers `klasbook.be/register` et `/login`
-- **Tarifs :** Alignés avec l'app (0€ / 19€ / 149€)
-- **Features listées :** 12 (générateur, remédiation, correction IA, éval PDF, bulletins, inspecteur, vocal, classes, agenda, parents, import, apprentissages)
+### V1 (originale)
+- **Fichier :** `landingpage.html` (racine du projet) + `klasbook-site/index.html`
+- **Hébergement :** Netlify (klasbook-site)
+- **Design :** DM Sans, bleu #4f7cff, violet #9b7bff, rose #ff5a7a, gradient rouge→bleu
+
+### V2 (test — avril 2026)
+- **Fichier :** `landingpage-v2.html` (racine) + `public/presentation/index.html`
+- **URL publique :** `klasbook.be/presentation`
+- **Hébergement :** Vercel (via `public/` Next.js)
+- **Design :** Plus Jakarta Sans, bleu confiance #2563EB, CTA orange #F97316, icônes SVG (plus d'emojis), style Trust & Authority (skill UI/UX Pro Max)
+- **Nouvelles sections :** stats bar (2h+, 7 matières, 25+ exercices, 100% FWB), témoignages (3 profs), trust badges (RGPD, FWB, créé par un prof, IA de pointe)
+- **Skill utilisé :** UI/UX Pro Max (`~/.claude/skills/ui-ux-pro-max` + `.claude/skills/ui-ux-pro-max`)
+
+### Déploiement Vercel
+- Projet lié à Vercel : `mamusciapasquale85-6856s-projects/klasbook-dev`
+- Repo GitHub : `mamusciapasquale85-pixel/cote-platform`
+- Déploiement auto sur push `main` → `klasbook.be`
+- Config : `.vercel/` créé en avril 2026
 
 ---
 
 ## PROCHAINES ÉTAPES
 
 - [ ] Configurer les vrais Price IDs Stripe (remplacer les placeholders)
-- [ ] Déployer la landing page mise à jour sur Netlify
+- [ ] Décider si la landing V2 remplace la V1 sur la page d'accueil (`/`)
 - [ ] Aligner la page pricing in-app (`/pricing`) sur 19€/mois
 - [ ] Appliquer le fix course_id dans `/api/evaluation-templates/[id]/distribute/route.ts`
 - [ ] Ajouter types de compétences FWB (EE, CA, EOSI, EOI, CL) aux évaluations sommatives
 - [ ] Structured evaluation formatting (titres, sous-titres, header Klasbook)
 - [ ] Sauvegarde systématique des exercices générés en base (table `exercices`)
 - [ ] Vérifier le polling n8n "Alerte élève en difficulté" (15 min → plus fréquent ?)
+- [x] Projet lié à Vercel avec déploiement auto (avril 2026)
+- [x] Landing page V2 déployée sur `klasbook.be/presentation` (avril 2026)

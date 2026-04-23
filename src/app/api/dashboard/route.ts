@@ -121,10 +121,16 @@ export async function GET() {
     const rt = remTerminees ?? 0;
     const ra = remActives ?? 0;
 
-    // Prénom du prof depuis user_metadata ou email
+    // Prénom du prof : user_profiles > user_metadata > email
     const meta = userData.user.user_metadata ?? {};
+    const { data: profileData } = await supabase
+      .from("user_profiles").select("full_name").eq("id", teacherId).maybeSingle();
+    const fullName: string =
+      profileData?.full_name ?? meta.first_name ?? meta.given_name ?? meta.name ?? "";
+    // Extraire le premier prénom (ignorer les points éventuels du format email)
+    const cleanName = fullName.replace(/\./g, " ").trim();
     const teacherFirstName: string =
-      meta.first_name ?? meta.given_name ?? meta.name?.split(" ")[0] ?? userData.user.email?.split("@")[0] ?? "";
+      cleanName.split(/\s+/)[0] ?? userData.user.email?.split("@")[0] ?? "";
 
     return NextResponse.json({
       teacher_first_name: teacherFirstName,

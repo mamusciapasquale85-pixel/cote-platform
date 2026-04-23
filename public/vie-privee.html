@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Politique de confidentialité — Klasbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f8ff;--surface:#fff;--text:#0f172a;--text2:rgba(15,23,42,0.6);--text3:rgba(15,23,42,0.38);
+  --primary:#4f7cff;--grad:linear-gradient(135deg,#FF3B30 0%,#0A84FF 100%);
+  --border:rgba(15,23,42,0.08);--font:'DM Sans',-apple-system,sans-serif;--radius:16px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:var(--primary);text-decoration:none}
+a:hover{text-decoration:underline}
+nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 40px;height:60px;display:flex;align-items:center;justify-content:space-between}
+.n-logo{display:flex;align-items:center;gap:10px;font-size:1.1rem;font-weight:900;letter-spacing:-0.03em;color:var(--text)}
+.n-logo-icon{width:32px;height:32px;border-radius:10px;background:var(--grad);display:flex;align-items:center;justify-content:center}
+.n-logo-icon span{font-size:16px;color:#fff}
+.back{font-size:0.85rem;color:var(--text2);font-weight:500;display:flex;align-items:center;gap:6px;transition:color .2s}
+.back:hover{color:var(--text);text-decoration:none}
+.wrap{max-width:760px;margin:0 auto;padding:100px 40px 80px}
+.page-title{font-size:2rem;font-weight:900;letter-spacing:-0.5px;margin-bottom:8px}
+.meta{font-size:0.85rem;color:var(--text3);margin-bottom:48px}
+h2{font-size:1.1rem;font-weight:700;margin:40px 0 10px;color:var(--text)}
+h2::before{content:'';display:inline-block;width:4px;height:16px;background:var(--grad);border-radius:2px;margin-right:10px;vertical-align:middle}
+p{font-size:0.93rem;color:var(--text2);margin-bottom:14px}
+ul{margin:0 0 14px 20px}
+ul li{font-size:0.93rem;color:var(--text2);margin-bottom:6px}
+table{width:100%;border-collapse:collapse;margin:16px 0 24px;font-size:0.88rem}
+th{background:rgba(79,124,255,0.06);padding:10px 14px;text-align:left;font-weight:700;color:var(--text);border-bottom:2px solid var(--border)}
+td{padding:10px 14px;color:var(--text2);border-bottom:1px solid var(--border)}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin:20px 0}
+.badge{display:inline-block;background:rgba(34,197,94,0.1);color:#16a34a;font-size:0.75rem;font-weight:700;padding:2px 10px;border-radius:999px;margin-left:8px}
+footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--border);font-size:0.82rem;color:var(--text3);text-align:center}
+footer a{color:var(--text3);margin:0 10px}
+@media(max-width:600px){.wrap{padding:80px 20px 60px}nav{padding:0 20px}table{font-size:0.8rem}th,td{padding:8px 10px}}
+</style>
+</head>
+<body>
+<nav>
+  <a href="https://klasbook.be" class="n-logo">
+    <div class="n-logo-icon"><span>✦</span></div>
+    Klasbook
+  </a>
+  <a href="https://klasbook.be" class="back">← Retour à l'accueil</a>
+</nav>
+
+<div class="wrap">
+  <div class="page-title">Politique de confidentialité</div>
+  <div class="meta">Dernière mise à jour : avril 2026 · Konforme RGPD (UE 2016/679) <span class="badge">Données hébergées en Europe</span></div>
+
+  <h2>1. Responsable du traitement</h2>
+  <div class="box">
+    <strong>Pasquale De Michele</strong><br>
+    Professeur au LAB Marie Curie, Bruxelles, Belgique<br>
+    Email : <a href="mailto:pasquale@klasbook.be">pasquale@klasbook.be</a><br>
+    Plateforme : <a href="https://klasbook.be">klasbook.be</a>
+  </div>
+
+  <h2>2. Données collectées</h2>
+  <table>
+    <thead>
+      <tr><th>Catégorie</th><th>Données</th><th>Finalité</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Compte enseignant</td><td>Email, prénom, nom, matière, école</td><td>Création de compte, personnalisation</td></tr>
+      <tr><td>Élèves</td><td>Prénom, nom, classe, résultats scolaires</td><td>Suivi pédagogique, remédiation</td></tr>
+      <tr><td>Parents</td><td>Email, lien avec l'élève</td><td>Accès portail parents</td></tr>
+      <tr><td>Utilisation</td><td>Pages visitées, actions effectuées</td><td>Amélioration du service</td></tr>
+      <tr><td>Paiement</td><td>Via prestataire tiers (Stripe) — Klasbook ne stocke pas les données bancaires</td><td>Facturation</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Base légale des traitements</h2>
+  <ul>
+    <li><strong>Exécution du contrat</strong> — traitement du compte et des fonctionnalités de la Plateforme</li>
+    <li><strong>Intérêt légitime</strong> — amélioration du service, sécurité</li>
+    <li><strong>Consentement</strong> — communications marketing (désabonnement possible à tout moment)</li>
+    <li><strong>Obligation légale</strong> — conservation des données de facturation</li>
+  </ul>
+
+  <h2>4. Données relatives aux élèves mineurs</h2>
+  <p>Klasbook peut contenir des données à caractère personnel d'élèves mineurs introduites par les enseignants. Ces données sont traitées exclusivement dans le cadre pédagogique, sous la responsabilité de l'enseignant qui les saisit.</p>
+  <p>L'enseignant s'engage à n'introduire ces données que dans le cadre de son activité professionnelle et conformément aux règles de son établissement scolaire.</p>
+  <p><strong>Ces données ne sont jamais utilisées à des fins commerciales, publicitaires ou pour entraîner des modèles d'IA.</strong></p>
+
+  <h2>5. Sous-traitants et transferts</h2>
+  <table>
+    <thead>
+      <tr><th>Prestataire</th><th>Rôle</th><th>Localisation</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Supabase</td><td>Base de données</td><td>🇪🇺 Francfort (EU)</td></tr>
+      <tr><td>Vercel</td><td>Hébergement web</td><td>🇪🇺 Europe</td></tr>
+      <tr><td>Anthropic (Claude)</td><td>Génération IA</td><td>🇺🇸 USA — via API sécurisée, données non conservées</td></tr>
+      <tr><td>Stripe</td><td>Paiement</td><td>🇪🇺 Europe (certifié PCI-DSS)</td></tr>
+      <tr><td>n8n Cloud</td><td>Automatisations</td><td>🇪🇺 Europe</td></tr>
+    </tbody>
+  </table>
+  <p>Concernant Anthropic : les données envoyées à l'API Claude pour la génération d'exercices ne sont pas conservées par Anthropic au-delà du traitement de la requête, conformément à leurs conditions d'utilisation API.</p>
+
+  <h2>6. Durée de conservation</h2>
+  <ul>
+    <li>Données de compte actif : conservées pendant toute la durée de l'abonnement</li>
+    <li>Après suppression du compte : effacement sous 30 jours</li>
+    <li>Données de facturation : 7 ans (obligation légale belge)</li>
+    <li>Logs techniques : 90 jours</li>
+  </ul>
+
+  <h2>7. Vos droits</h2>
+  <p>Conformément au RGPD, vous disposez des droits suivants :</p>
+  <ul>
+    <li><strong>Accès</strong> — obtenir une copie de vos données</li>
+    <li><strong>Rectification</strong> — corriger des données inexactes</li>
+    <li><strong>Effacement</strong> — demander la suppression de vos données</li>
+    <li><strong>Portabilité</strong> — recevoir vos données dans un format structuré</li>
+    <li><strong>Opposition</strong> — vous opposer à certains traitements</li>
+    <li><strong>Limitation</strong> — restreindre le traitement dans certains cas</li>
+  </ul>
+  <p>Pour exercer ces droits : <a href="mailto:pasquale@klasbook.be">pasquale@klasbook.be</a>. Réponse sous 30 jours.</p>
+  <p>Vous pouvez également introduire une réclamation auprès de l'<a href="https://www.autoriteprotectiondonnees.be" target="_blank">Autorité de Protection des Données (APD)</a> belge.</p>
+
+  <h2>8. Cookies</h2>
+  <p>Klasbook utilise des cookies strictement nécessaires au fonctionnement de la Plateforme (session d'authentification, préférences). Aucun cookie publicitaire ou de tracking tiers n'est utilisé.</p>
+
+  <h2>9. Sécurité</h2>
+  <p>Les données sont chiffrées en transit (HTTPS/TLS) et au repos. L'accès aux données est contrôlé par Row Level Security (RLS) via Supabase. Des sauvegardes automatiques sont effectuées quotidiennement.</p>
+
+  <h2>10. Modifications</h2>
+  <p>Cette politique peut être mise à jour. En cas de modification substantielle, les utilisateurs sont informés par email avec un préavis de 15 jours.</p>
+
+  <div class="box">
+    <strong>Contact DPO / Questions RGPD</strong><br>
+    Pasquale De Michele · <a href="mailto:pasquale@klasbook.be">pasquale@klasbook.be</a><br>
+    LAB Marie Curie, Bruxelles, Belgique
+  </div>
+
+  <footer>
+    <a href="https://klasbook.be">Accueil</a>
+    <a href="https://klasbook.be/cgu">CGU</a>
+    <a href="mailto:pasquale@klasbook.be">Contact</a>
+    <br><br>© 2026 Klasbook · Pasquale De Michele
+  </footer>
+</div>
+</body>
+</html>

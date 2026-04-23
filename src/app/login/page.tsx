@@ -381,7 +381,7 @@ export default function LoginPage() {
                 <input value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="Institut Marie Curie, Bruxelles" required style={{ ...inp, marginBottom: 8 }} />
                 <p style={{ fontSize: "0.78rem", color: "#6b7280", marginBottom: 16 }}>Si votre établissement existe déjà dans Klasbook, vous serez automatiquement rattaché.</p>
                 <Lbl>Code promo <span style={{ fontWeight: 400, color: "#9ca3af" }}>(optionnel)</span></Lbl>
-                <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="ex: KLASBETA2026" style={{ ...inp, marginBottom: 20, letterSpacing: "0.05em" }} />
+                <input value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} placeholder="Votre code d'accès" style={{ ...inp, marginBottom: 20, letterSpacing: "0.05em" }} />
                 {regError && <ErrBox>{regError}</ErrBox>}
                 <div style={{ display: "flex", gap: 10 }}>
                   <BackBtn onClick={() => setMode("r2")} />

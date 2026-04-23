@@ -65,6 +65,11 @@ function btnStyle(bg: string, color: string, border: string): React.CSSPropertie
 export default function HistoriquePage() {
   const supabase = createClient();
   const [tab, setTab] = useState<HistoriqueTab>("exercices");
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
+  }, []);
 
   // ── Onglet exercices ──
   const [exercices, setExercices] = useState<Exercice[]>([]);
@@ -95,25 +100,29 @@ export default function HistoriquePage() {
 
   // ── Data loading : exercices ──
   useEffect(() => {
+    if (!userId) return;
     async function loadExercices() {
       const { data } = await supabase
         .from("exercices")
         .select("id, subject, type_exercice, niveau, theme, titre, classe, created_at")
+        .eq("teacher_id", userId)
         .order("created_at", { ascending: false })
         .limit(200);
       setExercices((data ?? []) as Exercice[]);
       setLoadingEx(false);
     }
     void loadExercices();
-  }, []);
+  }, [userId]);
 
   // ── Data loading : évaluations archivées ──
   useEffect(() => {
+    if (!userId) return;
     async function loadArchivedEvals() {
       const { data: assessments } = await supabase
         .from("assessments")
         .select("id, title, type, date, max_points, fichier_path, fichier_nom, created_at, class_group_id")
         .eq("status", "archived")
+        .eq("teacher_id", userId)
         .order("created_at", { ascending: false })
         .limit(200);
       if (!assessments || assessments.length === 0) { setArchivedEvals([]); setLoadingEv(false); return; }
@@ -129,19 +138,20 @@ export default function HistoriquePage() {
       setLoadingEv(false);
     }
     void loadArchivedEvals();
-  }, []);
+  }, [userId]);
 
   // ── Data loading : classes (pour onglet "par classe") ──
   useEffect(() => {
+    if (!userId) return;
     async function loadClasses() {
-      const { data } = await supabase.from("class_groups").select("id, name, grade_level").order("name");
+      const { data } = await supabase.from("class_groups").select("id, name, grade_level").eq("teacher_id", userId).order("name");
       const list: ClassGroup[] = data ?? [];
       setClasses(list);
       if (list.length > 0) setSelectedClassId(list[0].id);
       setLoadingClasses(false);
     }
     void loadClasses();
-  }, []);
+  }, [userId]);
 
   // ── Data loading : évaluations + résultats + élèves par classe ──
   useEffect(() => {

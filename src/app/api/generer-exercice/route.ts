@@ -132,7 +132,8 @@ RÈGLES ABSOLUES :
 - Les consignes sont TOUJOURS en français, les exercices en ${langue}
 - Fournis systématiquement un CORRIGÉ complet à la fin
 - Structure claire avec des sections bien séparées
-- Contenu authentique, contextualisé, motivant pour un ado de 12-15 ans`;
+- Contenu authentique, contextualisé, motivant pour un ado de 12-15 ans
+- FORMAT STRICT : N'utilise PAS de Markdown (**gras**, # titres, _italique_). Écris les titres de sections en MAJUSCULES (ex: TEXTE À COMPLÉTER, CORRIGÉ). Sépare chaque section par une ligne de tirets (---). Numérote les questions (1. 2. 3.). N'utilise PAS d'emojis dans le corps de l'exercice.`;
 
   const prompts: Record<string, string> = {
     lacunes: `${base}
@@ -368,7 +369,8 @@ RÈGLES ABSOLUES :
 - Vocabulaire scientifique précis et correct
 - Consignes en français, claires et non ambiguës
 - Démarche expérimentale mise en valeur quand pertinent
-- CORRIGÉ complet et scientifiquement rigoureux`;
+- CORRIGÉ complet et scientifiquement rigoureux
+- FORMAT STRICT : N'utilise PAS de Markdown (**gras**, # titres, _italique_). Écris les titres de sections en MAJUSCULES. Sépare chaque section par une ligne vide. Numérote les questions (1. 2. 3.). N'utilise PAS d'emojis dans le corps de l'exercice.`;
 
   const prompts: Record<string, string> = {
     observation: `${base}
@@ -446,7 +448,8 @@ RÈGLES ABSOLUES :
 - Consignes en français claires
 - Favorise l'analyse plutôt que la mémorisation pure
 - Sources authentiques ou vraisemblables (si fictives, le préciser)
-- CORRIGÉ complet avec justifications historiques`;
+- CORRIGÉ complet avec justifications historiques
+- FORMAT STRICT : N'utilise PAS de Markdown (**gras**, # titres, _italique_). Écris les titres de sections en MAJUSCULES. Sépare chaque section par une ligne vide. Numérote les questions (1. 2. 3.). N'utilise PAS d'emojis dans le corps de l'exercice.`;
 
   const prompts: Record<string, string> = {
     analyse_source: `${base}
@@ -520,7 +523,8 @@ RÈGLES ABSOLUES :
 - Précision géographique (noms, localisations, données récentes)
 - Approche multi-échelle (locale → globale)
 - Consignes en français claires
-- CORRIGÉ complet et géographiquement rigoureux`;
+- CORRIGÉ complet et géographiquement rigoureux
+- FORMAT STRICT : N'utilise PAS de Markdown (**gras**, # titres, _italique_). Écris les titres de sections en MAJUSCULES. Sépare chaque section par une ligne vide. Numérote les questions (1. 2. 3.). N'utilise PAS d'emojis dans le corps de l'exercice.`;
 
   const prompts: Record<string, string> = {
     analyse_carte: `${base}
@@ -598,7 +602,8 @@ RÈGLES ABSOLUES :
 - Langue française standard, claire et correcte
 - Exercices conformes au référentiel FWB
 - Toujours un CORRIGÉ complet
-- Textes motivants pour des ados de 12-18 ans`;
+- Textes motivants pour des ados de 12-18 ans
+- FORMAT STRICT : N'utilise PAS de Markdown (**gras**, # titres, _italique_). Écris les titres de sections en MAJUSCULES. Sépare chaque section par une ligne vide. Numérote les questions (1. 2. 3.). N'utilise PAS d'emojis dans le corps de l'exercice.`;
 
   const prompts: Record<string, string> = {
     expression_ecrite: `${base}

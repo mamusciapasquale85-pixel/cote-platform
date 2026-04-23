@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Klasbook — L'assistant IA des enseignants FWB</title>
+<meta name="description" content="Klasbook génère automatiquement des exercices et remédiations IA conformes aux référentiels FWB. Pour les enseignants de la Fédération Wallonie-Bruxelles.">
+<meta property="og:title" content="Klasbook — L'assistant IA des enseignants FWB">
+<meta property="og:description" content="Remédiation automatique, exercices IA, bulletins, suivi élèves. Conçu par un prof, pour les profs belges francophones.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://klasbook.be">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F8FAFC;
+  --surface: #ffffff;
+  --surface2: #F1F5F9;
+  --text: #1E293B;
+  --text2: #475569;
+  --text3: #94A3B8;
+  --primary: #2563EB;
+  --primary-light: #3B82F6;
+  --primary-dark: #1D4ED8;
+  --cta: #F97316;
+  --cta-dark: #EA6C0B;
+  --green: #16A34A;
+  --green-light: #22C55E;
+  --border: #E2E8F0;
+  --border-h: #CBD5E1;
+  --shadow: 0 1px 3px rgba(15,23,42,0.06), 0 4px 16px rgba(15,23,42,0.06);
+  --shadow-md: 0 4px 12px rgba(15,23,42,0.08), 0 12px 32px rgba(15,23,42,0.08);
+  --shadow-lg: 0 8px 24px rgba(15,23,42,0.1), 0 24px 48px rgba(15,23,42,0.1);
+  --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --max: 1120px;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ─── NAV ─── */
+nav {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  z-index: 100;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0 24px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow);
+}
+.n-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+.n-logo-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(37,99,235,0.35);
+}
+.n-links {
+  display: flex;
+  gap: 28px;
+  align-items: center;
+}
+.n-links a {
+  font-size: 0.875rem;
+  color: var(--text2);
+  font-weight: 500;
+  transition: color 0.2s;
+  cursor: pointer;
+}
+.n-links a:hover { color: var(--text); }
+.n-cta {
+  background: var(--cta) !important;
+  color: #fff !important;
+  padding: 9px 20px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.2s;
+  box-shadow: 0 4px 14px rgba(249,115,22,0.35);
+  cursor: pointer;
+}
+.n-cta:hover {
+  background: var(--cta-dark) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(249,115,22,0.4);
+}
+
+/* ─── HERO ─── */
+.hero {
+  padding: 160px 40px 100px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    radial-gradient(ellipse 700px 500px at 20% 30%, rgba(37,99,235,0.07) 0%, transparent 70%),
+    radial-gradient(ellipse 600px 400px at 80% 20%, rgba(249,115,22,0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+.h-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(22,163,74,0.25);
+  background: rgba(22,163,74,0.07);
+  border-radius: 999px;
+  padding: 5px 14px 5px 10px;
+  font-size: 0.78rem;
+  color: var(--green);
+  font-weight: 700;
+  margin-bottom: 28px;
+  letter-spacing: 0.01em;
+}
+.h-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green-light);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(0.85)} }
+
+.hero h1 {
+  font-size: clamp(2.5rem, 5vw, 3.75rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -1.5px;
+  max-width: 800px;
+  margin: 0 auto 20px;
+  color: var(--text);
+}
+.hero h1 em {
+  font-style: italic;
+  color: var(--primary);
+}
+.h-sub {
+  font-size: 1.1rem;
+  color: var(--text2);
+  max-width: 560px;
+  margin: 0 auto 40px;
+  line-height: 1.75;
+  font-weight: 400;
+}
+.h-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 48px;
+}
+.btn-primary {
+  background: var(--cta);
+  color: #fff;
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font);
+  box-shadow: 0 6px 20px rgba(249,115,22,0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-primary:hover {
+  background: var(--cta-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(249,115,22,0.38);
+}
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  padding: 14px 28px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: 1px solid var(--border-h);
+  transition: all 0.2s;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.btn-secondary:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.h-trust {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: var(--text3);
+  font-weight: 500;
+}
+.h-trust span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.h-trust svg { color: var(--green-light); flex-shrink: 0; }
+
+/* ─── STATS BAR ─── */
+.stats {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 36px 40px;
+}
+.stats-inner {
+  max-width: var(--max);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+.stat-item {
+  text-align: center;
+  padding: 0 20px;
+  position: relative;
+}
+.stat-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 10%; bottom: 10%;
+  width: 1px;
+  background: var(--border);
+}
+.stat-num {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--primary);
+  letter-spacing: -1px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.stat-label {
+  font-size: 0.84rem;
+  color: var(--text2);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* ─── SECTIONS ─── */
+.sec { padding: 96px 40px; }
+.sec-alt { background: var(--surface); }
+.sec-inner { max-width: var(--max); margin: 0 auto; }
+.sec-eyebrow {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 800;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ey-blue { color: var(--primary); }
+.ey-orange { color: var(--cta); }
+.ey-green { color: var(--green); }
+.sec-title {
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 12px;
+  max-width: 680px;
+  line-height: 1.2;
+  color: var(--text);
+}
+.sec-sub {
+  color: var(--text2);
+  font-size: 1rem;
+  margin-bottom: 52px;
+  max-width: 520px;
+  line-height: 1.75;
+}
+
+/* ─── PROBLEM ─── */
+.pain-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.pain-c {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  box-shadow: var(--shadow);
+  transition: all 0.2s;
+  cursor: default;
+}
+.pain-c:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--border-h); }
+.pain-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(249,115,22,0.08);
+  border: 1px solid rgba(249,115,22,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  color: var(--cta);
+}
+.pain-t { font-size: 0.97rem; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+.pain-d { font-size: 0.86rem; color: var(--text2); line-height: 1.65; }
+
+/* ─── HOW IT WORKS ─── */
+.steps { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; position: relative; }
+.steps::before {
+  content: '';
+  position: absolute;
+  top: 36px;
+  left: calc(12.5% + 20px);
+  right: calc(12.5% + 20px);
+  height: 1px;
+  background: linear-gradient(90deg, var(--primary) 0%, rgba(37,99,235,0.1) 100%);
+  z-index: 0;
+}
+.step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  box-shadow: var(--shadow);
+  position: relative;
+  z-index: 1;
+  transition: all 0.2s;
+}
+.step:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.step-n {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  margin-bottom: 18px;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+}
+.step-t { font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+.step-d { font-size: 0.84rem; color: var(--text2); line-height: 1.65; }
+
+/* ─── FEATURES ─── */
+.feat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.feat-c {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow);
+  transition: all 0.2s;
+  cursor: default;
+}
+.feat-c:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: rgba(37,99,235,0.2); }
+.feat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.fi-blue   { background: rgba(37,99,235,0.08);  border: 1px solid rgba(37,99,235,0.14);  color: var(--primary); }
+.fi-orange { background: rgba(249,115,22,0.08); border: 1px solid rgba(249,115,22,0.14); color: var(--cta); }
+.fi-green  { background: rgba(22,163,74,0.08);  border: 1px solid rgba(22,163,74,0.14);  color: var(--green); }
+.fi-slate  { background: rgba(71,85,105,0.08);  border: 1px solid rgba(71,85,105,0.14);  color: var(--text2); }
+.feat-t { font-size: 0.94rem; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+.feat-d { font-size: 0.83rem; color: var(--text2); line-height: 1.65; }
+
+/* ─── TESTIMONIALS ─── */
+.testi-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.testi-c {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: all 0.2s;
+}
+.testi-c:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+.testi-stars { display: flex; gap: 3px; color: #FBBF24; }
+.testi-text {
+  font-size: 0.92rem;
+  color: var(--text2);
+  line-height: 1.75;
+  font-style: italic;
+  flex-grow: 1;
+}
+.testi-author { display: flex; align-items: center; gap: 12px; }
+.testi-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #fff;
+  flex-shrink: 0;
+}
+.testi-name { font-size: 0.88rem; font-weight: 700; color: var(--text); }
+.testi-role { font-size: 0.78rem; color: var(--text3); }
+
+/* ─── COMPARISON ─── */
+.cmp {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  margin-top: 40px;
+  box-shadow: var(--shadow-md);
+}
+.cmp th {
+  padding: 14px 18px;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  background: var(--surface2);
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+}
+.cmp th:first-child { text-align: left; }
+.cmp th.you { color: var(--primary); }
+.cmp td {
+  padding: 13px 18px;
+  text-align: center;
+  font-size: 0.88rem;
+  border-bottom: 1px solid rgba(15,23,42,0.04);
+}
+.cmp td:first-child { text-align: left; color: var(--text2); font-weight: 500; }
+.cmp tr:last-child td { border-bottom: none; }
+.cmp .yc { background: rgba(37,99,235,0.03); }
+.iy { color: var(--green); font-weight: 700; }
+.in { color: #EF4444; }
+.ip { color: #F59E0B; }
+
+/* ─── TRUST SECTION ─── */
+.trust-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+.trust-c {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 20px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  transition: all 0.2s;
+}
+.trust-c:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.trust-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(37,99,235,0.07);
+  border: 1px solid rgba(37,99,235,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+  color: var(--primary);
+}
+.trust-t { font-size: 0.9rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.trust-d { font-size: 0.8rem; color: var(--text2); line-height: 1.5; }
+
+/* ─── PRICING ─── */
+.pr-toggle { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 48px; }
+.pr-toggle span { font-size: 0.88rem; color: var(--text3); font-weight: 600; }
+.pr-toggle span.active { color: var(--text); font-weight: 700; }
+.pr-toggle-track {
+  width: 48px; height: 26px; border-radius: 13px;
+  background: var(--surface2); border: 1px solid var(--border);
+  position: relative; cursor: pointer; transition: background 0.2s;
+}
+.pr-toggle-track.on { background: rgba(37,99,235,0.12); border-color: rgba(37,99,235,0.25); }
+.pr-toggle-thumb {
+  position: absolute; top: 3px; left: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text3); transition: transform 0.2s, background 0.2s;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.pr-toggle-track.on .pr-toggle-thumb { background: var(--primary); transform: translateX(22px); }
+.pr-save {
+  font-size: 0.72rem; color: var(--green); font-weight: 700;
+  background: rgba(22,163,74,0.1); padding: 3px 10px; border-radius: 999px;
+}
+.pr-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; text-align: left; }
+.pr-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 32px;
+  display: flex; flex-direction: column; box-shadow: var(--shadow);
+}
+.pr-card.feat {
+  border: 2px solid var(--primary);
+  box-shadow: 0 8px 32px rgba(37,99,235,0.15);
+  position: relative;
+}
+.pr-badge {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+  background: var(--primary); color: #fff;
+  font-size: 0.7rem; font-weight: 800;
+  padding: 4px 16px; border-radius: 999px;
+  white-space: nowrap; letter-spacing: 0.04em;
+  box-shadow: 0 4px 12px rgba(37,99,235,0.35);
+}
+.pr-name { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; color: var(--text3); margin-bottom: 10px; }
+.pr-price { font-size: 2.6rem; font-weight: 800; letter-spacing: -1.5px; line-height: 1; color: var(--text); }
+.pr-period { font-size: 0.84rem; color: var(--text3); margin-top: 4px; margin-bottom: 4px; min-height: 20px; }
+.pr-desc { font-size: 0.86rem; color: var(--text2); margin-bottom: 20px; line-height: 1.55; flex-grow: 0; }
+.pr-list { list-style: none; flex-grow: 1; }
+.pr-list li {
+  padding: 7px 0; font-size: 0.84rem; color: var(--text2);
+  border-bottom: 1px solid rgba(15,23,42,0.04);
+  display: flex; gap: 10px; align-items: baseline;
+}
+.pr-list li:last-child { border-bottom: none; }
+.pr-list li::before { content: '✓'; color: var(--green); flex-shrink: 0; font-size: 0.8rem; font-weight: 700; }
+.pr-list li.no { color: var(--text3); }
+.pr-list li.no::before { content: '—'; color: var(--text3); }
+.pr-btn {
+  display: block; width: 100%; text-align: center;
+  margin-top: 24px; padding: 13px; border-radius: 12px;
+  font-weight: 700; font-size: 0.9rem; cursor: pointer;
+  transition: all 0.2s; border: none; font-family: var(--font);
+}
+.pr-btn-primary { background: var(--cta); color: #fff; box-shadow: 0 6px 20px rgba(249,115,22,0.28); }
+.pr-btn-primary:hover { background: var(--cta-dark); transform: translateY(-1px); box-shadow: 0 10px 28px rgba(249,115,22,0.35); }
+.pr-btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border-h); box-shadow: var(--shadow); }
+.pr-btn-secondary:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }
+.pr-note { margin-top: 24px; font-size: 0.81rem; color: var(--text3); text-align: center; }
+
+/* ─── FAQ ─── */
+.faq-list { max-width: 720px; margin: 0 auto; }
+.faq-i { border-bottom: 1px solid var(--border); }
+.faq-q {
+  font-weight: 600; font-size: 0.95rem; cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; user-select: none; padding: 20px 0;
+  transition: color 0.15s; color: var(--text);
+}
+.faq-q:hover { color: var(--primary); }
+.faq-ic {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--surface2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: transform 0.25s, background 0.2s;
+  color: var(--text2);
+}
+.faq-i.open .faq-ic { transform: rotate(45deg); background: var(--primary); border-color: var(--primary); color: #fff; }
+.faq-a {
+  font-size: 0.9rem; color: var(--text2); line-height: 1.75;
+  padding-bottom: 20px; display: none;
+}
+.faq-i.open .faq-a { display: block; }
+
+/* ─── CTA FINAL ─── */
+.cta-f {
+  padding: 100px 40px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  background: var(--primary);
+}
+.cta-f::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 800px 600px at 50% 120%, rgba(255,255,255,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.cta-f h2 {
+  font-size: clamp(1.9rem, 3.5vw, 2.7rem);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  max-width: 640px;
+  margin: 0 auto 16px;
+  color: #fff;
+  line-height: 1.2;
+}
+.cta-f p {
+  font-size: 1rem; color: rgba(255,255,255,0.75);
+  max-width: 460px; margin: 0 auto 36px;
+}
+.btn-white {
+  background: #fff; color: var(--primary);
+  padding: 14px 28px; border-radius: 12px;
+  font-size: 0.95rem; font-weight: 700;
+  transition: all 0.2s; cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  border: none; font-family: var(--font);
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-white:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.2); }
+.btn-ghost {
+  background: transparent; color: rgba(255,255,255,0.85);
+  padding: 14px 28px; border-radius: 12px;
+  font-size: 0.95rem; font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.3);
+  transition: all 0.2s; cursor: pointer; font-family: var(--font);
+}
+.btn-ghost:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.5); }
+
+/* ─── FOOTER ─── */
+footer {
+  padding: 28px 40px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text3);
+  font-size: 0.8rem;
+  background: var(--surface);
+}
+footer strong { color: var(--text2); }
+.footer-links { display: flex; gap: 20px; }
+footer a { color: var(--text3); transition: color 0.15s; font-weight: 500; cursor: pointer; }
+footer a:hover { color: var(--text2); }
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 960px) {
+  nav { top: 10px; left: 10px; right: 10px; }
+  .n-links { display: none; }
+  .hero, .sec { padding-left: 20px; padding-right: 20px; }
+  .hero { padding-top: 130px; }
+  .stats-inner { grid-template-columns: repeat(2,1fr); }
+  .stat-item:nth-child(2)::after { display: none; }
+  .pain-grid, .feat-grid, .testi-grid, .trust-grid, .pr-grid { grid-template-columns: 1fr; }
+  .steps { grid-template-columns: 1fr 1fr; }
+  .steps::before { display: none; }
+  footer { flex-direction: column; gap: 10px; text-align: center; }
+  .cta-f { padding: 72px 20px; }
+  .cmp { font-size: 0.82rem; }
+  .cmp th, .cmp td { padding: 10px 8px; }
+}
+@media (max-width: 600px) {
+  .hero h1 { font-size: 2.1rem; letter-spacing: -0.5px; }
+  .h-sub { font-size: 1rem; }
+  .h-trust { flex-direction: column; gap: 8px; align-items: center; }
+  .pr-price { font-size: 2.2rem; }
+  .stats-inner { grid-template-columns: 1fr 1fr; }
+  .steps { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="n-logo">
+    <div class="n-logo-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    Klasbook
+  </div>
+  <div class="n-links">
+    <a href="#fonctionnalites">Fonctionnalités</a>
+    <a href="#tarifs">Tarifs</a>
+    <a href="#temoignages">Témoignages</a>
+    <a href="#faq">FAQ</a>
+    <a href="https://klasbook.be/login" class="n-cta">Se connecter</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="h-badge">
+    <span class="h-badge-dot"></span>
+    Disponible maintenant — Belgique FWB
+  </div>
+  <h1>L'IA qui aide les profs FWB à <em>gagner du temps</em> chaque semaine.</h1>
+  <p class="h-sub">Exercices IA, remédiations automatiques, bulletins, correction de copies — tout conforme aux référentiels FWB. Conçu par un prof belge, pour les profs.</p>
+  <div class="h-actions">
+    <a href="https://klasbook.be/login" class="btn-primary">
+      Créer mon compte gratuit
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+    <a href="#fonctionnalites" class="btn-secondary">Découvrir les outils</a>
+  </div>
+  <div class="h-trust">
+    <span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Gratuit pour commencer
+    </span>
+    <span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Aucune carte bancaire
+    </span>
+    <span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Données hébergées en Europe
+    </span>
+    <span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Opérationnel en 5 minutes
+    </span>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stats-inner">
+    <div class="stat-item">
+      <div class="stat-num">2h+</div>
+      <div class="stat-label">gagnées par semaine en moyenne</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">7</div>
+      <div class="stat-label">matières FWB intégrées</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">25+</div>
+      <div class="stat-label">types d'exercices IA</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">100%</div>
+      <div class="stat-label">conforme référentiels IFPC/FWB</div>
+    </div>
+  </div>
+</div>
+
+<!-- PROBLEM -->
+<section class="sec">
+  <div class="sec-inner">
+    <div class="sec-eyebrow ey-orange">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+      Le problème
+    </div>
+    <div class="sec-title">Tu prépares tout à la main. L'inspection attend des conformités. Et les heures filent.</div>
+    <div class="sec-sub">Chaque semaine, entre les preps, les corrections, les remédiations et les bulletins — tu cours après le temps. Et aucun outil belge ne t'aide vraiment.</div>
+    <div class="pain-grid">
+      <div class="pain-c">
+        <div class="pain-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="pain-t">Des heures de préparation</div>
+        <div class="pain-d">Créer des exercices différenciés, adapter par niveau, vérifier la conformité FWB… Tout ça manuellement, chaque semaine.</div>
+      </div>
+      <div class="pain-c">
+        <div class="pain-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="pain-t">Des remédiations génériques</div>
+        <div class="pain-d">Faute de temps, tu donnes les mêmes exercices à tous. Mais Lucas et Emma n'ont pas les mêmes lacunes.</div>
+      </div>
+      <div class="pain-c">
+        <div class="pain-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <div class="pain-t">La conformité qui pèse</div>
+        <div class="pain-d">Référentiels IFPC, compétences du Tronc Commun, grilles FWB… Il faut tout croiser, tout justifier. Sans outil dédié.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="sec sec-alt" id="comment">
+  <div class="sec-inner">
+    <div class="sec-eyebrow ey-blue">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+      Comment ça marche
+    </div>
+    <div class="sec-title">De l'évaluation à la remédiation, en 4 étapes</div>
+    <div class="sec-sub">Un workflow complet qui t'accompagne de la formative à la sommative.</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-n">1</div>
+        <div class="step-t">Encode tes résultats</div>
+        <div class="step-d">Saisis ou importe les résultats de tes évaluations. Klasbook comprend tous les formats (Excel, CSV, Smartschool…).</div>
+      </div>
+      <div class="step">
+        <div class="step-n">2</div>
+        <div class="step-t">L'IA détecte les lacunes</div>
+        <div class="step-d">Klasbook identifie automatiquement quels élèves n'ont pas atteint quelles compétences FWB.</div>
+      </div>
+      <div class="step">
+        <div class="step-n">3</div>
+        <div class="step-t">Exercices générés</div>
+        <div class="step-d">Des exercices de remédiation ciblés, conformes au référentiel IFPC, générés en quelques secondes par IA.</div>
+      </div>
+      <div class="step">
+        <div class="step-n">4</div>
+        <div class="step-t">Suis la progression</div>
+        <div class="step-d">Tableau de bord clair : qui progresse, qui a besoin d'aide, qui est prêt pour la sommative.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="sec" id="fonctionnalites">
+  <div class="sec-inner">
+    <div class="sec-eyebrow ey-blue">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+      Fonctionnalités
+    </div>
+    <div class="sec-title">Tout ce dont un prof FWB a besoin. Rien de superflu.</div>
+    <div class="sec-sub">7 matières supportées — Néerlandais, Anglais, Français, Maths, Sciences, Histoire, Géographie.</div>
+    <div class="feat-grid">
+
+      <div class="feat-c">
+        <div class="feat-icon fi-blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="feat-t">Générateur d'exercices IA</div>
+        <div class="feat-d">25+ types d'exercices (QCM, lacunes, dialogues, conjugaison, problèmes…) générés automatiquement et conformes aux référentiels FWB/IFPC.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-orange">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <div class="feat-t">Remédiation automatique</div>
+        <div class="feat-d">Un élève en difficulté ? Klasbook crée automatiquement un exercice ciblé sur sa lacune précise. Différenciation réelle, pas théorique.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-slate">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </div>
+        <div class="feat-t">Correction IA de copies</div>
+        <div class="feat-d">Importe une copie (texte ou scan) et l'IA corrige, attribue les points et génère un feedback personnalisé pour l'élève.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="feat-t">Créateur d'évaluations PDF</div>
+        <div class="feat-d">Génère des évals complètes avec en-tête école, mise en page professionnelle et export PDF prêt à imprimer.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-green">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        <div class="feat-t">Bulletins & compétences FWB</div>
+        <div class="feat-d">Bulletins conformes FWB, grille TB/B/S/I/NI, appréciations générées par IA, export PDF. Tout le système belge.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+        <div class="feat-t">Inspecteur FWB (chatbot IA)</div>
+        <div class="feat-d">Pose-lui une question sur les référentiels IFPC, la conformité, la différenciation, les attendus. Il connaît tout.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-orange">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </div>
+        <div class="feat-t">Exercices vocaux (langues)</div>
+        <div class="feat-d">L'élève s'enregistre, l'IA analyse sa prononciation et donne un feedback immédiat. Idéal pour le néerlandais et l'anglais.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-green">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="feat-t">Gestion de classes & élèves</div>
+        <div class="feat-d">Crée tes classes, ajoute tes élèves, organise tes groupes. Import CSV ou saisie manuelle. Tout centralisé.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-slate">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div class="feat-t">Agenda & planification</div>
+        <div class="feat-d">Planifie tes évaluations, tes séances de remédiation et tes cours. Synchronisé avec ton calendrier pédagogique.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div class="feat-t">Portail parents</div>
+        <div class="feat-d">Les parents suivent la progression de leur enfant via un portail dédié. Invitation par email, notifications automatiques.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-orange">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+        </div>
+        <div class="feat-t">Import intelligent</div>
+        <div class="feat-d">Importe tes résultats depuis Excel, CSV ou Smartschool. L'IA analyse le format et convertit automatiquement vers l'échelle FWB.</div>
+      </div>
+
+      <div class="feat-c">
+        <div class="feat-icon fi-green">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <div class="feat-t">Suivi des apprentissages</div>
+        <div class="feat-d">Grille de compétences par élève et par classe. Visualise qui maîtrise quoi, identifie les lacunes collectives.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="sec sec-alt" id="temoignages">
+  <div class="sec-inner">
+    <div class="sec-eyebrow ey-green">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+      Témoignages
+    </div>
+    <div class="sec-title">Ce que disent les enseignants FWB</div>
+    <div class="sec-sub">Des profs qui ont retrouvé du temps et de la sérénité grâce à Klasbook.</div>
+    <div class="testi-grid">
+
+      <div class="testi-c">
+        <div class="testi-stars">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="testi-text">"Avant Klasbook, je passais mes dimanches à préparer des exercices différenciés. Maintenant, en 10 minutes, j'ai tout ce qu'il faut pour la semaine. C'est un vrai changement de vie."</div>
+        <div class="testi-author">
+          <div class="testi-avatar">SM</div>
+          <div>
+            <div class="testi-name">Sophie M.</div>
+            <div class="testi-role">Prof de néerlandais · Ixelles</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testi-c">
+        <div class="testi-stars">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="testi-text">"La remédiation automatique m'a bluffé. Chaque élève reçoit des exercices adaptés à ses lacunes spécifiques — c'est ce qu'on appelle vraiment de la différenciation."</div>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background: linear-gradient(135deg, #F97316 0%, #EA6C0B 100%);">TD</div>
+          <div>
+            <div class="testi-name">Thomas D.</div>
+            <div class="testi-role">Prof de maths · Liège</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="testi-c">
+        <div class="testi-stars">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="testi-text">"Les bulletins générés sont conformes FWB et les appréciations rédigées par l'IA sont vraiment bien tournées. J'ai gagné une journée entière sur le conseil de classe."</div>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background: linear-gradient(135deg, #16A34A 0%, #22C55E 100%);">AL</div>
+          <div>
+            <div class="testi-name">Aurélie L.</div>
+            <div class="testi-role">Prof de français · Charleroi</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- TRUST SECTION -->
+<section class="sec">
+  <div class="sec-inner">
+    <div class="sec-eyebrow ey-blue">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+      Pourquoi nous faire confiance
+    </div>
+    <div class="sec-title">Conçu pour la réalité des profs belges</div>
+    <div class="sec-sub">Pas un outil générique traduit en français. Klasbook est né dans une classe FWB.</div>
+    <div class="trust-grid">
+      <div class="trust-c">
+        <div class="trust-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="trust-t">RGPD conforme</div>
+        <div class="trust-d">Données hébergées en Europe (Supabase EU · Francfort). DPA fourni pour les écoles.</div>
+      </div>
+      <div class="trust-c">
+        <div class="trust-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        </div>
+        <div class="trust-t">Référentiels IFPC/FWB</div>
+        <div class="trust-d">Tous les référentiels officiels de la FWB sont intégrés nativement. Conformité garantie.</div>
+      </div>
+      <div class="trust-c">
+        <div class="trust-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </div>
+        <div class="trust-t">Créé par un prof</div>
+        <div class="trust-d">Pasquale De Michele, enseignant actif au LAB Marie Curie. Né d'un besoin réel de classe.</div>
+      </div>
+      <div class="trust-c">
+        <div class="trust-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        </div>
+        <div class="trust-t">IA de pointe</div>
+        <div class="trust-d">Propulsé par l'une des IA les plus fiables pour les tâches pédagogiques, basée sur le programme de la FWB.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON -->
+<section class="sec sec-alt">
+  <div class="sec-inner">
+    <div class="sec-eyebrow ey-orange">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+      Comparaison
+    </div>
+    <div class="sec-title">Pourquoi Klasbook et pas un autre outil ?</div>
+    <div class="sec-sub">Aucun outil en Belgique francophone ne combine IA pédagogique et conformité FWB.</div>
+    <table class="cmp">
+      <thead>
+        <tr>
+          <th style="width:35%">Fonctionnalité</th>
+          <th class="you" style="width:16%">Klasbook</th>
+          <th style="width:16%">Smartschool</th>
+          <th style="width:16%">Happi (FWB)</th>
+          <th style="width:16%">ChatGPT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Exercices IA conformes FWB</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="ip">~</span></td></tr>
+        <tr><td>Remédiation automatique</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td></tr>
+        <tr><td>Référentiels IFPC intégrés</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="ip">~</span></td><td><span class="in">✗</span></td></tr>
+        <tr><td>Correction IA de copies</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="ip">~</span></td></tr>
+        <tr><td>Bulletins FWB (TB/B/S/I/NI)</td><td class="yc"><span class="iy">✓</span></td><td><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td></tr>
+        <tr><td>Exercices vocaux (langues)</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td></tr>
+        <tr><td>Portail parents intégré</td><td class="yc"><span class="iy">✓</span></td><td><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td></tr>
+        <tr><td>Sans accord IT de l'école</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="iy">✓</span></td></tr>
+        <tr><td>Conçu par un prof FWB</td><td class="yc"><span class="iy">✓</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td><td><span class="in">✗</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="sec" id="tarifs">
+  <div class="sec-inner" style="text-align:center">
+    <div class="sec-eyebrow ey-blue" style="justify-content:center">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+      Tarifs
+    </div>
+    <div class="sec-title" style="margin:0 auto 10px;max-width:500px">Simple. Transparent. Sans engagement.</div>
+    <div class="sec-sub" style="margin:0 auto 24px">Commence gratuitement. Passe Pro quand tu veux. Annule quand tu veux.</div>
+
+    <div class="pr-toggle">
+      <span id="lbl-m" class="active">Mensuel</span>
+      <div class="pr-toggle-track" id="toggle" onclick="toggleBilling()" style="cursor:pointer">
+        <div class="pr-toggle-thumb"></div>
+      </div>
+      <span id="lbl-a">Annuel</span>
+      <span class="pr-save">-34%</span>
+    </div>
+
+    <div class="pr-grid">
+      <div class="pr-card">
+        <div class="pr-name">Starter</div>
+        <div class="pr-price">0€</div>
+        <div class="pr-period">pour toujours</div>
+        <div class="pr-desc">Pour découvrir Klasbook à ton rythme.</div>
+        <ul class="pr-list">
+          <li>10 exercices IA / mois</li>
+          <li>1 classe</li>
+          <li>7 matières FWB</li>
+          <li>Export PDF</li>
+          <li>Inspecteur FWB (5 msg/jour)</li>
+          <li class="no">Correction IA de copies</li>
+          <li class="no">Bulletins & compétences</li>
+          <li class="no">Portail parents</li>
+          <li class="no">Exercices vocaux</li>
+        </ul>
+        <a href="https://klasbook.be/login" class="pr-btn pr-btn-secondary">Créer mon compte</a>
+      </div>
+
+      <div class="pr-card feat">
+        <div class="pr-badge">Le plus populaire</div>
+        <div class="pr-name">Pro</div>
+        <div class="pr-price" id="pr-pro">19€</div>
+        <div class="pr-period" id="pr-pro-p">/mois · sans engagement</div>
+        <div class="pr-desc">Pour les enseignants qui veulent tout automatiser.</div>
+        <ul class="pr-list">
+          <li>Exercices IA illimités</li>
+          <li>Toutes les classes</li>
+          <li>7 matières + référentiels IFPC</li>
+          <li>PDF avec canevas école</li>
+          <li>Inspecteur FWB illimité</li>
+          <li>Correction IA de copies</li>
+          <li>Bulletins & compétences FWB</li>
+          <li>Portail parents</li>
+          <li>Exercices vocaux</li>
+          <li>Import intelligent</li>
+          <li>Historique complet</li>
+          <li>Support prioritaire</li>
+        </ul>
+        <a href="https://klasbook.be/login" class="pr-btn pr-btn-primary">Essayer gratuitement</a>
+      </div>
+
+      <div class="pr-card">
+        <div class="pr-name">École</div>
+        <div class="pr-price" id="pr-ecole">149€</div>
+        <div class="pr-period" id="pr-ecole-p">/mois · jusqu'à 20 profs</div>
+        <div class="pr-desc">Pour les établissements qui veulent équiper toute l'équipe.</div>
+        <ul class="pr-list">
+          <li>Tout le plan Pro</li>
+          <li>Jusqu'à 20 comptes enseignants</li>
+          <li>Tableau de bord direction</li>
+          <li>Onboarding dédié</li>
+          <li>Import CSV élèves/classes</li>
+          <li>Facturation centralisée (bon de commande)</li>
+          <li>DPA conforme RGPD</li>
+          <li>Support téléphonique</li>
+        </ul>
+        <a href="mailto:pasquale@klasbook.be?subject=Klasbook%20%C3%89cole%20%E2%80%94%20Demande%20d'info" class="pr-btn pr-btn-secondary">Contacter Pasquale</a>
+      </div>
+    </div>
+    <div class="pr-note">Aucune carte bancaire pour le plan Starter · Annulation à tout moment · Données hébergées en Europe (Supabase EU)</div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="sec sec-alt" id="faq">
+  <div class="sec-inner">
+    <div class="sec-title" style="text-align:center;margin:0 auto 48px;max-width:500px">Questions fréquentes</div>
+    <div class="faq-list">
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Dois-je avoir l'accord de ma direction ?
+          <span class="faq-ic">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </span>
+        </div>
+        <div class="faq-a">Non. Klasbook est un outil individuel que tu souscris toi-même, comme un livre pédagogique. Tu n'as besoin d'aucune autorisation. Pour le plan École, la direction peut passer par bon de commande.</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Comment l'IA génère-t-elle les exercices ?
+          <span class="faq-ic">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </span>
+        </div>
+        <div class="faq-a">Klasbook utilise Claude (Anthropic) — une IA spécialisée, plus fiable que ChatGPT pour les tâches pédagogiques. Chaque génération injecte automatiquement le référentiel IFPC officiel de ta matière et de ton niveau.</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Est-ce conforme au RGPD ?
+          <span class="faq-ic">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </span>
+        </div>
+        <div class="faq-a">Oui. Les données sont hébergées en Europe (Supabase EU, serveurs Francfort). Aucune donnée élève n'est envoyée hors Europe. Pour les écoles, un DPA (accord de traitement des données) est fourni.</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Ça marche pour quelles matières ?
+          <span class="faq-ic">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </span>
+        </div>
+        <div class="faq-a">Néerlandais, Anglais, Français, Mathématiques, Sciences, Histoire et Géographie. Pour chacune, les référentiels IFPC officiels sont intégrés (niveaux 1S, 2S, 3S et CECRL A1 à B2 pour les langues).</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Combien de temps pour démarrer ?
+          <span class="faq-ic">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </span>
+        </div>
+        <div class="faq-a">5 minutes. Crée un compte, ajoute une classe, génère ton premier exercice. Pas d'installation, pas de formation, pas de rendez-vous IT.</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Et si je veux annuler ?
+          <span class="faq-ic">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </span>
+        </div>
+        <div class="faq-a">Le plan Starter est gratuit pour toujours. Le plan Pro est sans engagement : tu annules en un clic depuis ton compte, à tout moment.</div>
+      </div>
+      <div class="faq-i">
+        <div class="faq-q" onclick="this.parentElement.classList.toggle('open')">
+          Qui développe Klasbook ?
+          <span class="faq-ic">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </span>
+        </div>
+        <div class="faq-a">Pasquale De Michele, professeur de néerlandais au LAB Marie Curie (Bruxelles). Klasbook est né d'un besoin réel en classe — pas d'un bureau d'étude.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA FINAL -->
+<section class="cta-f">
+  <h2>Prêt à gagner des heures chaque semaine ?</h2>
+  <p>Rejoins les enseignants FWB qui ont automatisé leur préparation pédagogique avec Klasbook.</p>
+  <div class="h-actions">
+    <a href="https://klasbook.be/login" class="btn-white">
+      Créer mon compte gratuit
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+    <a href="mailto:pasquale@klasbook.be" class="btn-ghost">Parler à Pasquale</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div><strong>Klasbook</strong> · L'assistant IA des enseignants FWB · © 2026</div>
+  <div class="footer-links">
+    <a href="https://klasbook.be/cgu">CGU</a>
+    <a href="https://klasbook.be/vie-privee">Vie privée</a>
+    <a href="mailto:pasquale@klasbook.be">Contact</a>
+  </div>
+</footer>
+
+<script>
+let annual = false;
+function toggleBilling() {
+  annual = !annual;
+  document.getElementById('toggle').classList.toggle('on', annual);
+  document.getElementById('lbl-m').classList.toggle('active', !annual);
+  document.getElementById('lbl-a').classList.toggle('active', annual);
+  if (annual) {
+    document.getElementById('pr-pro').textContent = '149€';
+    document.getElementById('pr-pro-p').textContent = '/an · soit 12,42€/mois';
+    document.getElementById('pr-ecole').textContent = '1 190€';
+    document.getElementById('pr-ecole-p').textContent = '/an · soit 99€/mois';
+  } else {
+    document.getElementById('pr-pro').textContent = '19€';
+    document.getElementById('pr-pro-p').textContent = '/mois · sans engagement';
+    document.getElementById('pr-ecole').textContent = '149€';
+    document.getElementById('pr-ecole-p').textContent = '/mois · jusqu\'à 20 profs';
+  }
+}
+</script>
+
+</body>
+</html>

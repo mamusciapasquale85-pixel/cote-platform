@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { createBrowserClient } from "@supabase/ssr";
 
 type NavItem = { label: string; icon: string; href: string };
 
@@ -31,7 +32,21 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [apprentissageLabel, setApprentissageLabel] = useState<string>("Apprentissages");
   const [isMobile, setIsMobile] = useState(false);
+  const [userInitial, setUserInitial] = useState("?");
   const avatarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    supabase.from("user_profiles").select("full_name").then(({ data }) => {
+      const name = (data?.[0] as { full_name?: string } | undefined)?.full_name ?? "";
+      const clean = name.replace(/\./g, " ").trim();
+      const initial = clean.split(/\s+/)[0]?.[0]?.toUpperCase() ?? "?";
+      setUserInitial(initial);
+    });
+  }, []);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -124,7 +139,7 @@ export default function ProfShell({ children }: { children: React.ReactNode }) {
                   background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontWeight: 800, color: "#fff", fontSize: 14,
-                }}>P</button>
+                }}>{userInitial}</button>
                 {menuOpen && (
                   <div style={{
                     position: "absolute", top: 44, right: 0, zIndex: 200,

@@ -106,7 +106,7 @@ const SUBJECTS: Subject[] = [
   },
   {
     id: "sciences",
-    label: "Sciences",
+    label: "Sciences / Chimie / Physique",
     emoji: "🔬",
     color: "#34C759",
     niveaux: ["1S", "2S", "3S", "4S", "5S", "6S"],
@@ -185,21 +185,33 @@ export default function CreerEvaluationPage() {
   const [evalDate, setEvalDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [competenceFWB, setCompetenceFWB] = useState(COMPETENCES_FWB[0].id);
 
+  // Compétences FWB uniquement pour les langues modernes
+  const isLangueSubject = ["nl", "en", "francais"].includes(selectedSubject.id);
+
   // Résultat
   const [result, setResult] = useState<GenResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load template depuis Supabase
+  // Load template depuis Supabase + pré-sélection matière de l'onboarding
   useEffect(() => {
     async function loadTemplate() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data } = await supabase
-        .from("user_profiles")
-        .select("template_json, full_name")
-        .eq("id", user.id)
-        .maybeSingle();
+
+      const [{ data }, { data: coursesData }] = await Promise.all([
+        supabase
+          .from("user_profiles")
+          .select("template_json, full_name")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("courses")
+          .select("subject_area")
+          .order("created_at", { ascending: true })
+          .limit(5),
+      ]);
+
       if (data) {
         const saved = (data.template_json ?? {}) as Partial<SchoolTemplate>;
         setTemplate({
@@ -209,6 +221,13 @@ export default function CreerEvaluationPage() {
           address: saved.address ?? "",
           logo_url: saved.logo_url ?? "",
         });
+      }
+
+      // Pré-sélectionner la matière principale de l'enseignant
+      if (coursesData && coursesData.length > 0) {
+        const primaryArea = (coursesData[0] as { subject_area: string }).subject_area;
+        const match = SUBJECTS.find(s => s.id === primaryArea);
+        if (match) handleSubjectChange(match);
       }
     }
     void loadTemplate();
@@ -248,9 +267,9 @@ export default function CreerEvaluationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           subject: selectedSubject.id,
-          langue: selectedSubject.id,
+          langue: isLangueSubject ? selectedSubject.id : undefined,
           type_exercice: typeExercice,
-          competence_fwb: competenceFWB,
+          ...(isLangueSubject ? { competence_fwb: competenceFWB } : {}),
           niveau,
           theme,
           classe,
@@ -721,18 +740,20 @@ export default function CreerEvaluationPage() {
               ✨ Paramètres IA
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>
-                Compétence FWB
-                <select
-                  value={competenceFWB}
-                  onChange={e => setCompetenceFWB(e.target.value)}
-                  style={{ display: "block", width: "100%", marginTop: 3, padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 12, background: "#fff" }}
-                >
-                  {COMPETENCES_FWB.map(c => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
-                  ))}
-                </select>
-              </label>
+              {isLangueSubject && (
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>
+                  Compétence FWB
+                  <select
+                    value={competenceFWB}
+                    onChange={e => setCompetenceFWB(e.target.value)}
+                    style={{ display: "block", width: "100%", marginTop: 3, padding: "6px 8px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 12, background: "#fff" }}
+                  >
+                    {COMPETENCES_FWB.map(c => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>
                 Type d&apos;exercice
                 <select
@@ -946,27 +967,108 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
 function ExercicePreview({ text }: { text: string }) {
   const lines = text.split("\n");
   return (
-    <div style={{ padding: "14px 16px", maxHeight: 480, overflowY: "auto", fontSize: 13, lineHeight: 1.8, color: "#1e293b" }}>
+    <div style={{ padding: "14px 16px", maxHeight: 520, overflowY: "auto", fontSize: 13, lineHeight: 1.85, color: "#1e293b", fontFamily: "system-ui, sans-serif" }}>
       {lines.map((line, i) => {
         const t = line.trim();
-        if (!t) return <div key={i} style={{ height: 6 }} />;
-        if (/^#{1,3}\s/.test(t)) {
-          return <div key={i} style={{ fontWeight: 900, color: "#0A84FF", marginTop: 12, marginBottom: 4, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>{t.replace(/^#{1,3}\s/, "")}</div>;
-        }
-        if (/^[A-ZÉÈÀÙÊÎÔÛÇ\s\d–—:]{5,}$/.test(t) && t.length > 4) {
-          return <div key={i} style={{ fontWeight: 800, color: "#FF3B30", marginTop: 10, marginBottom: 3 }}>{t}</div>;
-        }
+
+        // Ligne vide
+        if (!t) return <div key={i} style={{ height: 8 }} />;
+
+        // Séparateur ---
         if (/^-{3,}$/.test(t)) {
-          return <hr key={i} style={{ border: "none", borderTop: "1px solid #e2e8f0", margin: "8px 0" }} />;
+          return <hr key={i} style={{ border: "none", borderTop: "1.5px solid #e2e8f0", margin: "10px 0" }} />;
         }
-        if (/^[-•]\s/.test(t)) {
-          return <div key={i} style={{ paddingLeft: 14, borderLeft: "2px solid #e2e8f0", marginBottom: 2 }}>{t.slice(2)}</div>;
+
+        // Titres Markdown ## ou #
+        if (/^#{1,3}\s/.test(t)) {
+          const txt = t.replace(/^#{1,3}\s+/, "");
+          return (
+            <div key={i} style={{
+              fontWeight: 900, color: "#0A84FF", fontSize: 11,
+              textTransform: "uppercase", letterSpacing: "0.08em",
+              marginTop: 14, marginBottom: 4,
+              paddingBottom: 3, borderBottom: "1.5px solid #bfdbfe",
+            }}>{txt}</div>
+          );
         }
-        if (/^\d+\.\s/.test(t)) {
-          return <div key={i} style={{ paddingLeft: 18, marginBottom: 3 }}>{t}</div>;
+
+        // Titres tout en MAJUSCULES (sections CORRIGÉ, PARTIE…)
+        if (/^[A-ZÉÈÀÙÊÎÔÛÇ\s\d–—:/()]{4,}$/.test(t) && t.length >= 4 && !/^\d+[.)]\s/.test(t)) {
+          return (
+            <div key={i} style={{
+              fontWeight: 800, color: "#0f172a", fontSize: 12,
+              textTransform: "uppercase", letterSpacing: "0.05em",
+              marginTop: 14, marginBottom: 4,
+              background: "rgba(10,132,255,0.06)", padding: "4px 8px",
+              borderLeft: "3px solid #0A84FF", borderRadius: "0 6px 6px 0",
+            }}>{t}</div>
+          );
         }
-        const bold = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-        return <div key={i} dangerouslySetInnerHTML={{ __html: bold }} style={{ marginBottom: 1 }} />;
+
+        // Listes avec tiret ou puce
+        if (/^[-•*]\s/.test(t)) {
+          const content = t.replace(/^[-•*]\s/, "");
+          const html = content.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+          return (
+            <div key={i} style={{ display: "flex", gap: 6, marginBottom: 2, paddingLeft: 8 }}>
+              <span style={{ color: "#0A84FF", fontWeight: 900, flexShrink: 0 }}>•</span>
+              <span dangerouslySetInnerHTML={{ __html: html }} />
+            </div>
+          );
+        }
+
+        // Questions / items numérotés (1. 2. 3. ou 1) 2) A. B.)
+        if (/^(\d+[.)]\s|[A-Z][.)]\s)/.test(t)) {
+          const match = t.match(/^(\d+[.)]\s|[A-Z][.)]\s)/);
+          const num = match?.[0] ?? "";
+          const rest = t.slice(num.length);
+          const html = rest.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+          return (
+            <div key={i} style={{ display: "flex", gap: 6, marginBottom: 4, paddingLeft: 4 }}>
+              <span style={{ fontWeight: 800, color: "#0A84FF", minWidth: 22, flexShrink: 0 }}>{num.trim()}</span>
+              <span dangerouslySetInnerHTML={{ __html: html }} />
+            </div>
+          );
+        }
+
+        // Ligne citée > blockquote
+        if (/^\s*>\s/.test(line)) {
+          const content = line.replace(/^\s*>\s?/, "");
+          return (
+            <div key={i} style={{
+              borderLeft: "3px solid #0A84FF", paddingLeft: 10,
+              color: "#475569", fontStyle: "italic", marginBottom: 3,
+              background: "rgba(10,132,255,0.04)", padding: "3px 3px 3px 10px",
+              borderRadius: "0 4px 4px 0",
+            }}>{content}</div>
+          );
+        }
+
+        // Ligne de tableau |...|
+        if (/^\|/.test(t)) {
+          if (/^\|[\s:-]+\|/.test(t)) return null; // séparateur tableau
+          const cells = t.split("|").map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+          const isFirst = i === 0 || !lines[i - 1]?.trim().startsWith("|");
+          return (
+            <div key={i} style={{
+              display: "flex", gap: 0, marginBottom: 1,
+              background: isFirst ? "#e2e8f0" : i % 2 === 0 ? "#f8fafc" : "#fff",
+              borderRadius: 4, overflow: "hidden",
+            }}>
+              {cells.map((c, ci) => (
+                <div key={ci} style={{
+                  flex: 1, padding: "4px 8px", fontSize: 12,
+                  fontWeight: isFirst ? 700 : 400,
+                  borderRight: ci < cells.length - 1 ? "1px solid #e2e8f0" : "none",
+                }}>{c}</div>
+              ))}
+            </div>
+          );
+        }
+
+        // Ligne normale avec gras inline **...**
+        const html = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        return <div key={i} dangerouslySetInnerHTML={{ __html: html }} style={{ marginBottom: 2 }} />;
       })}
     </div>
   );
