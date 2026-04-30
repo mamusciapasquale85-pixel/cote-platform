@@ -147,6 +147,14 @@ function normalizeText(input: string): string {
     .toLowerCase();
 }
 
+function niveauFromClasse(classeNom: string): string {
+  const match = classeNom.match(/^(\d)/);
+  if (!match) return classeNom;
+  const n = parseInt(match[1]);
+  const ordinals: Record<number, string> = { 1: "1re", 2: "2e", 3: "3e", 4: "4e", 5: "5e", 6: "6e" };
+  return ordinals[n] ? `${ordinals[n]} secondaire` : classeNom;
+}
+
 function toApiStatut(value: string | null | undefined): ApiStatut {
   if (!value) return "Proposee";
   const normalized = normalizeText(value).replace(/\s+/g, " ");
@@ -574,7 +582,7 @@ export default function RemediationsPage() {
                           eleveNom={item.eleve_nom}
                           classeId={item.classe_id ?? ""}
                           classeNom={item.classe_nom}
-                          niveau={item.niveau ?? "1re secondaire"}
+                          niveau={item.niveau ?? niveauFromClasse(item.classe_nom)}
                           theme={item.attendu ?? undefined}
                           competence={item.competence ?? undefined}
                         />
