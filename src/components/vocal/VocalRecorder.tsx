@@ -140,7 +140,10 @@ export default function VocalRecorder({
           form.append("niveau", niveau);
 
           const res = await fetch("/api/vocal-session", { method: "POST", body: form });
-          if (!res.ok) throw new Error(`Erreur serveur ${res.status}`);
+          if (!res.ok) {
+            const payload = await res.json().catch(() => ({})) as { error?: string };
+            throw new Error(payload.error || `Erreur serveur ${res.status}`);
+          }
 
           const data = (await res.json()) as PronunciationApiResult;
           onResult(data);
