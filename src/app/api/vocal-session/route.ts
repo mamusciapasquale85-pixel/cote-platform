@@ -31,6 +31,10 @@ const PA_LANG_MAP: Record<string, string> = {
 // ─── POST handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
+  // Diagnostic env vars
+  console.log("[vocal-session] AZURE_SPEECH_KEY present:", !!process.env.AZURE_SPEECH_KEY);
+  console.log("[vocal-session] AZURE_SPEECH_REGION:", process.env.AZURE_SPEECH_REGION ?? "(absent)");
+
   try {
     const supabase = await createSupabaseServerClient();
     const { data: { user }, error: userErr } = await supabase.auth.getUser();
