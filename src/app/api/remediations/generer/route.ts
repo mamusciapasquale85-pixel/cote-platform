@@ -43,25 +43,31 @@ Réponds en texte brut, sans markdown ni astérisques.\n\n`;
 
   switch (competence) {
     case "grammaire":
-      return base + `Génère une FICHE DE REMÉDIATION EN GRAMMAIRE NÉERLANDAISE (pas française !) avec 5 exercices de 10 items chacun :
+      return base + `Génère une FICHE DE REMÉDIATION EN GRAMMAIRE NÉERLANDAISE (pas française !) sur le thème "${theme}". 5 exercices de 8 items chacun. RÈGLES ABSOLUES POUR TOUS LES EXERCICES : (1) Ne jamais donner la réponse entre parenthèses — les parenthèses servent UNIQUEMENT à indiquer le sujet ou l'infinitif à utiliser, jamais la forme conjuguée complète ni l'ordre final. (2) Chaque exercice teste un aspect DIFFÉRENT de la règle — ne pas répéter deux fois le même type de tâche.
 
 [INTRO THÉORIQUE]
-En français : explique la règle grammaticale (max 8 lignes). Donne 5 exemples DE PHRASES EN NÉERLANDAIS avec leur traduction française entre parenthèses.
+En français : explique la règle grammaticale (max 8 lignes). Donne 5 exemples EN NÉERLANDAIS avec leur traduction française. Varie les sujets et les contextes.
 
-[EXERCICE 1 – Compléter les blancs]
-Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS avec un blanc à compléter. Numérotées 1 à 10.
+[EXERCICE 1 – Placer le sujet au bon endroit]
+Consigne : "Place le sujet entre parenthèses au bon endroit dans la phrase."
+8 phrases EN NÉERLANDAIS où le sujet est ABSENT de la phrase mais indiqué entre parenthèses. Le verbe est déjà conjugué et à la bonne place. L'élève doit insérer le sujet à la bonne position. Format : "Morgen ga ___ naar school. (ik)" → réponse : "ik" (pas "ga ik").
+Numérotées 1 à 8.
 
-[EXERCICE 2 – QCM]
-Consigne en français. Puis 10 QUESTIONS EN NÉERLANDAIS à choix multiple (A/B/C), les 3 options aussi en néerlandais. Numérotées 1 à 10.
+[EXERCICE 2 – QCM : choisir la bonne phrase]
+Consigne : "Choisis la seule phrase correcte."
+8 groupes de 3 phrases EN NÉERLANDAIS (A/B/C). Une seule phrase par groupe respecte la règle, les deux autres ont des erreurs d'ordre des mots DIFFÉRENTES entre elles. Numérotées 1 à 8.
 
-[EXERCICE 3 – Transformer les phrases]
-Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS à transformer selon la règle (ex : singulier → pluriel, affirmatif → négatif). Numérotées 1 à 10.
+[EXERCICE 3 – Remettre les mots dans l'ordre]
+Consigne : "Remets les mots dans le bon ordre pour former une phrase correcte."
+8 ensembles de mots EN NÉERLANDAIS dans le désordre à remettre en ordre. Les mots sont séparés par des barres obliques. Numérotées 1 à 8. Exemple de format : "naar / ga / ik / school / morgen"
 
-[EXERCICE 4 – Corriger les erreurs]
-Consigne en français. Puis 10 PHRASES EN NÉERLANDAIS contenant une erreur grammaticale à identifier et corriger. Numérotées 1 à 10.
+[EXERCICE 4 – Corriger l'erreur d'ordre des mots]
+Consigne : "Chaque phrase contient une erreur dans l'ordre des mots. Réécris-la correctement."
+8 phrases EN NÉERLANDAIS avec une seule erreur d'ordre des mots (ne pas mélanger d'autres types d'erreurs). Numérotées 1 à 8.
 
 [EXERCICE 5 – Production guidée]
-Consigne en français. Puis 10 AMORCES DE PHRASES EN NÉERLANDAIS à compléter librement en appliquant la règle. Numérotées 1 à 10.
+Consigne : "Complète chaque phrase librement avec au moins 3 mots en néerlandais."
+8 amorces EN NÉERLANDAIS où le début est donné (avec inversion déjà effectuée) et l'élève doit terminer la phrase de façon cohérente. Format : "Vanavond kook ik ___" Numérotées 1 à 8.
 
 [CORRIGÉ EXERCICE 1]
 10 réponses en néerlandais numérotées.
