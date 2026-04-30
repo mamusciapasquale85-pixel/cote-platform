@@ -52,19 +52,32 @@ function parserSections(contenu: string): { titre: string; contenu: string }[] {
 
   for (const line of lines) {
     const t = line.trim();
+    const u = t.toUpperCase();
     const isSection =
-      /^\[EXERCICE\s+\d+/.test(t.toUpperCase()) ||
-      /^\[INTRO/.test(t.toUpperCase()) ||
-      /^\[TEXTE/.test(t.toUpperCase()) ||
-      /^\[MODÈLE/.test(t.toUpperCase());
+      // Avec crochets (format attendu)
+      /^\[EXERCICE\s+\d+/.test(u) ||
+      /^\[INTRO/.test(u) ||
+      /^\[TEXTE/.test(u) ||
+      /^\[MODÈLE/.test(u) ||
+      /^\[MODELE/.test(u) ||
+      // Sans crochets (Claude ne respecte pas toujours le format)
+      /^EXERCICE\s+\d+/.test(u) ||
+      /^INTRO\s+(TH[EÉ]ORIQUE|G[EÉ]N[EÉ]RAL)/.test(u) ||
+      /^TEXTE\s+(N[EÉ]ERLANDAIS|NL)/.test(u) ||
+      /^INTRODUCTION$/.test(u) ||
+      // Titres en majuscules standalone comme "FICHE DE REMÉDIATION..."
+      (t.length > 10 && t === t.toUpperCase() && /^[A-ZÉÀÈÙÂÊÎÔÛÄËÏÖÜ\s:–\-]{10,}$/.test(t) && /^(FICHE|REMÉDIATION|RÉMÉDIA)/.test(u));
 
-    if (isSection) {
+    // Ignorer les sections corrigé (déjà filtrées par retirerCorrige)
+    const isCorrige = /^\[?CORRIG[EÉ]/.test(u) || /^\[?R[EÉ]PONSES?/.test(u) || /^\[?ANSWERS/.test(u);
+
+    if (isSection && !isCorrige) {
       if (currentLines.some((l) => l.trim())) {
         sections.push({ titre: currentTitle, contenu: currentLines.join("\n").trim() });
       }
       currentTitle = t.replace(/^\[/, "").replace(/\]$/, "").trim();
       currentLines = [];
-    } else {
+    } else if (!isCorrige) {
       currentLines.push(line);
     }
   }
@@ -72,7 +85,9 @@ function parserSections(contenu: string): { titre: string; contenu: string }[] {
     sections.push({ titre: currentTitle, contenu: currentLines.join("\n").trim() });
   }
 
-  return sections.length > 0 ? sections : [{ titre: "Exercice", contenu }];
+  // Filtre les sections vides ou trop courtes
+  const filtered = sections.filter((s) => s.contenu.trim().length > 5);
+  return filtered.length > 0 ? filtered : [{ titre: "Exercice", contenu }];
 }
 
 // ─── Email prof ───────────────────────────────────────────────────────────────

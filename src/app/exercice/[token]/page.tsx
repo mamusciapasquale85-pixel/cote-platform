@@ -215,7 +215,6 @@ function ItemsInput({
   }
 
   if (items.length === 0) {
-    // Fallback: textarea libre
     return (
       <textarea
         value={reponse}
@@ -225,43 +224,52 @@ function ItemsInput({
         style={{
           width: "100%",
           borderRadius: 12,
-          border: "1.5px solid #e2e8f0",
-          padding: "12px",
-          fontSize: 14,
+          border: "1.5px solid #cbd5e1",
+          padding: "14px",
+          fontSize: 16,
           resize: "vertical",
           fontFamily: "system-ui, sans-serif",
           lineHeight: 1.7,
           boxSizing: "border-box",
           background: "#fff",
           color: "#1e293b",
+          WebkitAppearance: "none",
+          touchAction: "manipulation",
         }}
       />
     );
   }
 
   return (
-    <div style={{ display: "grid", gap: 8 }}>
+    <div style={{ display: "grid", gap: 10 }}>
       {items.map((item) => (
-        <div key={item.numero} style={{ display: "grid", gap: 4 }}>
-          <div style={{ fontSize: 13, color: "#475569", padding: "2px 0 2px 12px", borderLeft: "3px solid #e2e8f0" }}>
+        <div key={item.numero} style={{ display: "grid", gap: 6, background: "#f8fafc", borderRadius: 12, padding: "10px 14px", border: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: 13, color: "#475569", fontWeight: 500 }}>
             <strong style={{ color: "#0A84FF" }}>{item.numero}.</strong> {item.texte}
           </div>
           <input
             type="text"
+            inputMode="text"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             value={answers[item.numero] ?? ""}
             onChange={(e) => handleChange(item.numero, e.target.value)}
-            placeholder={`Réponse ${item.numero}…`}
+            placeholder={`Ta réponse…`}
             style={{
               width: "100%",
-              padding: "10px 14px",
+              padding: "12px 14px",
               borderRadius: 10,
-              border: "1.5px solid #e2e8f0",
-              fontSize: 14,
+              border: "1.5px solid #cbd5e1",
+              fontSize: 16,
               fontFamily: "system-ui, sans-serif",
               boxSizing: "border-box",
-              background: "#fff",
-              color: "#1e293b",
-              outline: "none",
+              background: "#ffffff",
+              color: "#0f172a",
+              WebkitAppearance: "none",
+              touchAction: "manipulation",
+              minHeight: 48,
             }}
           />
         </div>
@@ -459,15 +467,24 @@ export default function ExercicePage({ params }: { params: Promise<{ token: stri
               </div>
 
               <div style={{ padding: "16px 20px" }}>
-                {/* Contenu de la section (texte de l'exercice) */}
-                <ContenuTexte texte={section.contenu} />
+                {/* Intro : affiche le texte complet. Exercices : affiche seulement la consigne (avant les items numérotés) */}
+                {idx === 0 || (!estQCM && !hasItems) ? (
+                  <ContenuTexte texte={section.contenu} />
+                ) : (
+                  /* Affiche uniquement la consigne (lignes avant le premier item numéroté) */
+                  (() => {
+                    const consigneLines = section.contenu.split("\n").filter(l => l.trim());
+                    const firstItemIdx = consigneLines.findIndex(l => /^\d+[.):]?\s/.test(l.trim()));
+                    const consigne = firstItemIdx > 0
+                      ? consigneLines.slice(0, firstItemIdx).join("\n")
+                      : consigneLines.slice(0, 2).join("\n");
+                    return consigne ? <ContenuTexte texte={consigne} /> : null;
+                  })()
+                )}
 
                 {/* Zone de réponse (seulement pour les sections d'exercice, pas l'intro) */}
                 {idx > 0 && (
-                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px dashed #e2e8f0" }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
-                      ✏️ Mes réponses
-                    </div>
+                  <div style={{ marginTop: 14 }}>
                     {estQCM ? (
                       <QCMInput
                         section={section}
@@ -487,10 +504,11 @@ export default function ExercicePage({ params }: { params: Promise<{ token: stri
                         placeholder="Écris tes réponses ici…"
                         rows={5}
                         style={{
-                          width: "100%", borderRadius: 12, border: "1.5px solid #e2e8f0",
-                          padding: "12px", fontSize: 14, resize: "vertical",
+                          width: "100%", borderRadius: 12, border: "1.5px solid #cbd5e1",
+                          padding: "14px", fontSize: 16, resize: "vertical",
                           fontFamily: "system-ui, sans-serif", lineHeight: 1.7,
                           boxSizing: "border-box", background: "#fff", color: "#1e293b",
+                          WebkitAppearance: "none",
                         }}
                       />
                     )}
