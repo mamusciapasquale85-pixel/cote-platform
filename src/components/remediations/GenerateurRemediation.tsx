@@ -21,6 +21,17 @@ export type Competence =
 
 type TypeExerciceOption = { id: string; label: string; emoji: string };
 type GenerateResponse = { exercice?: string; titre?: string; error?: string };
+type EnvoyerResponse = {
+  ok?: boolean;
+  emailEnvoye?: boolean;
+  emailDestinataire?: string | null;
+  emailErreur?: string | null;
+  parentEmailEnvoye?: boolean;
+  parentEmailDestinataire?: string | null;
+  parentEmailErreur?: string | null;
+  sauvegardeId?: string | null;
+  error?: string;
+};
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
@@ -80,7 +91,10 @@ function ExerciceRenderer({ text }: { text: string }) {
 
 interface GenerateurRemediationProps {
   remediationId: string;
+  eleveId: string;
   eleveNom: string;
+  classeId: string;
+  classeNom: string;
   niveau: string;
   theme?: string;
   competence?: string;
@@ -90,7 +104,10 @@ interface GenerateurRemediationProps {
 
 export default function GenerateurRemediation({
   remediationId,
+  eleveId,
   eleveNom,
+  classeId,
+  classeNom,
   niveau,
   theme,
   competence,
@@ -103,12 +120,25 @@ export default function GenerateurRemediation({
   const [exercice, setExercice] = useState("");
   const [copied, setCopied] = useState(false);
 
+  // États envoi
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{
+    emailEnvoye: boolean;
+    emailDestinataire: string | null;
+    sauvegarde: boolean;
+    emailErreur: string | null;
+    parentEmailEnvoye: boolean;
+    parentEmailDestinataire: string | null;
+    parentEmailErreur: string | null;
+  } | null>(null);
+
   const hasResult = exercice.trim().length > 0;
 
   async function onGenerate() {
     setLoading(true);
     setErrorMsg(null);
     setCopied(false);
+    setSendResult(null);
     try {
       const res = await fetch("/api/remediations/generer", {
         method: "POST",
@@ -133,6 +163,45 @@ export default function GenerateurRemediation({
     }
   }
 
+  async function onEnvoyer() {
+    if (!hasResult) return;
+    setSending(true);
+    setErrorMsg(null);
+    setSendResult(null);
+    try {
+      const res = await fetch("/api/remediations/envoyer-exercice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          remediationId,
+          eleveId,
+          eleveNom,
+          classeId,
+          classeNom,
+          titre,
+          contenu: exercice,
+          profId: null,    // récupéré côté serveur via auth si besoin
+          profNom: "",
+        }),
+      });
+      const payload = (await res.json()) as EnvoyerResponse;
+      if (!res.ok) throw new Error(payload.error || "Erreur lors de l'envoi.");
+      setSendResult({
+        emailEnvoye: payload.emailEnvoye ?? false,
+        emailDestinataire: payload.emailDestinataire ?? null,
+        sauvegarde: !!payload.sauvegardeId,
+        emailErreur: payload.emailErreur ?? null,
+        parentEmailEnvoye: payload.parentEmailEnvoye ?? false,
+        parentEmailDestinataire: payload.parentEmailDestinataire ?? null,
+        parentEmailErreur: payload.parentEmailErreur ?? null,
+      });
+    } catch (e) {
+      setErrorMsg(toNiceError(e));
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function onCopy() {
     try {
       await navigator.clipboard.writeText(exercice);
@@ -148,9 +217,10 @@ export default function GenerateurRemediation({
     setTitre("");
     setErrorMsg(null);
     setCopied(false);
+    setSendResult(null);
   }
 
-  // Collapsed state — just a button
+  // ── État collapsed ──
   if (!open) {
     return (
       <div style={{ marginTop: 10 }}>
@@ -180,7 +250,7 @@ export default function GenerateurRemediation({
     );
   }
 
-  // Expanded state
+  // ── État ouvert ──
   const selectedType = EXERCISE_TYPES.find((t) => t.id === typeExercice);
 
   return (
@@ -324,22 +394,101 @@ export default function GenerateurRemediation({
 
         {/* Actions */}
         {hasResult && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={() => void onCopy()}
-              style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
-            >
-              {copied ? "✅ Copié !" : "📋 Copier"}
-            </button>
-            <button
-              type="button"
-              onClick={onReset}
-              style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
-            >
-              🔄 Nouvel exercice
-            </button>
-          </div>
+          <>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => void onCopy()}
+                style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+              >
+                {copied ? "✅ Copié !" : "📋 Copier"}
+              </button>
+              <button
+                type="button"
+                onClick={onReset}
+                style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", background: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+              >
+                🔄 Nouvel exercice
+              </button>
+            </div>
+
+            {/* Bouton envoyer */}
+            {!sendResult && (
+              <button
+                type="button"
+                onClick={() => void onEnvoyer()}
+                disabled={sending}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: sending ? "#94a3b8" : "linear-gradient(135deg,#22c55e 0%,#16a34a 100%)",
+                  color: "#fff",
+                  fontWeight: 800,
+                  fontSize: 13,
+                  cursor: sending ? "wait" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                }}
+              >
+                {sending ? "⏳ Envoi en cours…" : "📧 Envoyer à l'élève + sauvegarder"}
+              </button>
+            )}
+
+            {/* Résultat envoi */}
+            {sendResult && (
+              <div
+                style={{
+                  borderRadius: 10,
+                  padding: "10px 14px",
+                  background: "rgba(34,197,94,0.08)",
+                  border: "1px solid rgba(34,197,94,0.35)",
+                  fontSize: 12,
+                  display: "grid",
+                  gap: 4,
+                }}
+              >
+                {sendResult.sauvegarde && (
+                  <div style={{ color: "#15803D", fontWeight: 700 }}>
+                    ✅ Sauvegardé dans l'historique ({classeNom} › {eleveNom})
+                  </div>
+                )}
+                {sendResult.emailEnvoye && sendResult.emailDestinataire && (
+                  <div style={{ color: "#15803D", fontWeight: 700 }}>
+                    📧 Élève notifié : {sendResult.emailDestinataire}
+                  </div>
+                )}
+                {!sendResult.emailEnvoye && !sendResult.emailErreur && (
+                  <div style={{ color: "#92400E", fontWeight: 600 }}>
+                    ⚠️ Aucun email élève configuré
+                  </div>
+                )}
+                {sendResult.emailErreur && (
+                  <div style={{ color: "#991B1B", fontWeight: 600 }}>
+                    ⚠️ Erreur email élève : {sendResult.emailErreur}
+                  </div>
+                )}
+                {sendResult.parentEmailEnvoye && sendResult.parentEmailDestinataire && (
+                  <div style={{ color: "#15803D", fontWeight: 700 }}>
+                    👨‍👩‍👧 Parent notifié : {sendResult.parentEmailDestinataire}
+                  </div>
+                )}
+                {!sendResult.parentEmailEnvoye && !sendResult.parentEmailErreur && (
+                  <div style={{ color: "#92400E", fontWeight: 600 }}>
+                    ⚠️ Aucun email parent configuré
+                  </div>
+                )}
+                {sendResult.parentEmailErreur && (
+                  <div style={{ color: "#991B1B", fontWeight: 600 }}>
+                    ⚠️ Erreur email parent : {sendResult.parentEmailErreur}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
