@@ -203,6 +203,15 @@ export default function ElevePage() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMsg, setInviteMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // Édition contacts
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactParentEmail, setContactParentEmail] = useState("");
+  const [contactStudentRef, setContactStudentRef] = useState("");
+  const [contactParentPhone, setContactParentPhone] = useState("");
+  const [contactLoading, setContactLoading] = useState(false);
+  const [contactMsg, setContactMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
   const averages = useMemo(() => {
     const valid = results.filter((r) => r.value != null && r.max_points != null && (r.max_points ?? 0) > 0);
     let sumValue = 0, sumMax = 0;
@@ -327,6 +336,21 @@ export default function ElevePage() {
                 <div style={{ fontWeight: 700, fontSize: 14, wordBreak: "break-word" }}>{value}</div>
               </div>
             ))}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <button
+              style={{ ...btnPrimary, fontSize: 12 }}
+              onClick={() => {
+                setContactEmail(student?.email ?? "");
+                setContactParentEmail(student?.parent_email ?? "");
+                setContactStudentRef(student?.student_ref ?? "");
+                setContactParentPhone(student?.parent_phone ?? "");
+                setContactMsg(null);
+                setShowContactModal(true);
+              }}
+            >
+              ✏️ Modifier les emails
+            </button>
           </div>
         </div>
       </div>
@@ -578,6 +602,104 @@ export default function ElevePage() {
                 {inviteLoading ? "Envoi…" : "📨 Envoyer l'invitation"}
               </button>
               <button style={btn} onClick={() => setShowInviteModal(false)}>Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL CONTACTS ── */}
+      {showContactModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => setShowContactModal(false)}
+        >
+          <div
+            style={{ width: "min(480px, 96vw)", background: "white", borderRadius: 18, padding: 28, boxShadow: "0 20px 60px rgba(15,23,42,0.3)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 18 }}>✏️ Modifier les coordonnées</div>
+
+            <div style={{ display: "grid", gap: 14 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 6 }}>Référence élève</label>
+                <input
+                  type="text"
+                  value={contactStudentRef}
+                  onChange={(e) => setContactStudentRef(e.target.value)}
+                  placeholder="ex. 12345"
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 12, border: "1px solid rgba(15,23,42,0.2)", fontSize: 14, boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 6 }}>Email de l'élève</label>
+                <input
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  placeholder="eleve@exemple.com"
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 12, border: "1px solid rgba(15,23,42,0.2)", fontSize: 14, boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 6 }}>Tél. parent</label>
+                <input
+                  type="tel"
+                  value={contactParentPhone}
+                  onChange={(e) => setContactParentPhone(e.target.value)}
+                  placeholder="+32 470 00 00 00"
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 12, border: "1px solid rgba(15,23,42,0.2)", fontSize: 14, boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 700, display: "block", marginBottom: 6 }}>Email du parent</label>
+                <input
+                  type="email"
+                  value={contactParentEmail}
+                  onChange={(e) => setContactParentEmail(e.target.value)}
+                  placeholder="parent@exemple.com"
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: 12, border: "1px solid rgba(15,23,42,0.2)", fontSize: 14, boxSizing: "border-box" }}
+                />
+              </div>
+            </div>
+
+            {contactMsg && (
+              <div style={{
+                marginTop: 12, borderRadius: 10, padding: "10px 14px", fontSize: 13, fontWeight: 600,
+                background: contactMsg.ok ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)",
+                color: contactMsg.ok ? "#166534" : "#991B1B",
+                border: `1px solid ${contactMsg.ok ? "rgba(22,163,74,0.25)" : "rgba(220,38,38,0.25)"}`,
+              }}>
+                {contactMsg.ok ? "✅ " : "⚠️ "}{contactMsg.text}
+              </div>
+            )}
+
+            <div style={{ marginTop: 18, display: "flex", gap: 10 }}>
+              <button
+                disabled={contactLoading}
+                onClick={async () => {
+                  setContactLoading(true);
+                  setContactMsg(null);
+                  try {
+                    const res = await fetch(`/api/eleves/${studentId}/contacts`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email: contactEmail, parent_email: contactParentEmail, student_ref: contactStudentRef, parent_phone: contactParentPhone }),
+                    });
+                    const data = await res.json() as { ok?: boolean; error?: string };
+                    if (!res.ok) throw new Error(data.error ?? "Erreur");
+                    setContactMsg({ ok: true, text: "Coordonnées mises à jour !" });
+                    setStudent((prev) => prev ? { ...prev, email: contactEmail || null, parent_email: contactParentEmail || null, student_ref: contactStudentRef || null, parent_phone: contactParentPhone || null } : prev);
+                  } catch (err: unknown) {
+                    setContactMsg({ ok: false, text: err instanceof Error ? err.message : "Erreur inconnue" });
+                  } finally {
+                    setContactLoading(false);
+                  }
+                }}
+                style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #FF3B30 0%, #0A84FF 100%)", color: "white", fontWeight: 800, fontSize: 14, cursor: contactLoading ? "wait" : "pointer", opacity: contactLoading ? 0.7 : 1 }}
+              >
+                {contactLoading ? "Sauvegarde…" : "💾 Enregistrer"}
+              </button>
+              <button style={btn} onClick={() => setShowContactModal(false)}>Fermer</button>
             </div>
           </div>
         </div>
