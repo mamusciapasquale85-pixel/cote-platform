@@ -570,7 +570,10 @@ export default function RemediationsPage() {
 
                         <GenerateurRemediation
                           remediationId={item.id}
+                          eleveId={item.eleve_id ?? ""}
                           eleveNom={item.eleve_nom}
+                          classeId={item.classe_id ?? ""}
+                          classeNom={item.classe_nom}
                           niveau={item.niveau ?? "1re secondaire"}
                           theme={item.attendu ?? undefined}
                           competence={item.competence ?? undefined}
